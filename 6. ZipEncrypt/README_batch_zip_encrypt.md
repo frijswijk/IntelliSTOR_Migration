@@ -56,7 +56,7 @@ Contains columns:
 - `FILENAME`: Filename with .RPT extension (e.g., "2511304H.RPT")
 - `YEAR`: Year for organizing output (e.g., "2025")
 - `REPORT_SPECIES_ID`: Species ID
-- `Compressed_Filename`: **Added by script** - relative path to compressed file (e.g., "\2025\2511304H.7z")
+- `Compressed_Filename`: **Added by script** - compressed filename (e.g., "\2025\2511304H.7z" or "SIMULATE\2025\2511304H.7z" in simulate mode)
 - Other columns...
 
 ## Usage
@@ -183,6 +183,19 @@ python batch_zip_encrypt.py \
   --delete-after-compress No
 ```
 
+### Simulate Mode (Test Without Compression)
+
+```bash
+# Test the process without actually creating archives
+python batch_zip_encrypt.py \
+  --source-folder "C:\OCBC\Reports" \
+  --output-folder "C:\OCBC\EncryptedArchives" \
+  --SIMULATEZIP
+
+# Simulated paths will be stored as "SIMULATE\YYYY\name.7z"
+# Useful for testing, validation, or planning
+```
+
 ## Command-Line Arguments
 
 ### Required Arguments
@@ -206,6 +219,7 @@ python batch_zip_encrypt.py \
 | `--delete-after-compress` | Delete source files after compression (must specify "Yes") | No |
 | `--compression-level` | Compression level 0-9 (0=store, 5=normal, 9=ultra) | 5 |
 | `--quiet` | Suppress console output (single-line progress) | Show all output |
+| `--SIMULATEZIP` | Simulate mode: Skip actual compression, store simulated paths | Disabled |
 
 ## Output Structure
 
@@ -253,15 +267,18 @@ Script directory (Migration_Instances/):
   - `Species_Instance_Filename`: CSV filename (e.g., "BC2060P_2024.csv")
   - `row`: Row number in CSV (1-based)
   - `Filename`: Original filename from CSV
-  - `Status`: SUCCESS, NO_FILES_FOUND, SKIPPED, or FAILED
-  - `Compressed_Path`: Relative path to .7z file (empty if not compressed)
+  - `Status`: SUCCESS, SIMULATED, NO_FILES_FOUND, SKIPPED, or FAILED
+  - `Compressed_Filename`: Compressed filename (empty if not compressed)
 - **Purpose**: Complete audit trail of ALL processing - proof of what was compressed and what wasn't
 - **Use Cases**: Reporting, quality control, compliance, troubleshooting
 
 ### Instance CSV Updates
 - **Automatic column addition**: `Compressed_Filename` column added to instance CSVs
 - **Real-time updates**: CSV updated immediately after each file is processed
-- **Values**: Relative path (e.g., "\2025\2511304H.7z") or empty if not compressed
+- **Values**:
+  - Normal mode: `\2025\2511304H.7z`
+  - Simulate mode: `SIMULATE\2025\2511304H.7z`
+  - Empty if not compressed
 - **Benefit**: Easy to see which files have been archived
 
 ## Resume Capability
@@ -391,11 +408,18 @@ All operations are logged to multiple outputs:
 
 **Audit log (compress-log.csv):**
 ```csv
-species_id,Species_name,Species_Instance_Filename,row,Filename,Status,Compressed_Path
+species_id,Species_name,Species_Instance_Filename,row,Filename,Status,Compressed_Filename
 1,BC2060P,BC2060P_2024.csv,1,2511304H.RPT,SUCCESS,\2025\2511304H.7z
 1,BC2060P,BC2060P_2024.csv,2,2511204W.RPT,SUCCESS,\2025\2511204W.7z
 1,BC2060P,BC2060P_2024.csv,3,2510804E.RPT,NO_FILES_FOUND,
 1,BC2060P,BC2060P_2024.csv,4,2510704S.RPT,SKIPPED,\2025\2510704S.7z
+```
+
+**Audit log in simulate mode:**
+```csv
+species_id,Species_name,Species_Instance_Filename,row,Filename,Status,Compressed_Filename
+1,BC2060P,BC2060P_2024.csv,1,2511304H.RPT,SIMULATED,SIMULATE\2025\2511304H.7z
+1,BC2060P,BC2060P_2024.csv,2,2511204W.RPT,SIMULATED,SIMULATE\2025\2511204W.7z
 ```
 
 **Quiet mode console (single line):**
@@ -637,12 +661,65 @@ For 500 species with 100 files each:
   - Use `--filter-species` to process in batches
   - Run multiple instances in parallel for different species groups
 
+## Simulate Mode Details
+
+### What is Simulate Mode?
+
+Simulate mode (`--SIMULATEZIP`) processes all CSV records and updates them with simulated paths **without** actually creating 7z archives.
+
+### Use Cases
+
+1. **Testing & Validation**
+   - Validate CSV data before committing to actual compression
+   - Test script configuration and workflow
+   - Verify file matching logic works correctly
+
+2. **Planning & Analysis**
+   - Estimate how many archives will be created
+   - Preview archive organization by year
+   - Identify missing files without compression overhead
+
+3. **Disk Space Management**
+   - Test on systems with limited disk space
+   - Plan storage requirements before actual compression
+   - Verify year-based organization structure
+
+4. **Development & Debugging**
+   - Test script changes without time-consuming compression
+   - Debug CSV update logic
+   - Verify audit trail functionality
+
+### Behavior in Simulate Mode
+
+- **No compression**: 7z archives are NOT created
+- **No file system operations**: Year folders NOT created
+- **No file existence checks**: Assumes all files exist
+- **CSV updates**: Instance CSVs updated with simulated paths
+- **Audit log**: All entries marked as "SIMULATED"
+- **Path format**: `SIMULATE\YYYY\name.7z`
+- **Speed**: 10-100x faster than actual compression
+- **No deletion**: Source files never deleted (even with `--delete-after-compress`)
+
+### Example Output
+
+**Instance CSV (Compressed_Filename column):**
+```
+SIMULATE\2025\2511304H.7z
+SIMULATE\2025\2511204W.7z
+SIMULATE\2024\2410104A.7z
+```
+
+**Audit log (compress-log.csv):**
+```csv
+species_id,Species_name,Species_Instance_Filename,row,Filename,Status,Compressed_Filename
+1,BC2060P,BC2060P_2024.csv,1,2511304H.RPT,SIMULATED,SIMULATE\2025\2511304H.7z
+```
+
 ## Future Enhancements
 
 Potential improvements for future versions:
 
 - Built-in parallel processing (automatic multi-threading)
-- Dry-run mode (preview what would be archived)
 - Progress bar (visual progress indicator using tqdm)
 - Verify mode (check existing archives for corruption)
 - Statistics report (file size savings, compression ratios)
@@ -761,6 +838,29 @@ while ($true) {
 Get-Content batch_zip_encrypt.log -Wait -Tail 20
 ```
 
+### Example 8: Simulate Mode (Testing)
+
+```bash
+# Test without actually creating archives
+python batch_zip_encrypt.py \
+  --source-folder "C:\Reports" \
+  --output-folder "D:\Archives" \
+  --SIMULATEZIP \
+  --quiet
+
+# Check what would be created
+type compress-log.csv
+
+# Review simulated paths in CSV
+findstr "SIMULATE" compress-log.csv
+
+# Use this to:
+# - Validate CSV data before actual compression
+# - Estimate storage requirements
+# - Test workflow without consuming disk space
+# - Plan archive organization
+```
+
 ## Support
 
 For issues or questions:
@@ -770,12 +870,18 @@ For issues or questions:
 
 ## Version History
 
+- **v2.4** (2026-01-28): Simulate mode and column rename
+  - ⭐ Simulate mode: `--SIMULATEZIP` parameter to test without actual compression
+  - ⭐ Column rename: `Compressed_Path` → `Compressed_Filename` for consistency
+  - Simulated paths prefixed with "SIMULATE\YYYY\name.7z"
+  - Normal paths format: "\YYYY\name.7z"
+  - Simulate mode useful for validation, planning, and testing
+
 - **v2.3** (2026-01-26): Batch processing and disk space management
   - ⭐ Batch processing: `--max-species` parameter (default: 5 species per run)
   - ⭐ Delete after compress: `--delete-after-compress Yes` to free disk space
   - ⭐ Real-time log flushing: Logs survive crashes and interruptions
   - ⭐ Real-time compress-log.csv: Append mode, written immediately
-  - Renamed `Compressed_Filename` to `Compressed_Path` for clarity
   - Auto-resume between batches
   - Progress file cleared only when all species processed
 
@@ -806,5 +912,5 @@ For issues or questions:
 ---
 
 **Author**: Claude Code
-**Date**: 2026-01-26
+**Date**: 2026-01-28
 **License**: MIT (or as specified by project)
