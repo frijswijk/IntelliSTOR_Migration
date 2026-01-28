@@ -9,7 +9,13 @@ Features:
 - Resume capability via progress tracking
 - Support for Windows Authentication and SQL Server Authentication
 - Automatic In_Use=0 updates for reports with no instances
+- Timezone conversion (AS_OF_TIMESTAMP to UTC) with configurable source timezone
 - Comprehensive logging and error handling
+
+Timezone Support:
+- Uses IANA timezone database (pytz library)
+- Common timezones: Asia/Singapore, America/New_York, Europe/London, Asia/Tokyo, UTC
+- Full list: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
 """
 
 import pymssql
@@ -20,6 +26,7 @@ import sys
 import os
 from pathlib import Path
 from datetime import datetime
+import pytz
 
 
 # ============================================================================
@@ -81,9 +88,14 @@ Examples:
   # Quiet mode with single-line progress counter
   python Extract_Instances.py --server localhost --database IntelliSTOR --windows-auth --start-year 2023 --quiet
 
+  # Custom timezone for UTC conversion (default is Asia/Singapore)
+  python Extract_Instances.py --server localhost --database IntelliSTOR --windows-auth --start-year 2023 --timezone "America/New_York"
+  python Extract_Instances.py --server localhost --database IntelliSTOR --windows-auth --start-year 2023 --timezone "Europe/London"
+  python Extract_Instances.py --server localhost --database IntelliSTOR --windows-auth --start-year 2023 --timezone "Asia/Tokyo"
+
   # Custom paths with all options
   python Extract_Instances.py --server myserver --database IntelliSTOR --windows-auth \\
-      --start-year 2023 --end-year 2025 --year-from-filename --quiet \\
+      --start-year 2023 --end-year 2025 --year-from-filename --timezone "Asia/Singapore" --quiet \\
       --input "C:\\path\\to\\Report_Species.csv" --output-dir "C:\\output"
         """
     )
@@ -148,6 +160,11 @@ Examples:
         action='store_true',
         help='Calculate YEAR column from first 2 chars of filename (e.g., "24013001" -> "2024") instead of from AS_OF_TIMESTAMP'
     )
+    parser.add_argument(
+        '--timezone',
+        default='Asia/Singapore',
+        help='Timezone of AS_OF_TIMESTAMP values for UTC conversion. Uses IANA timezone names (e.g., "Asia/Singapore", "America/New_York", "Europe/London", "UTC"). Default: Asia/Singapore. For full list: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones'
+    )
 
     # Output options
     parser.add_argument(
@@ -165,6 +182,12 @@ Examples:
     # Validate year parameters
     if args.end_year and args.end_year < args.start_year:
         parser.error(f'End year ({args.end_year}) cannot be before start year ({args.start_year})')
+
+    # Validate timezone parameter
+    try:
+        pytz.timezone(args.timezone)
+    except pytz.exceptions.UnknownTimeZoneError:
+        parser.error(f'Invalid timezone: {args.timezone}. Use IANA timezone names like "Asia/Singapore", "America/New_York", "Europe/London", "Asia/Tokyo", "UTC". See: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones')
 
     return args
 
@@ -359,10 +382,9 @@ SELECT
     ri.AS_OF_TIMESTAMP,
     STRING_AGG(
         CONCAT(
+            CAST(sec.NAME AS VARCHAR), '#',
             CAST(ris.SEGMENT_NUMBER AS VARCHAR), '#',
-            CAST(ris.SEGMENT_NUMBER AS VARCHAR), '#',
-            CAST(ris.PAGE_STREAM_INSTANCE_NUMBER AS VARCHAR), '#',
-            CAST(ISNULL(ris.START_PAGE_NUMBER, ris.PAGE_STREAM_INSTANCE_NUMBER) AS VARCHAR), '#',
+            CAST(ISNULL(ris.START_PAGE_NUMBER, 0) AS VARCHAR), '#',
             CAST(ris.NUMBER_OF_PAGES AS VARCHAR)
         ),
         '|'
@@ -380,6 +402,10 @@ LEFT JOIN REPORT_INSTANCE_SEGMENT ris
     AND ri.REPORT_SPECIES_ID = ris.REPORT_SPECIES_ID
     AND ri.AS_OF_TIMESTAMP = ris.AS_OF_TIMESTAMP
     AND ri.REPROCESS_IN_PROGRESS = ris.REPROCESS_IN_PROGRESS
+LEFT JOIN SECTION sec
+    ON ris.DOMAIN_ID = sec.DOMAIN_ID
+    AND ris.REPORT_SPECIES_ID = sec.REPORT_SPECIES_ID
+    AND ris.SEGMENT_NUMBER = sec.SECTION_ID
 WHERE ri.REPORT_SPECIES_ID = %s
     AND ri.AS_OF_TIMESTAMP >= %s"""
 
@@ -393,7 +419,7 @@ GROUP BY
     ri.AS_OF_TIMESTAMP,
     rfi.RPT_FILE_ID,
     rf.FILENAME
-ORDER BY ri.AS_OF_TIMESTAMP DESC
+ORDER BY ri.AS_OF_TIMESTAMP ASC
 """
 
     return query
@@ -488,7 +514,55 @@ def calculate_year(row, year_from_filename):
         return ''
 
 
-def write_output_csv(output_path, results, report_species_name, country, year_from_filename):
+def convert_to_utc(timestamp, source_timezone):
+    """
+    Convert timestamp from source timezone to UTC.
+
+    Args:
+        timestamp: Timestamp value (datetime object or string)
+        source_timezone: Timezone name (e.g., 'Asia/Singapore')
+
+    Returns:
+        str: UTC timestamp in ISO format (YYYY-MM-DD HH:MM:SS) or empty string on error
+    """
+    if not timestamp:
+        return ''
+
+    try:
+        # Get timezone objects
+        source_tz = pytz.timezone(source_timezone)
+        utc_tz = pytz.UTC
+
+        # Handle datetime object
+        if isinstance(timestamp, datetime):
+            # If timestamp is naive, localize it to source timezone
+            if timestamp.tzinfo is None:
+                localized = source_tz.localize(timestamp)
+            else:
+                localized = timestamp
+            # Convert to UTC
+            utc_time = localized.astimezone(utc_tz)
+            return utc_time.strftime('%Y-%m-%d %H:%M:%S')
+        else:
+            # Parse string timestamp (assume format: YYYY-MM-DD HH:MM:SS.mmm or YYYY-MM-DD HH:MM:SS)
+            timestamp_str = str(timestamp)
+            # Try parsing with milliseconds first
+            try:
+                dt = datetime.strptime(timestamp_str[:23], '%Y-%m-%d %H:%M:%S.%f')
+            except:
+                dt = datetime.strptime(timestamp_str[:19], '%Y-%m-%d %H:%M:%S')
+
+            # Localize to source timezone
+            localized = source_tz.localize(dt)
+            # Convert to UTC
+            utc_time = localized.astimezone(utc_tz)
+            return utc_time.strftime('%Y-%m-%d %H:%M:%S')
+    except Exception as e:
+        logging.warning(f'Failed to convert timestamp to UTC: {timestamp}, error: {e}')
+        return ''
+
+
+def write_output_csv(output_path, results, report_species_name, country, year_from_filename, source_timezone):
     """
     Write query results to CSV file with simplified column set.
 
@@ -498,6 +572,7 @@ def write_output_csv(output_path, results, report_species_name, country, year_fr
         report_species_name: Report_Species_Name from Report_Species.csv
         country: Country from Report_Species.csv
         year_from_filename: If True, calculate YEAR from filename; else from AS_OF_TIMESTAMP
+        source_timezone: Timezone of AS_OF_TIMESTAMP for UTC conversion
     """
     # Define output header - only essential columns
     output_header = [
@@ -506,8 +581,8 @@ def write_output_csv(output_path, results, report_species_name, country, year_fr
         'Country',
         'YEAR',
         'AS_OF_TIMESTAMP',
-        'SEGMENT_NAME#SEGMENT_NUMBER#PAGE_STREAM_INSTANCE_NUMBER#START_PAGE_NUMBER#NUMBER_OF_PAGES',
-        'REPORT_SPECIES_ID',
+        'UTC',
+        'Segments',
         'REPORT_FILE_ID'
     ]
 
@@ -520,6 +595,9 @@ def write_output_csv(output_path, results, report_species_name, country, year_fr
                 # Calculate YEAR value
                 year = calculate_year(row, year_from_filename)
 
+                # Convert AS_OF_TIMESTAMP to UTC
+                utc_timestamp = convert_to_utc(row.get('AS_OF_TIMESTAMP'), source_timezone)
+
                 # Map database columns to simplified output format
                 output_row = [
                     report_species_name,  # From Report_Species.csv
@@ -527,8 +605,8 @@ def write_output_csv(output_path, results, report_species_name, country, year_fr
                     country,  # From Report_Species.csv
                     year,  # Calculated YEAR column
                     row.get('AS_OF_TIMESTAMP', ''),
+                    utc_timestamp,  # UTC converted timestamp
                     row.get('segments', ''),  # Segments column from STRING_AGG
-                    row.get('REPORT_SPECIES_ID', ''),
                     row.get('RPT_FILE_ID', '')  # REPORT_FILE_ID
                 ]
                 writer.writerow(output_row)
@@ -545,7 +623,7 @@ def write_output_csv(output_path, results, report_species_name, country, year_fr
 # ============================================================================
 
 def process_reports(conn, report_species_list, csv_path, output_dir, last_processed_id,
-                    start_year, end_year, year_from_filename, quiet=False):
+                    start_year, end_year, year_from_filename, source_timezone, quiet=False):
     """
     Main processing loop for extracting report instances.
 
@@ -558,6 +636,7 @@ def process_reports(conn, report_species_list, csv_path, output_dir, last_proces
         start_year: Start year for filtering
         end_year: Optional end year for filtering
         year_from_filename: If True, calculate YEAR from filename; else from AS_OF_TIMESTAMP
+        source_timezone: Timezone of AS_OF_TIMESTAMP for UTC conversion
         quiet: If True, show single-line progress counter instead of detailed logs
 
     Returns:
@@ -586,8 +665,9 @@ def process_reports(conn, report_species_list, csv_path, output_dir, last_proces
     if not quiet:
         logging.info(f'Processing {total_count} report species (starting after ID {last_processed_id})')
         logging.info(f'Year filter: {year_range}, YEAR column from: {"filename" if year_from_filename else "AS_OF_TIMESTAMP"}')
+        logging.info(f'Timezone: {source_timezone} (converting to UTC)')
     else:
-        print(f'Processing {total_count} report species | Year filter: {year_range}')
+        print(f'Processing {total_count} report species | Year filter: {year_range} | Timezone: {source_timezone}')
 
     for idx, report in enumerate(reports_to_process, 1):
         report_species_id = int(report['Report_Species_Id'])
@@ -609,7 +689,7 @@ def process_reports(conn, report_species_list, csv_path, output_dir, last_proces
                 else:
                     output_filename = f'{report_name}_{start_year}.csv'
                 output_path = os.path.join(output_dir, output_filename)
-                write_output_csv(output_path, results, report_name, country, year_from_filename)
+                write_output_csv(output_path, results, report_name, country, year_from_filename, source_timezone)
 
                 if not quiet:
                     logging.info(f'Query returned {len(results)} instances for {report_name}')
@@ -694,6 +774,7 @@ def main():
             start_year=args.start_year,
             end_year=args.end_year,
             year_from_filename=args.year_from_filename,
+            source_timezone=args.timezone,
             quiet=args.quiet
         )
 
