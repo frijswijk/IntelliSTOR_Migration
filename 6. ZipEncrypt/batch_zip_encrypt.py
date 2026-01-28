@@ -8,7 +8,7 @@ organized by year with resume capability.
 
 Improvements:
 - Optional password (no password = no encryption)
-- Adds "Compressed_Path" column to instance CSVs (updated in real-time)
+- Adds "Compressed_Filename" column to instance CSVs (updated in real-time)
 - Real-time log file writing with immediate flushing
 - Real-time compress-log.csv writing (append mode, survives crashes)
 - CSV logs for missing species and files
@@ -16,6 +16,7 @@ Improvements:
 - Crash recovery: resumes from last processed file
 - Batch processing: limit number of species per run (default: 5)
 - Delete source files after compression (optional, requires --delete-after-compress Yes)
+- Simulate mode: Skip actual compression and store simulated paths
 
 Author: Claude Code
 Date: 2025
@@ -98,7 +99,7 @@ def init_compress_log():
             with open(COMPRESS_LOG_CSV, 'w', newline='', encoding='utf-8') as f:
                 writer = csv.DictWriter(f, fieldnames=[
                     'species_id', 'Species_name', 'Species_Instance_Filename',
-                    'row', 'Filename', 'Status', 'Compressed_Path'
+                    'row', 'Filename', 'Status', 'Compressed_Filename'
                 ])
                 writer.writeheader()
                 f.flush()
@@ -113,7 +114,7 @@ def append_compress_log(entry: Dict):
 
     Args:
         entry: Dict with keys: species_id, Species_name, Species_Instance_Filename,
-               row, Filename, Status, Compressed_Path
+               row, Filename, Status, Compressed_Filename
     """
     try:
         # Check if file exists to determine if we need headers
@@ -122,7 +123,7 @@ def append_compress_log(entry: Dict):
         with open(COMPRESS_LOG_CSV, 'a', newline='', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=[
                 'species_id', 'Species_name', 'Species_Instance_Filename',
-                'row', 'Filename', 'Status', 'Compressed_Path'
+                'row', 'Filename', 'Status', 'Compressed_Filename'
             ])
 
             # Write header if file is new
@@ -305,7 +306,7 @@ def save_missing_logs():
             with open(COMPRESS_LOG_CSV, 'w', newline='', encoding='utf-8') as f:
                 writer = csv.DictWriter(f, fieldnames=[
                     'species_id', 'Species_name', 'Species_Instance_Filename',
-                    'row', 'Filename', 'Status', 'Compressed_Path'
+                    'row', 'Filename', 'Status', 'Compressed_Filename'
                 ])
                 writer.writeheader()
                 writer.writerows(compress_log)
@@ -556,7 +557,8 @@ def process_species(
     resume_row_idx: int,
     stats_obj: Stats,
     delete_after_compress: bool = False,
-    quiet: bool = False
+    quiet: bool = False,
+    simulate_zip: bool = False
 ) -> Tuple[bool, int]:
     """
     Process a single species (all instances in its CSV)
@@ -574,6 +576,7 @@ def process_species(
         stats_obj: Statistics object
         delete_after_compress: Delete source files after successful compression
         quiet: Suppress console output
+        simulate_zip: Skip actual compression and store simulated paths
 
     Returns:
         Tuple of (should_continue, last_row_idx)
@@ -607,12 +610,12 @@ def process_species(
     try:
         fieldnames, rows = read_instance_csv_full(instance_csv)
 
-        # Add "Compressed_Path" column if not exists (Task 2)
-        if 'Compressed_Path' not in fieldnames:
-            fieldnames = list(fieldnames) + ['Compressed_Path']
+        # Add "Compressed_Filename" column if not exists (Task 2)
+        if 'Compressed_Filename' not in fieldnames:
+            fieldnames = list(fieldnames) + ['Compressed_Filename']
             for row in rows:
-                if 'Compressed_Path' not in row:
-                    row['Compressed_Path'] = ''
+                if 'Compressed_Filename' not in row:
+                    row['Compressed_Filename'] = ''
 
     except Exception as e:
         logging.error(f"Failed to read instance CSV for {species_name}: {e}")
@@ -645,16 +648,24 @@ def process_species(
         # Sanitize year
         year = sanitize_year(year)
 
-        # Create year subfolder
-        year_folder = os.path.join(output_folder, year)
-        os.makedirs(year_folder, exist_ok=True)
+        # Create year subfolder (skip in simulate mode)
+        if not simulate_zip:
+            year_folder = os.path.join(output_folder, year)
+            os.makedirs(year_folder, exist_ok=True)
+            output_7z = os.path.join(year_folder, f"{base_filename}.7z")
+        else:
+            year_folder = None
+            output_7z = None
 
-        # Relative path for CSV column (Task 2)
-        relative_7z_path = f"\\{year}\\{base_filename}.7z"
-
-        # Check if archive already exists
-        output_7z = os.path.join(year_folder, f"{base_filename}.7z")
-        if os.path.exists(output_7z):
+        # Compressed filename for CSV column (Task 2)
+        if simulate_zip:
+            # In simulate mode, prefix with "SIMULATE\YYYY\name.7z"
+            compressed_filename = f"SIMULATE\\{year}\\{base_filename}.7z"
+        else:
+            # Normal mode: just "\YYYY\name.7z"
+            compressed_filename = f"\\{year}\\{base_filename}.7z"
+        # Check if archive already exists (skip in simulate mode)
+        if not simulate_zip and os.path.exists(output_7z):
             # Log to compress log (SKIPPED - already exists) - written in real-time
             append_compress_log({
                 'species_id': species_id,
@@ -663,12 +674,12 @@ def process_species(
                 'row': row_idx,
                 'Filename': filename,
                 'Status': 'SKIPPED',
-                'Compressed_Path': relative_7z_path
+                'Compressed_Filename': compressed_filename
             })
 
             # Already exists, update CSV if needed (Task 2)
-            if row.get('Compressed_Path') != relative_7z_path:
-                row['Compressed_Path'] = relative_7z_path
+            if row.get('Compressed_Filename') != compressed_filename:
+                row['Compressed_Filename'] = compressed_filename
                 # Write CSV immediately after update
                 try:
                     write_instance_csv_full(instance_csv, fieldnames, rows)
@@ -687,8 +698,12 @@ def process_species(
             save_progress(species_id, row_idx, stats_obj)
             continue
 
-        # Find matching files
-        source_files = find_files_by_pattern(source_folder, base_filename)
+        # Find matching files (skip in simulate mode)
+        if not simulate_zip:
+            source_files = find_files_by_pattern(source_folder, base_filename)
+        else:
+            # In simulate mode, assume files exist
+            source_files = [f"{base_filename}.*"]
 
         if not source_files:
             # Log to compress log (NO FILES FOUND) - written in real-time
@@ -699,7 +714,7 @@ def process_species(
                 'row': row_idx,
                 'Filename': filename,
                 'Status': 'NO_FILES_FOUND',
-                'Compressed_Path': ''
+                'Compressed_Filename': ''
             })
 
             # Log missing files (Task 3)
@@ -716,8 +731,8 @@ def process_species(
             if quiet:
                 print_progress_line(f"Processing: {csv_filename} row {row_idx}/{total_rows}: {base_filename} - NO FILES FOUND", quiet=True)
 
-            # Leave Compressed_Path empty (Task 2)
-            row['Compressed_Path'] = ''
+            # Leave Compressed_Filename empty (Task 2)
+            row['Compressed_Filename'] = ''
 
             # Write CSV immediately after update
             try:
@@ -729,40 +744,46 @@ def process_species(
             save_progress(species_id, row_idx, stats_obj)
             continue
 
-        # Create 7z archive
-        logging.info(f"Processing: {csv_filename} row {row_idx}/{total_rows}: {base_filename} - creating archive (found {len(source_files)} files)")
-
-        # Show progress in quiet mode
-        if quiet:
-            print_progress_line(f"Processing: {csv_filename} row {row_idx}/{total_rows}: {base_filename} - compressing {len(source_files)} files...", quiet=True)
-
-        success = create_7z_archive(zip_path, output_7z, source_files, password, compression_level)
+        # Create 7z archive (or simulate)
+        if simulate_zip:
+            # Simulate mode: skip actual compression
+            logging.info(f"Processing: {csv_filename} row {row_idx}/{total_rows}: {base_filename} - SIMULATING archive (would compress {len(source_files)} files)")
+            if quiet:
+                print_progress_line(f"Processing: {csv_filename} row {row_idx}/{total_rows}: {base_filename} - SIMULATING...", quiet=True)
+            success = True  # Always success in simulate mode
+        else:
+            # Normal mode: create actual archive
+            logging.info(f"Processing: {csv_filename} row {row_idx}/{total_rows}: {base_filename} - creating archive (found {len(source_files)} files)")
+            if quiet:
+                print_progress_line(f"Processing: {csv_filename} row {row_idx}/{total_rows}: {base_filename} - compressing {len(source_files)} files...", quiet=True)
+            success = create_7z_archive(zip_path, output_7z, source_files, password, compression_level)
 
         if success:
-            # Log to compress log (SUCCESS) - written in real-time
+            # Log to compress log (SUCCESS or SIMULATED) - written in real-time
             append_compress_log({
                 'species_id': species_id,
                 'Species_name': species_name,
                 'Species_Instance_Filename': csv_filename,
                 'row': row_idx,
                 'Filename': filename,
-                'Status': 'SUCCESS',
-                'Compressed_Path': relative_7z_path
+                'Status': 'SIMULATED' if simulate_zip else 'SUCCESS',
+                'Compressed_Filename': compressed_filename
             })
 
             stats_obj.archives_created += 1
             # Update CSV with compressed filename (Task 2)
-            row['Compressed_Path'] = relative_7z_path
+            row['Compressed_Filename'] = compressed_filename
 
             # Write CSV immediately after successful creation
             try:
                 write_instance_csv_full(instance_csv, fieldnames, rows)
                 # Log success AFTER CSV is written and flushed
-                logging.info(f"Processing: {csv_filename} row {row_idx}/{total_rows}: {base_filename} - SUCCESS - {relative_7z_path}")
-                logging.info(f"CSV updated with: {relative_7z_path}")
+                mode_msg = "SIMULATED" if simulate_zip else "SUCCESS"
+                logging.info(f"Processing: {csv_filename} row {row_idx}/{total_rows}: {base_filename} - {mode_msg} - {compressed_filename}")
+                logging.info(f"CSV updated with: {compressed_filename}")
 
-                # Delete source files after successful compression if enabled
-                if delete_after_compress:
+                # Delete source files after successful compression if enabled (not in simulate mode)
+                if delete_after_compress and not simulate_zip:
                     deleted_count = 0
                     for source_file in source_files:
                         try:
@@ -775,8 +796,9 @@ def process_species(
 
                 # Show progress in quiet mode
                 if quiet:
-                    delete_msg = f" (deleted {len(source_files)} files)" if delete_after_compress else ""
-                    print_progress_line(f"Processing: {csv_filename} row {row_idx}/{total_rows}: {base_filename} - SUCCESS{delete_msg}", quiet=True)
+                    delete_msg = f" (deleted {len(source_files)} files)" if (delete_after_compress and not simulate_zip) else ""
+                    status_msg = "SIMULATED" if simulate_zip else "SUCCESS"
+                    print_progress_line(f"Processing: {csv_filename} row {row_idx}/{total_rows}: {base_filename} - {status_msg}{delete_msg}", quiet=True)
             except Exception as e:
                 logging.error(f"Failed to update CSV for {csv_filename}: {e}")
                 stats_obj.errors += 1
@@ -789,12 +811,12 @@ def process_species(
                 'row': row_idx,
                 'Filename': filename,
                 'Status': 'FAILED',
-                'Compressed_Path': ''
+                'Compressed_Filename': ''
             })
 
             stats_obj.errors += 1
-            # Leave Compressed_Path empty on error (Task 2)
-            row['Compressed_Path'] = ''
+            # Leave Compressed_Filename empty on error (Task 2)
+            row['Compressed_Filename'] = ''
 
             # Write CSV immediately even on error
             try:
@@ -855,6 +877,8 @@ def main():
                         help='Maximum number of species to process in this run (default: 5, use 0 for unlimited)')
     parser.add_argument('--delete-after-compress', type=str, default='No',
                         help='Delete source files after successful compression (must specify "Yes" to enable, default: No)')
+    parser.add_argument('--SIMULATEZIP', action='store_true',
+                        help='Simulate mode: Skip actual compression and store simulated paths with SIMULATE prefix')
 
     args = parser.parse_args()
 
@@ -869,7 +893,9 @@ def main():
 
     logging.info("=" * 80)
     logging.info("Batch Zip and Encrypt - Starting")
-    if args.password:
+    if args.SIMULATEZIP:
+        logging.info("Mode: SIMULATION (no actual compression)")
+    elif args.password:
         logging.info("Mode: Encrypted archives (password protected)")
     else:
         logging.info("Mode: Unencrypted archives (no password)")
@@ -955,7 +981,8 @@ def main():
                     resume_row_idx if resume_species_id == species['Report_Species_Id'] else 0,
                     stats,
                     delete_after_compress=delete_after_compress,
-                    quiet=args.quiet
+                    quiet=args.quiet,
+                    simulate_zip=args.SIMULATEZIP
                 )
 
                 # Increment species processed count (only count species that were actually processed, not skipped)

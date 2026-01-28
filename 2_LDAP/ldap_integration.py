@@ -432,13 +432,21 @@ class CSVImporter:
         cn = group_row['GROUPNAME']
         dn = f"cn={cn},{groups_ou}"
 
+        # Extract original ID and ensure it's in description
+        description = group_row['DESCRIPTION'] if group_row['DESCRIPTION'] else cn
+        original_id = group_row['GROUP_ID']
+
+        # If description doesn't contain [OriginalID:], add it
+        if '[OriginalID:' not in description:
+            description = f"{description} [OriginalID:{original_id}]"
+
         return {
             'dn': dn,
             'attributes': {
                 'objectClass': ['top', 'group'],
                 'cn': cn,
                 'sAMAccountName': cn,
-                'description': group_row['DESCRIPTION'] if group_row['DESCRIPTION'] else cn,
+                'description': description,
                 'groupType': -2147483646  # Global security group
             }
         }
@@ -1670,6 +1678,194 @@ def cmd_serve_browser(args):
     return 0
 
 
+def extract_rid_from_sid(sid_bytes):
+    """Extract RID (last component) from binary SID.
+
+    Args:
+        sid_bytes: Binary SID from AD objectSid attribute
+
+    Returns:
+        int: RID (last subauthority of SID)
+    """
+    import struct
+
+    if isinstance(sid_bytes, str):
+        sid_bytes = sid_bytes.encode('latin-1')
+
+    # SID structure: S-R-I-S-S-S-RID
+    # Parse binary: revision(1), subauth_count(1), authority(6), subauths(4*count)
+    revision = sid_bytes[0]
+    subauth_count = sid_bytes[1]
+
+    # RID is the last subauthority (4 bytes, little-endian)
+    rid_offset = 8 + (subauth_count - 1) * 4
+    rid = struct.unpack('<I', sid_bytes[rid_offset:rid_offset+4])[0]
+
+    return rid
+
+
+def format_sid(sid_bytes):
+    """Convert binary SID to string format S-1-5-21-...-RID.
+
+    Args:
+        sid_bytes: Binary SID from AD
+
+    Returns:
+        str: SID in string format
+    """
+    import struct
+
+    if isinstance(sid_bytes, str):
+        sid_bytes = sid_bytes.encode('latin-1')
+
+    revision = sid_bytes[0]
+    subauth_count = sid_bytes[1]
+    authority = struct.unpack('>Q', b'\x00\x00' + sid_bytes[2:8])[0]
+
+    sid_parts = [f'S-{revision}-{authority}']
+
+    for i in range(subauth_count):
+        offset = 8 + i * 4
+        subauth = struct.unpack('<I', sid_bytes[offset:offset+4])[0]
+        sid_parts.append(str(subauth))
+
+    return '-'.join(sid_parts)
+
+
+def extract_original_id_from_description(description):
+    """Extract original ID from group description field.
+
+    Args:
+        description: Description field like "TEST-1105 [OriginalID:1105]"
+
+    Returns:
+        str: Original ID or None
+    """
+    import re
+    match = re.search(r'\[OriginalID:(\d+)\]', description)
+    return match.group(1) if match else None
+
+
+def cmd_export_rid_mapping(args):
+    """Export RID mapping after LDAP import.
+
+    Queries AD for all imported users/groups and creates a mapping file:
+    Original_ID,Object_Type,Name,AD_SID,AD_RID
+
+    This mapping allows the document management system to translate
+    permission CSVs from original RIDs to new AD-assigned RIDs.
+    """
+    logging.info('Exporting RID mapping from Active Directory...')
+
+    # Create connection manager
+    conn_mgr = LDAPConnectionManager(
+        server=args.server,
+        port=args.port,
+        bind_dn=args.bind_dn,
+        password=args.password,
+        use_ssl=args.use_ssl,
+        base_dn=args.base_dn,
+        ssl_no_verify=getattr(args, 'ssl_no_verify', False),
+        ssl_ca_cert=getattr(args, 'ssl_ca_cert', None),
+        ssl_ca_path=getattr(args, 'ssl_ca_path', None)
+    )
+
+    # Test connection
+    result = conn_mgr.test_connection()
+    if not result['success']:
+        logging.error(f'Connection failed: {result["message"]}')
+        return 1
+
+    conn_mgr.connect()
+
+    # Create search manager
+    search_mgr = LDAPSearchManager(conn_mgr, args.base_dn)
+
+    mapping_rows = []
+
+    # Export user mappings
+    logging.info('Querying users from AD...')
+    users_filter = '(&(objectClass=user)(employeeID=*))'  # Only users with employeeID
+    if hasattr(args, 'users_ou') and args.users_ou:
+        users = search_mgr.search(users_filter, base_dn=args.users_ou,
+                                  attributes=['sAMAccountName', 'employeeID', 'objectSid'])
+    else:
+        users = search_mgr.search(users_filter,
+                                  attributes=['sAMAccountName', 'employeeID', 'objectSid'])
+
+    for user in users:
+        attrs = user['attributes']
+        employee_id = attrs.get('employeeID', [None])[0]
+        username = attrs.get('sAMAccountName', [None])[0]
+        object_sid = attrs.get('objectSid', [None])[0]
+
+        if employee_id and object_sid:
+            rid = extract_rid_from_sid(object_sid)
+            mapping_rows.append({
+                'Original_ID': employee_id,
+                'Object_Type': 'User',
+                'Name': username,
+                'AD_SID': format_sid(object_sid),
+                'AD_RID': rid
+            })
+
+    logging.info(f'Found {len(mapping_rows)} users with employeeID')
+
+    # Export group mappings
+    logging.info('Querying groups from AD...')
+    groups_filter = '(&(objectClass=group)(description=*[OriginalID:*))'  # Groups with original ID
+    if hasattr(args, 'groups_ou') and args.groups_ou:
+        groups = search_mgr.search(groups_filter, base_dn=args.groups_ou,
+                                   attributes=['cn', 'description', 'objectSid'])
+    else:
+        groups = search_mgr.search(groups_filter,
+                                   attributes=['cn', 'description', 'objectSid'])
+
+    user_count = len(mapping_rows)
+    for group in groups:
+        attrs = group['attributes']
+        cn = attrs.get('cn', [None])[0]
+        description = attrs.get('description', [''])[0]
+        object_sid = attrs.get('objectSid', [None])[0]
+
+        # Extract original ID from description [OriginalID:12345]
+        original_id = extract_original_id_from_description(description)
+
+        if original_id and object_sid:
+            rid = extract_rid_from_sid(object_sid)
+            mapping_rows.append({
+                'Original_ID': original_id,
+                'Object_Type': 'Group',
+                'Name': cn,
+                'AD_SID': format_sid(object_sid),
+                'AD_RID': rid
+            })
+
+    logging.info(f'Found {len(mapping_rows) - user_count} groups with OriginalID')
+
+    # Write mapping CSV
+    output_file = args.output_file if hasattr(args, 'output_file') else 'rid_mapping.csv'
+    logging.info(f'Writing RID mapping to {output_file}...')
+
+    with open(output_file, 'w', newline='', encoding='utf-8') as f:
+        fieldnames = ['Original_ID', 'Object_Type', 'Name', 'AD_SID', 'AD_RID']
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(mapping_rows)
+
+    logging.info(f'RID mapping exported: {len(mapping_rows)} entries')
+    logging.info('='*70)
+    logging.info('MAPPING EXPORT COMPLETE')
+    logging.info(f'Total entries: {len(mapping_rows)}')
+    logging.info(f'Users: {user_count}')
+    logging.info(f'Groups: {len(mapping_rows) - user_count}')
+    logging.info(f'Output file: {output_file}')
+    logging.info('='*70)
+
+    conn_mgr.disconnect()
+    return 0
+
+
 def cmd_verify_import(args):
     """Verify import command."""
     logging.info('Verifying imported entries...')
@@ -1932,6 +2128,14 @@ Examples:
     assign_parser.add_argument('--dry-run', action='store_true', help='Preview without executing')
     assign_parser.add_argument('--continue-on-error', action='store_true', default=True, help='Continue if assignment fails')
 
+    # Export RID mapping
+    export_parser = subparsers.add_parser('export-rid-mapping', help='Export Original RID to AD RID mapping')
+    add_connection_args(export_parser)
+    export_parser.add_argument('--users-ou', help='Users OU DN (optional, for filtering)')
+    export_parser.add_argument('--groups-ou', help='Groups OU DN (optional, for filtering)')
+    export_parser.add_argument('--output-file', default='rid_mapping.csv',
+                              help='Output mapping file (default: rid_mapping.csv)')
+
     args = parser.parse_args()
 
     # Setup logging
@@ -1957,6 +2161,8 @@ Examples:
         sys.exit(cmd_serve_browser(args))
     elif args.command == 'verify-import':
         sys.exit(cmd_verify_import(args))
+    elif args.command == 'export-rid-mapping':
+        sys.exit(cmd_export_rid_mapping(args))
     else:
         parser.print_help()
         sys.exit(1)

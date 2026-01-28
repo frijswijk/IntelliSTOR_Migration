@@ -140,6 +140,8 @@ Output Files:
                         help='Minimum groups per test user (default: 1)')
     parser.add_argument('--TESTDATA-MAX-GROUPS', type=int, default=3,
                         help='Maximum groups per test user (default: 3)')
+    parser.add_argument('--TESTDATA-SPECIAL-GROUP', default='DocMgmtUsers',
+                        help='Group name to assign all test users to (default: DocMgmtUsers)')
 
     args = parser.parse_args()
 
@@ -1218,7 +1220,7 @@ class UsersPermissionsExtractor:
                         elif col == 'GROUPNAME':
                             row[col] = str(rid)
                         elif col == 'DESCRIPTION':
-                            row[col] = f'TEST-{rid}'
+                            row[col] = f'TEST-{rid} [OriginalID:{rid}]'
                         else:
                             row[col] = ''  # Default empty for other columns
 
@@ -1239,6 +1241,61 @@ class UsersPermissionsExtractor:
                 self.stats['test_groups_created'] = len(new_groups)
             else:
                 logging.info('No new test groups to create (all RIDs already exist)')
+
+            # ================================================================
+            # Create Special Group for Document Management System
+            # ================================================================
+
+            special_group_name = self.args.TESTDATA_SPECIAL_GROUP
+            logging.info(f'Creating special group "{special_group_name}" for all test users...')
+
+            # Find the next available GROUP_ID
+            max_group_id = max(existing_group_ids) if existing_group_ids else 0
+            if new_groups:
+                max_group_id = max(max_group_id, max(new_groups))
+            special_group_id = max_group_id + 1
+
+            # Check if special group already exists
+            special_group_exists = False
+            for row in existing_group_rows:
+                if row['GROUPNAME'] == special_group_name:
+                    special_group_exists = True
+                    special_group_id = int(row['GROUP_ID'])
+                    logging.info(f'Special group "{special_group_name}" already exists with GROUP_ID={special_group_id}')
+                    break
+
+            if not special_group_exists:
+                # Create special group row
+                special_group_row = {}
+                for col in csv_columns:
+                    if col == 'SECURITYDOMAIN_ID':
+                        special_group_row[col] = security_domain_id
+                    elif col == 'GROUP_ID':
+                        special_group_row[col] = special_group_id
+                    elif col == 'GROUPNAME':
+                        special_group_row[col] = special_group_name
+                    elif col == 'DESCRIPTION':
+                        special_group_row[col] = f'Special group for document management system users [OriginalID:{special_group_id}]'
+                    elif col == 'FLAGS':
+                        special_group_row[col] = 0
+                    else:
+                        special_group_row[col] = ''
+
+                # Add special group to the list
+                if self.testdata_dryrun:
+                    logging.info(f'[DRY-RUN] Would add special group to CSV: {special_group_row}')
+                else:
+                    # Re-write UserGroups.csv with special group included
+                    all_group_rows = existing_group_rows + new_group_rows + [special_group_row]
+                    with open(groups_csv_path, 'w', newline='', encoding='utf-8') as f:
+                        writer = csv.DictWriter(f, fieldnames=csv_columns)
+                        writer.writeheader()
+                        writer.writerows(all_group_rows)
+                    logging.info(f'Successfully added special group "{special_group_name}" with GROUP_ID={special_group_id}')
+
+            # Store special group ID for later use in assignments
+            self.special_group_id = special_group_id
+            self.special_group_name = special_group_name
 
             # ================================================================
             # TASK 2: Create Test Users (to CSV)
@@ -1373,6 +1430,20 @@ class UsersPermissionsExtractor:
                                 logging.info(f'[DRY-RUN] Would add assignment to CSV: USER_ID {user_id} to GROUP_ID {group_id}')
 
                         assignment_count += 1
+
+                    # Always add assignment to special group
+                    special_assignment_row = {
+                        'SECURITYDOMAIN_ID': security_domain_id,
+                        'USER_ID': user_id,
+                        'GROUP_ID': self.special_group_id,
+                        'FLAGS': 0
+                    }
+                    assignment_rows.append(special_assignment_row)
+                    assignment_count += 1
+
+                    if self.testdata_dryrun:
+                        if i <= 3:  # Only log first 3 users in dry-run
+                            logging.info(f'[DRY-RUN] Would add special group assignment: USER_ID {user_id} to GROUP_ID {self.special_group_id} ({self.special_group_name})')
 
                     if i % 1000 == 0:
                         logging.info(f'Processed assignments for {i}/{self.testdata_user_count} users...')
