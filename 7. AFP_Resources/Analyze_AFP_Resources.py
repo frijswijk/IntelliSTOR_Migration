@@ -39,8 +39,14 @@ NameSpace,Folder,Resource_Filename,Resource_Type,V1,V2,V3,...
 - Dynamic version columns based on maximum versions found
 - Sorted by Resource_Filename alphabetically
 
+Advanced Features:
+- --version-compare: Binary content comparison using CRC32 to show only real version differences
+- --FROMYEAR: Filter resources to only include version folders from specified year onwards
+- --AllNameSpaces: Combine resources from all namespaces into a single unified list (ALL_NAMESPACES)
+
 Author: Generated for OCBC IntelliSTOR Migration
 Date: 2026-01-26
+Updated: 2026-01-28 (Added --FROMYEAR and --AllNameSpaces parameters)
 """
 
 import argparse
@@ -148,6 +154,12 @@ Examples:
   # Quiet mode
   python Analyze_AFP_Resources.py --folder "C:\\Users\\freddievr\\Downloads\\afp\\afp" --output-csv "afp_resources.csv" --quiet
 
+  # Ignore resources before 2020
+  python Analyze_AFP_Resources.py --folder "C:\\Users\\freddievr\\Downloads\\afp\\afp" --output-csv "afp_resources.csv" --FROMYEAR 2020
+
+  # Combine all namespaces with version comparison (only show real version differences from 2020 onwards)
+  python Analyze_AFP_Resources.py --folder "C:\\Users\\freddievr\\Downloads\\afp\\afp" --output-csv "afp_resources.csv" --version-compare --AllNameSpaces --FROMYEAR 2020
+
   # Namespace structure (auto-detected)
   python Analyze_AFP_Resources.py --folder "C:\\Users\\freddievr\\Downloads\\afp\\afp" --output-csv "afp_resources.csv"
 """
@@ -181,6 +193,18 @@ Examples:
         '--version-compare',
         action='store_true',
         help='Enable binary content comparison using CRC32. Only list versions with different content.'
+    )
+
+    parser.add_argument(
+        '--FROMYEAR',
+        type=int,
+        help='Ignore all version folders (resources) before this year (e.g., 2020)'
+    )
+
+    parser.add_argument(
+        '--AllNameSpaces',
+        action='store_true',
+        help='Combine resources from all namespaces into a single list (requires --version-compare). Shows unique resources with version differences starting from FROMYEAR (if specified).'
     )
 
     return parser.parse_args()
@@ -234,7 +258,31 @@ def parse_resource_type(filename: str) -> str:
 # Folder Structure Detection
 # ============================================================================
 
-def detect_folder_structure(base_folder: str, default_namespace: str = 'DEFAULT') -> Dict[str, Any]:
+def filter_version_folders_by_year(version_folders: List[Path], from_year: int = None) -> List[Path]:
+    """
+    Filter version folders to only include those from the specified year onwards.
+
+    Args:
+        version_folders: List of version folder paths
+        from_year: Minimum year (inclusive). If None, returns all folders.
+
+    Returns:
+        Filtered list of version folders
+    """
+    if from_year is None:
+        return version_folders
+
+    filtered = []
+    for folder in version_folders:
+        # Extract year from folder name (YYYY_MM_DD_HH format)
+        folder_year = int(folder.name[:4])
+        if folder_year >= from_year:
+            filtered.append(folder)
+
+    return filtered
+
+
+def detect_folder_structure(base_folder: str, default_namespace: str = 'DEFAULT', from_year: int = None) -> Dict[str, Any]:
     """
     Auto-detect folder structure and return namespace mapping.
 
@@ -245,10 +293,12 @@ def detect_folder_structure(base_folder: str, default_namespace: str = 'DEFAULT'
     4. If no → Check subfolders for nested version folders
     5. If nested found → Namespace structure (scan all namespace subfolders)
     6. Sort version folders in descending order (newest first)
+    7. Filter by from_year if specified
 
     Args:
         base_folder: Base folder path to analyze
         default_namespace: Namespace name to use for flat structure
+        from_year: Minimum year to include (filters out older folders). If None, includes all.
 
     Returns:
         {
@@ -287,6 +337,12 @@ def detect_folder_structure(base_folder: str, default_namespace: str = 'DEFAULT'
         # Sort version folders in descending order (newest first)
         version_folders.sort(key=lambda x: x.name, reverse=True)
 
+        # Filter by year if specified
+        version_folders = filter_version_folders_by_year(version_folders, from_year)
+
+        if not version_folders:
+            raise ValueError(f"No version folders found from year {from_year} onwards")
+
         return {
             'pattern': 'flat',
             'namespaces': {
@@ -308,7 +364,13 @@ def detect_folder_structure(base_folder: str, default_namespace: str = 'DEFAULT'
         if nested_version_folders:
             # Sort version folders in descending order (newest first)
             nested_version_folders.sort(key=lambda x: x.name, reverse=True)
-            namespace_mapping[subfolder.name] = nested_version_folders
+
+            # Filter by year if specified
+            nested_version_folders = filter_version_folders_by_year(nested_version_folders, from_year)
+
+            # Only add namespace if it has version folders after filtering
+            if nested_version_folders:
+                namespace_mapping[subfolder.name] = nested_version_folders
 
     if namespace_mapping:
         # Namespace structure detected
@@ -349,6 +411,8 @@ class AFPResourceAnalyzer:
         self.output_csv = output_csv
         self.default_namespace = namespace
         self.version_compare = False  # Set from args
+        self.from_year = None  # Set from args
+        self.all_namespaces = False  # Set from args
 
         # Statistics tracking
         self.stats = {
@@ -385,6 +449,12 @@ class AFPResourceAnalyzer:
         logging.info("=" * 70)
         logging.info(f"Base folder: {self.base_folder}")
         logging.info(f"Output CSV: {self.output_csv}")
+        if self.from_year:
+            logging.info(f"Filter: Only resources from {self.from_year} onwards")
+        if self.all_namespaces:
+            logging.info(f"Mode: Combine all namespaces into single list")
+            if not self.version_compare:
+                logging.warning("--AllNameSpaces is most effective when used with --version-compare")
 
         # Step 1: Validate inputs
         self._validate_inputs()
@@ -392,7 +462,8 @@ class AFPResourceAnalyzer:
         # Step 2: Detect folder structure
         self.folder_structure = detect_folder_structure(
             self.base_folder,
-            self.default_namespace
+            self.default_namespace,
+            self.from_year
         )
 
         logging.info(f"Detected folder structure: {self.folder_structure['pattern']}")
@@ -406,6 +477,12 @@ class AFPResourceAnalyzer:
 
         # Step 3 & 4: Scan and aggregate resources
         self._scan_and_aggregate()
+
+        # Step 4a: Merge namespaces if AllNameSpaces mode is enabled
+        if self.all_namespaces:
+            logging.info("Merging resources across all namespaces...")
+            self._merge_all_namespaces()
+            logging.info("Namespace merge complete")
 
         # Step 4b: Filter versions by content (if enabled)
         if self.version_compare:
@@ -556,6 +633,58 @@ class AFPResourceAnalyzer:
         )
 
         logging.info(f"Aggregation complete: {self.stats['unique_resources']} unique resource(s) identified")
+
+    def _merge_all_namespaces(self) -> None:
+        """
+        Merge resources from all namespaces into a single unified namespace.
+
+        Combines resources with the same filename across different namespaces,
+        merging their version lists and keeping versions sorted in descending order.
+        The resulting structure has a single namespace called "ALL_NAMESPACES".
+        """
+        if not self.all_namespaces:
+            return
+
+        merged_resources = {}
+
+        # Iterate through all namespaces and resources
+        for namespace, resources in self.aggregated_resources.items():
+            for filename, resource_data in resources.items():
+                if filename not in merged_resources:
+                    # First occurrence of this filename
+                    merged_resources[filename] = {
+                        'type': resource_data['type'],
+                        'versions': list(resource_data['versions'])  # Copy the list
+                    }
+                else:
+                    # Merge versions from this namespace
+                    merged_resources[filename]['versions'].extend(resource_data['versions'])
+
+        # Sort versions in each merged resource (descending order by version name)
+        for filename, resource_data in merged_resources.items():
+            resource_data['versions'].sort(key=lambda x: x[0], reverse=True)
+
+        # Replace aggregated_resources with merged structure
+        self.aggregated_resources = {
+            'ALL_NAMESPACES': merged_resources
+        }
+
+        # Update statistics
+        self.stats['namespaces_found'] = 1
+        self.stats['unique_resources'] = len(merged_resources)
+
+        # Recalculate max versions
+        max_versions = 0
+        for resource_data in merged_resources.values():
+            max_versions = max(max_versions, len(resource_data['versions']))
+        self.stats['max_versions_per_resource'] = max_versions
+
+        # Update version count before dedup
+        self.stats['versions_before_dedup'] = sum(
+            len(res['versions']) for res in merged_resources.values()
+        )
+
+        logging.info(f"Merged into {len(merged_resources)} unique resources across all namespaces")
 
     def _filter_versions_by_content(self) -> None:
         """
@@ -723,6 +852,8 @@ def main():
             namespace=args.namespace
         )
         analyzer.version_compare = args.version_compare
+        analyzer.from_year = args.FROMYEAR
+        analyzer.all_namespaces = args.AllNameSpaces
 
         # Run analysis
         analyzer.analyze()

@@ -13,15 +13,29 @@ echo Source Folder: %AFP_Source_MY%
 echo Output Folder: %AFP_Output%
 echo Namespace: %NAMESPACE%
 echo Version Compare: %AFP_VersionCompare%
+echo From Year: %AFP_FromYear%
+echo All Namespaces: %AFP_AllNameSpaces%
 echo -----------------------------------------------------------------------
 
 rem Create output directory if it doesn't exist
 if not exist "%AFP_Output%" mkdir "%AFP_Output%"
 
-rem Build command with optional --version-compare flag
+rem Build command with optional flags
 set "CMD=python Analyze_AFP_Resources.py --folder "%AFP_Source_MY%" --output-csv "%AFP_Output%\AFP_Resources_MY.csv" --namespace %NAMESPACE% --quiet"
+
+rem Add --version-compare flag if enabled
 if /I "%AFP_VersionCompare%"=="Yes" (
     set "CMD=%CMD% --version-compare"
+)
+
+rem Add --FROMYEAR flag if specified
+if not "%AFP_FromYear%"=="" (
+    set "CMD=%CMD% --FROMYEAR %AFP_FromYear%"
+)
+
+rem Add --AllNameSpaces flag if enabled
+if /I "%AFP_AllNameSpaces%"=="Yes" (
+    set "CMD=%CMD% --AllNameSpaces"
 )
 
 rem Run the AFP Resource Analyzer
@@ -38,7 +52,7 @@ for /f "tokens=*" %%i in ('powershell -command "$start = [datetime]('%START_TIME
 echo Total Time Elapsed: %DURATION%
 :: --- 3. Logging Section ---
 :: We use ^| to tell Batch these are literal characters, not command pipes.
-echo [%DATE% %START_TIME%] Country: MY ^| Source: %AFP_Source_MY% ^| Namespace: %NAMESPACE% ^| VersionCompare: %AFP_VersionCompare% ^| Duration: %DURATION% >> "%LOG_FILE%"
+echo [%DATE% %START_TIME%] Country: MY ^| Source: %AFP_Source_MY% ^| Namespace: %NAMESPACE% ^| VersionCompare: %AFP_VersionCompare% ^| FromYear: %AFP_FromYear% ^| AllNameSpaces: %AFP_AllNameSpaces% ^| Duration: %DURATION% >> "%LOG_FILE%"
 
 echo Log updated in %LOG_FILE%
 pause

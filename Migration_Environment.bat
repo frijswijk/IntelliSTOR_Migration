@@ -50,6 +50,11 @@ set AFP_Output=%Migration_data%\AFP_Resources
 set AFP_VersionCompare=Yes
 rem Set AFP_VersionCompare=Yes to enable binary content comparison (removes duplicate versions)
 rem Set AFP_VersionCompare=No to list all versions regardless of content
+set AFP_FromYear=
+rem Set AFP_FromYear to a year (e.g., 2020) to ignore resources before that year. Leave empty to include all years.
+set AFP_AllNameSpaces=No
+rem Set AFP_AllNameSpaces=Yes to combine resources from all namespaces into a single list (requires AFP_VersionCompare=Yes)
+rem Set AFP_AllNameSpaces=No to keep namespaces separate (default)
 
 rem -- AFP Resources Export
 set AFP_Export_SG=%Migration_data%\AFP_Export_SG

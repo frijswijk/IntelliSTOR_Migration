@@ -85,6 +85,28 @@ python Analyze_AFP_Resources.py \
 
 **Feature**: Uses CRC32 binary comparison to eliminate duplicate versions. Only lists versions where file content actually changed.
 
+#### Year Filtering
+```bash
+python Analyze_AFP_Resources.py \
+    --folder "C:\Users\freddievr\Downloads\afp\afp" \
+    --output-csv "afp_resources.csv" \
+    --FROMYEAR 2020
+```
+
+**Feature**: Ignores all version folders (resources) before the specified year. Useful for focusing on recent resources only.
+
+#### Combined Namespaces Mode
+```bash
+python Analyze_AFP_Resources.py \
+    --folder "C:\Users\freddievr\Downloads\afp\afp" \
+    --output-csv "afp_resources.csv" \
+    --version-compare \
+    --AllNameSpaces \
+    --FROMYEAR 2020
+```
+
+**Feature**: Combines resources from all namespaces into a single unified list. When used with `--version-compare`, shows only unique resources with real version differences. Best combined with `--FROMYEAR` to focus on recent changes.
+
 **Comparison Logic**:
 - V1 (newest version) is always kept
 - Subsequent versions (V2, V3, etc.) are only kept if different from BOTH:
@@ -100,6 +122,36 @@ python Analyze_AFP_Resources.py \
 
 **Performance Impact**: Requires reading file contents for CRC calculation. Adds ~50-100ms per 1000 files.
 
+#### Advanced Features
+
+**Year Filtering (`--FROMYEAR`)**:
+- Filters out all version folders before the specified year
+- Useful for migration projects focusing on recent resources
+- Example: `--FROMYEAR 2020` ignores all resources from 2019 and earlier
+- Works with both flat and namespace folder structures
+
+**Combined Namespaces (`--AllNameSpaces`)**:
+- Merges resources from all namespaces into a single list (namespace: ALL_NAMESPACES)
+- Collects all unique resources across namespaces
+- Combines version lists for same filename across different namespaces
+- Most effective when combined with `--version-compare` to show only real version differences
+- When combined with `--FROMYEAR`, shows version differences only from specified year onwards
+- Use case: Multi-region deployments where you need to see all unique resources and their true version history
+
+**Example Workflow**:
+```batch
+# Step 1: Set environment variables in Migration_Environment.bat
+set AFP_VersionCompare=Yes
+set AFP_FromYear=2020
+set AFP_AllNameSpaces=Yes
+
+# Step 2: Run the batch file
+Analyze_AFP_Resources_SG.bat
+
+# Result: A single CSV with all unique resources from all namespaces,
+# showing only version differences from 2020 onwards
+```
+
 ## Environment Variables Configuration
 
 To use the batch files on a different machine, update `Migration_Environment.bat` located in the parent directory:
@@ -112,6 +164,11 @@ set AFP_Output=%Migration_data%\AFP_Resources
 set AFP_VersionCompare=Yes
 rem Set AFP_VersionCompare=Yes to enable binary content comparison (removes duplicate versions)
 rem Set AFP_VersionCompare=No to list all versions regardless of content
+set AFP_FromYear=
+rem Set AFP_FromYear to a year (e.g., 2020) to ignore resources before that year. Leave empty to include all years.
+set AFP_AllNameSpaces=No
+rem Set AFP_AllNameSpaces=Yes to combine resources from all namespaces into a single list (requires AFP_VersionCompare=Yes)
+rem Set AFP_AllNameSpaces=No to keep namespaces separate (default)
 
 rem -- AFP Resources Export
 set AFP_Export_SG=%Migration_data%\AFP_Export_SG
@@ -125,6 +182,10 @@ set AFP_Export_MY=%Migration_data%\AFP_Export_MY
 - `AFP_VersionCompare` - Enable version comparison (Yes/No, default: Yes)
   - **Yes**: Uses CRC32 to eliminate duplicate versions (only shows versions with different content)
   - **No**: Lists all versions found in version folders (legacy behavior)
+- `AFP_FromYear` - Ignore resources before this year (e.g., 2020). Leave empty to include all years.
+- `AFP_AllNameSpaces` - Combine all namespaces into a single list (Yes/No, default: No)
+  - **Yes**: Merges resources from all namespaces into ALL_NAMESPACES (works best with AFP_VersionCompare=Yes)
+  - **No**: Keeps namespaces separate in the output
 - `AFP_Export_SG` - Export folder for Singapore resources
 - `AFP_Export_MY` - Export folder for Malaysia resources
 
