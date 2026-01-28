@@ -6,17 +6,17 @@ This Python script automates the process of:
 1. Reading report species from `Report_Species.csv`
 2. Looking up corresponding instance CSVs in `Output_Extract_Instances/`
 3. Extracting filenames and finding matching files using wildcards
-4. Creating password-protected 7z archives organized by year
+4. Creating AES-256 encrypted ZIP archives organized by year
 5. **Resume capability**: Can be interrupted and resumed from last position
 6. **Complete audit trail**: Logs all processing to `compress-log.csv` for proof of work
 
 ## Features
 
-- **Year-based organization**: Archives saved as `{output_folder}\{YEAR}\{filename}.7z`
+- **Year-based organization**: Archives saved as `{output_folder}\{YEAR}\{filename}.zip`
 - **Batch processing**: Process N species per run (default: 5), auto-resume for next batch
 - **Resume capability**: Progress tracked in JSON file, can resume after interruption
 - **Wildcard matching**: Finds all files matching pattern `{filename}.*`
-- **AES-256 encryption**: Strong encryption with header encryption (hides filenames) - or no encryption if password omitted
+- **AES-256 encryption**: Strong encryption for ZIP files - or no encryption if password omitted
 - **Real-time logging**: Logs flushed immediately to disk, survives crashes
 - **Real-time audit trail**: `compress-log.csv` written in append mode, survives crashes
 - **Real-time CSV updates**: Instance CSVs updated immediately after each file is processed
@@ -56,7 +56,7 @@ Contains columns:
 - `FILENAME`: Filename with .RPT extension (e.g., "2511304H.RPT")
 - `YEAR`: Year for organizing output (e.g., "2025")
 - `REPORT_SPECIES_ID`: Species ID
-- `Compressed_Filename`: **Added by script** - compressed filename (e.g., "\2025\2511304H.7z" or "SIMULATE\2025\2511304H.7z" in simulate mode)
+- `Compressed_Filename`: **Added by script** - compressed filename (e.g., "\2025\2511304H.zip" or "SIMULATE\2025\2511304H.zip" in simulate mode)
 - Other columns...
 
 ## Usage
@@ -192,7 +192,7 @@ python batch_zip_encrypt.py \
   --output-folder "C:\OCBC\EncryptedArchives" \
   --SIMULATEZIP
 
-# Simulated paths will be stored as "SIMULATE\YYYY\name.7z"
+# Simulated paths will be stored as "SIMULATE\YYYY\name.zip"
 # Useful for testing, validation, or planning
 ```
 
@@ -226,13 +226,13 @@ python batch_zip_encrypt.py \
 ```
 output-folder/
 ├── 2024/
-│   ├── 2410104A.7z
-│   ├── 2410204B.7z
+│   ├── 2410104A.zip
+│   ├── 2410204B.zip
 │   └── ...
 ├── 2025/
-│   ├── 2511304H.7z
-│   ├── 2511204W.7z
-│   ├── 2510804E.7z
+│   ├── 2511304H.zip
+│   ├── 2511204W.zip
+│   ├── 2510804E.zip
 │   └── ...
 └── ...
 
@@ -248,8 +248,8 @@ Script directory (Migration_Instances/):
 ```
 
 ### Archive Properties
-- **Format**: Native 7z format (better compression than ZIP)
-- **Encryption**: AES-256 with header encryption (if password provided)
+- **Format**: ZIP format with AES-256 encryption
+- **Encryption**: AES-256 encryption (if password provided)
 - **Compression**: Configurable 0-9 (default: 5 = normal)
 - **Contents**: All files matching `{filename}.*` pattern from source folder
 
@@ -276,8 +276,8 @@ Script directory (Migration_Instances/):
 - **Automatic column addition**: `Compressed_Filename` column added to instance CSVs
 - **Real-time updates**: CSV updated immediately after each file is processed
 - **Values**:
-  - Normal mode: `\2025\2511304H.7z`
-  - Simulate mode: `SIMULATE\2025\2511304H.7z`
+  - Normal mode: `\2025\2511304H.zip`
+  - Simulate mode: `SIMULATE\2025\2511304H.zip`
   - Empty if not compressed
 - **Benefit**: Easy to see which files have been archived
 
@@ -339,7 +339,7 @@ For filename "2511304H.RPT" in year "2025":
 2. Search for files: `{source-folder}\2511304H.*`
    - Example matches: `2511304H.pdf`, `2511304H.xlsx`, `2511304H.rpt`
 3. Create year folder: `{output-folder}\2025\`
-4. Check if already exists: `{output-folder}\2025\2511304H.7z`
+4. Check if already exists: `{output-folder}\2025\2511304H.zip`
 5. If not exists, create archive with all matched files
 6. Update progress: Save current position
 7. Log result: Success or error
@@ -401,25 +401,25 @@ All operations are logged to multiple outputs:
 2025-01-23 14:30:45 - INFO - Processing species: BC2060P (id=1) - BC2060P_2024.csv
 2025-01-23 14:30:45 - INFO - Found 150 rows in BC2060P_2024.csv
 2025-01-23 14:30:46 - INFO - Processing: BC2060P_2024.csv row 1/150: 2511304H - creating archive (found 3 files)
-2025-01-23 14:30:48 - INFO - Processing: BC2060P_2024.csv row 1/150: 2511304H - SUCCESS - \2025\2511304H.7z
-2025-01-23 14:30:48 - INFO - CSV updated with: \2025\2511304H.7z
+2025-01-23 14:30:48 - INFO - Processing: BC2060P_2024.csv row 1/150: 2511304H - SUCCESS - \2025\2511304H.zip
+2025-01-23 14:30:48 - INFO - CSV updated with: \2025\2511304H.zip
 2025-01-23 14:30:50 - WARNING - Processing: BC2060P_2024.csv row 3/150: 2510804E - NO FILES FOUND in C:\Reports
 ```
 
 **Audit log (compress-log.csv):**
 ```csv
 species_id,Species_name,Species_Instance_Filename,row,Filename,Status,Compressed_Filename
-1,BC2060P,BC2060P_2024.csv,1,2511304H.RPT,SUCCESS,\2025\2511304H.7z
-1,BC2060P,BC2060P_2024.csv,2,2511204W.RPT,SUCCESS,\2025\2511204W.7z
+1,BC2060P,BC2060P_2024.csv,1,2511304H.RPT,SUCCESS,\2025\2511304H.zip
+1,BC2060P,BC2060P_2024.csv,2,2511204W.RPT,SUCCESS,\2025\2511204W.zip
 1,BC2060P,BC2060P_2024.csv,3,2510804E.RPT,NO_FILES_FOUND,
-1,BC2060P,BC2060P_2024.csv,4,2510704S.RPT,SKIPPED,\2025\2510704S.7z
+1,BC2060P,BC2060P_2024.csv,4,2510704S.RPT,SKIPPED,\2025\2510704S.zip
 ```
 
 **Audit log in simulate mode:**
 ```csv
 species_id,Species_name,Species_Instance_Filename,row,Filename,Status,Compressed_Filename
-1,BC2060P,BC2060P_2024.csv,1,2511304H.RPT,SIMULATED,SIMULATE\2025\2511304H.7z
-1,BC2060P,BC2060P_2024.csv,2,2511204W.RPT,SIMULATED,SIMULATE\2025\2511204W.7z
+1,BC2060P,BC2060P_2024.csv,1,2511304H.RPT,SIMULATED,SIMULATE\2025\2511304H.zip
+1,BC2060P,BC2060P_2024.csv,2,2511204W.RPT,SIMULATED,SIMULATE\2025\2511204W.zip
 ```
 
 **Quiet mode console (single line):**
@@ -454,16 +454,16 @@ Verify an archive was created correctly:
 
 ```bash
 # With password (encrypted)
-7z x -p"YourPassword" "output-folder\2025\2511304H.7z"
+7z x -p"YourPassword" "output-folder\2025\2511304H.zip"
 
 # Without password (unencrypted)
-7z x "output-folder\2025\2511304H.7z"
+7z x "output-folder\2025\2511304H.zip"
 
 # List contents without extracting
-7z l -p"YourPassword" "output-folder\2025\2511304H.7z"
+7z l -p"YourPassword" "output-folder\2025\2511304H.zip"
 
 # Test archive integrity
-7z t -p"YourPassword" "output-folder\2025\2511304H.7z"
+7z t -p"YourPassword" "output-folder\2025\2511304H.zip"
 ```
 
 ### Test Audit Log
@@ -536,8 +536,8 @@ while ($true) {
 ### Encryption
 
 **With password** (`--password "..."`)
-- **Algorithm**: AES-256 (industry standard)
-- **Header Encryption**: Enabled (`-mhe=on`) - hides filenames
+- **Algorithm**: AES-256 (industry standard for ZIP encryption)
+- **Format**: ZIP format with AES-256 encryption (`-mem=AES256`)
 - **Password Strength**: Use strong passwords (12+ characters, mixed case, numbers, symbols)
 
 **Without password** (omit `--password`)
@@ -696,7 +696,7 @@ Simulate mode (`--SIMULATEZIP`) processes all CSV records and updates them with 
 - **No file existence checks**: Assumes all files exist
 - **CSV updates**: Instance CSVs updated with simulated paths
 - **Audit log**: All entries marked as "SIMULATED"
-- **Path format**: `SIMULATE\YYYY\name.7z`
+- **Path format**: `SIMULATE\YYYY\name.zip`
 - **Speed**: 10-100x faster than actual compression
 - **No deletion**: Source files never deleted (even with `--delete-after-compress`)
 
@@ -704,15 +704,15 @@ Simulate mode (`--SIMULATEZIP`) processes all CSV records and updates them with 
 
 **Instance CSV (Compressed_Filename column):**
 ```
-SIMULATE\2025\2511304H.7z
-SIMULATE\2025\2511204W.7z
-SIMULATE\2024\2410104A.7z
+SIMULATE\2025\2511304H.zip
+SIMULATE\2025\2511204W.zip
+SIMULATE\2024\2410104A.zip
 ```
 
 **Audit log (compress-log.csv):**
 ```csv
 species_id,Species_name,Species_Instance_Filename,row,Filename,Status,Compressed_Filename
-1,BC2060P,BC2060P_2024.csv,1,2511304H.RPT,SIMULATED,SIMULATE\2025\2511304H.7z
+1,BC2060P,BC2060P_2024.csv,1,2511304H.RPT,SIMULATED,SIMULATE\2025\2511304H.zip
 ```
 
 ## Future Enhancements
@@ -870,11 +870,18 @@ For issues or questions:
 
 ## Version History
 
+- **v2.5** (2026-01-28): **BREAKING CHANGE** - ZIP format with AES-256 encryption
+  - 🔴 **BREAKING**: Changed from .7z format to .zip format
+  - ⭐ Archives now created as AES-256 encrypted ZIP files
+  - Uses `-tzip` and `-mem=AES256` parameters
+  - Compatible with systems that support encrypted ZIP but not 7z
+  - All file extensions changed from .7z to .zip
+
 - **v2.4** (2026-01-28): Simulate mode and column rename
   - ⭐ Simulate mode: `--SIMULATEZIP` parameter to test without actual compression
   - ⭐ Column rename: `Compressed_Path` → `Compressed_Filename` for consistency
-  - Simulated paths prefixed with "SIMULATE\YYYY\name.7z"
-  - Normal paths format: "\YYYY\name.7z"
+  - Simulated paths prefixed with "SIMULATE\YYYY\name.zip"
+  - Normal paths format: "\YYYY\name.zip"
   - Simulate mode useful for validation, planning, and testing
 
 - **v2.3** (2026-01-26): Batch processing and disk space management
