@@ -641,6 +641,11 @@ class AFPResourceAnalyzer:
         Combines resources with the same filename across different namespaces,
         merging their version lists and keeping versions sorted in descending order.
         The resulting structure has a single namespace called "ALL_NAMESPACES".
+
+        Version names are prefixed with namespace (e.g., "MY\\2024_01_01_00") to
+        distinguish identical version folder names from different namespaces.
+        The subsequent CRC-based deduplication will remove duplicates with identical
+        content, keeping only versions with different CRCs.
         """
         if not self.all_namespaces:
             return
@@ -650,15 +655,22 @@ class AFPResourceAnalyzer:
         # Iterate through all namespaces and resources
         for namespace, resources in self.aggregated_resources.items():
             for filename, resource_data in resources.items():
+                # Prefix version names with namespace to avoid confusion
+                # This allows CRC-based dedup to distinguish versions from different namespaces
+                prefixed_versions = [
+                    (f"{namespace}\\{version_name}", file_path, crc32_value)
+                    for version_name, file_path, crc32_value in resource_data['versions']
+                ]
+
                 if filename not in merged_resources:
                     # First occurrence of this filename
                     merged_resources[filename] = {
                         'type': resource_data['type'],
-                        'versions': list(resource_data['versions'])  # Copy the list
+                        'versions': prefixed_versions
                     }
                 else:
                     # Merge versions from this namespace
-                    merged_resources[filename]['versions'].extend(resource_data['versions'])
+                    merged_resources[filename]['versions'].extend(prefixed_versions)
 
         # Sort versions in each merged resource (descending order by version name)
         for filename, resource_data in merged_resources.items():

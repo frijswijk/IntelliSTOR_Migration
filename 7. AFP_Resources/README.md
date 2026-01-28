@@ -134,7 +134,11 @@ python Analyze_AFP_Resources.py \
 - Merges resources from all namespaces into a single list (namespace: ALL_NAMESPACES)
 - Collects all unique resources across namespaces
 - Combines version lists for same filename across different namespaces
-- Most effective when combined with `--version-compare` to show only real version differences
+- Version names are prefixed with namespace to distinguish identical folder names (e.g., `MY\2024_01_01_00`, `SG\2024_01_01_00`)
+- Most effective when combined with `--version-compare`:
+  - Uses CRC32 comparison to eliminate duplicate content across namespaces
+  - If same filename has identical content (same CRC) in different namespaces → only one version is kept
+  - If same filename has different content (different CRC) in different namespaces → both versions are kept with namespace prefix
 - When combined with `--FROMYEAR`, shows version differences only from specified year onwards
 - Use case: Multi-region deployments where you need to see all unique resources and their true version history
 
@@ -192,6 +196,8 @@ set AFP_Export_MY=%Migration_data%\AFP_Export_MY
 ## Output
 
 ### CSV Structure
+
+**Standard Output:**
 ```csv
 NameSpace,Folder,Resource_Filename,Resource_Type,# Versions,V1,V2,V3,V4,...
 DEFAULT,C:\...\afp,C0ARL05B.RCS,CharSet_Raster,3,2024_12_27_16,2023_11_30_09,2019_03_06_11
@@ -199,9 +205,18 @@ DEFAULT,C:\...\afp,F1ABR10.RFD,Formdef,2,2024_12_27_16,2023_11_30_09
 DEFAULT,C:\...\afp,P1SAMPLE.RPD,PageDef,1,2024_12_27_16
 ```
 
+**With --AllNameSpaces (namespace prefixed):**
+```csv
+NameSpace,Folder,Resource_Filename,Resource_Type,# Versions,V1,V2,V3,V4,...
+ALL_NAMESPACES,C:\...\afp,C0ARL05B.RCS,CharSet_Raster,3,SG\2024_12_27_16,MY\2023_11_30_09,SG\2019_03_06_11
+ALL_NAMESPACES,C:\...\afp,F1ABR10.RFD,Formdef,2,MY\2024_12_27_16,MY\2023_11_30_09
+ALL_NAMESPACES,C:\...\afp,P1SAMPLE.RPD,PageDef,1,SG\2024_12_27_16
+```
+
 - **# Versions** = count of unique content versions (shows all versions by default, or unique versions when --version-compare is used)
 - **V1** = newest version
 - **V2** = second newest version (with different content when --version-compare is used)
+- **Namespace prefix** = when using --AllNameSpaces, version folders are prefixed with namespace (e.g., `MY\2024_01_01_00`)
 - Dynamic columns based on maximum versions found
 - Sorted alphabetically by Resource_Filename
 
