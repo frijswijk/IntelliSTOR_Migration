@@ -3,7 +3,7 @@
 Batch Zip and Encrypt Files Using 7zip
 
 This script reads report species from CSV, extracts filenames from corresponding
-output CSVs, finds matching files using wildcards, and creates 7z archives
+output CSVs, finds matching files using wildcards, and creates AES-256 encrypted ZIP archives
 organized by year with resume capability.
 
 Improvements:
@@ -451,32 +451,32 @@ def create_7z_archive(
     compression_level: int = 5
 ) -> bool:
     """
-    Create 7z archive (with optional password) (Task 1)
+    Create ZIP archive with AES-256 encryption (with optional password)
 
     Args:
         zip_path: Path to 7z executable
-        output_file: Output 7z file path
+        output_file: Output ZIP file path
         input_files: List of files to archive
         password: Encryption password (None = no encryption)
-        compression_level: Compression level 0-9 (Task 5)
+        compression_level: Compression level 0-9
 
     Returns:
         True if successful, False otherwise
     """
     try:
-        # Build 7zip command
+        # Build 7zip command for ZIP format
         cmd = [
             zip_path,
             'a',              # Add to archive
-            '-t7z',           # 7z format
+            '-tzip',          # ZIP format (not 7z)
             f'-mx={compression_level}',  # Compression level
             output_file
         ]
 
-        # Add password options if provided (Task 1)
+        # Add password options if provided - AES-256 encryption for ZIP
         if password:
-            cmd.insert(3, f'-p{password}')  # Password
-            cmd.insert(4, '-mhe=on')        # Encrypt headers
+            cmd.insert(3, f'-p{password}')     # Password
+            cmd.insert(4, '-mem=AES256')       # AES-256 encryption for ZIP
 
         cmd.extend(input_files)
 
@@ -498,7 +498,7 @@ def create_7z_archive(
         logging.error(f"7zip command timed out for {output_file}")
         return False
     except Exception as e:
-        logging.error(f"Error creating 7z archive {output_file}: {e}")
+        logging.error(f"Error creating ZIP archive {output_file}: {e}")
         return False
 
 
@@ -652,18 +652,18 @@ def process_species(
         if not simulate_zip:
             year_folder = os.path.join(output_folder, year)
             os.makedirs(year_folder, exist_ok=True)
-            output_7z = os.path.join(year_folder, f"{base_filename}.7z")
+            output_7z = os.path.join(year_folder, f"{base_filename}.zip")
         else:
             year_folder = None
             output_7z = None
 
         # Compressed filename for CSV column (Task 2)
         if simulate_zip:
-            # In simulate mode, prefix with "SIMULATE\YYYY\name.7z"
-            compressed_filename = f"SIMULATE\\{year}\\{base_filename}.7z"
+            # In simulate mode, prefix with "SIMULATE\YYYY\name.zip"
+            compressed_filename = f"SIMULATE\\{year}\\{base_filename}.zip"
         else:
-            # Normal mode: just "\YYYY\name.7z"
-            compressed_filename = f"\\{year}\\{base_filename}.7z"
+            # Normal mode: just "\YYYY\name.zip"
+            compressed_filename = f"\\{year}\\{base_filename}.zip"
         # Check if archive already exists (skip in simulate mode)
         if not simulate_zip and os.path.exists(output_7z):
             # Log to compress log (SKIPPED - already exists) - written in real-time
@@ -744,7 +744,7 @@ def process_species(
             save_progress(species_id, row_idx, stats_obj)
             continue
 
-        # Create 7z archive (or simulate)
+        # Create ZIP archive (or simulate)
         if simulate_zip:
             # Simulate mode: skip actual compression
             logging.info(f"Processing: {csv_filename} row {row_idx}/{total_rows}: {base_filename} - SIMULATING archive (would compress {len(source_files)} files)")
@@ -752,8 +752,8 @@ def process_species(
                 print_progress_line(f"Processing: {csv_filename} row {row_idx}/{total_rows}: {base_filename} - SIMULATING...", quiet=True)
             success = True  # Always success in simulate mode
         else:
-            # Normal mode: create actual archive
-            logging.info(f"Processing: {csv_filename} row {row_idx}/{total_rows}: {base_filename} - creating archive (found {len(source_files)} files)")
+            # Normal mode: create actual ZIP archive with AES-256 encryption
+            logging.info(f"Processing: {csv_filename} row {row_idx}/{total_rows}: {base_filename} - creating ZIP archive (found {len(source_files)} files)")
             if quiet:
                 print_progress_line(f"Processing: {csv_filename} row {row_idx}/{total_rows}: {base_filename} - compressing {len(source_files)} files...", quiet=True)
             success = create_7z_archive(zip_path, output_7z, source_files, password, compression_level)
@@ -841,18 +841,18 @@ def process_species(
 def main():
     """Main processing function"""
     parser = argparse.ArgumentParser(
-        description='Batch zip and encrypt files using 7zip with resume capability'
+        description='Batch zip and encrypt files using 7zip (creates AES-256 encrypted ZIP files) with resume capability'
     )
 
     # Required arguments
     parser.add_argument('--source-folder', required=True,
                         help='Directory containing files to zip')
     parser.add_argument('--output-folder', required=True,
-                        help='Directory to save 7z files')
+                        help='Directory to save ZIP files')
 
     # Task 1: Password is now optional
     parser.add_argument('--password',
-                        help='Encryption password for 7z archives (optional, no password = no encryption)')
+                        help='Encryption password for ZIP archives (AES-256 encryption, optional, no password = no encryption)')
 
     # Optional arguments
     parser.add_argument('--species-csv',
