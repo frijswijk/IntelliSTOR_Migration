@@ -1,0 +1,11 @@
+# LDAP Integration Tool Requirements
+# Install with: pip install -r requirements.txt
+
+# LDAP client library
+ldap3>=2.9.1
+
+# Web framework for browser API
+flask>=2.3.0
+
+# CORS support for Flask
+flask-cors>=4.0.0

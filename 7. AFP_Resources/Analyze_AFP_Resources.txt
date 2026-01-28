@@ -1,0 +1,28 @@
+Create a python tool "IntelliSTOR AFP Resource Analyzer" that takes the following parameters:
+- Namespace
+- Folder; the folder that is being scanned for AFP resources.
+- AFP_ResourcesCSV: The location and name of the output csv file.
+
+The folder contains sub-folders named like 2023_11_30_09 I do not know where the last 2 digits stand for, the rest seems a date.
+Inside the folder there are resources where the prefix determines what kind of resource it is. Also the last 2 characters of the extension indicate the resource type.
+Prefix (2 char):
+T1 : Codepage
+C0/CZ : character set (Raster/Outline)
+X0/XZ : Font (Raster/Outline)
+F1 : Formdef
+P1 : Pagedef
+S1 : Page segment / overlay
+
+Prefix - suffix
+S1  - RPS	PageSegment
+C0  - RCS	CharSet_Raster
+C1  - RCS	CharSet_Outline
+P1  - RPD	PageDef
+F1  - RFD	Formdef
+
+The output csv should contain an aggregated sorted list of resource names with its Type and columns and each version the folder name in descending order.
+
+NameSpace,Folder,Resource_Filename,Resource_Type,V1, V2, V3, V4, ...
+BB,c:\downloads\afp,C0ARL05B.RCS,CharSet_Raster, 2017_08_16_10,2018_08_27_18,2019_03_06_11
+
+The sample folder containing the resources is: C:\Users\freddievr\Downloads\afp\afp

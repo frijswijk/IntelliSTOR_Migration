@@ -1,0 +1,132 @@
+*$$ GL0420P2   27112025 UT 850 00:58:50
+1
+0 NAME & ADDRESS CODE   B      LINE 1                    DEMAND STATEMENT
+  NAME & ADDRESS CODE   B      LINE 2
+  NAME & ADDRESS CODE   B      LINE 3
+  NAME & ADDRESS CODE   B      LINE 4
+                                        OUR REF  850-108886-THB-8020999900-01              BRANCH - OCBC - BANGKOK
+                                                                                                                                 1
+0                                         CURRENCY   THAI BAHT             DATE   27NOV25           PAGE     2
+- POSTING    VALUE     CHEQUE              NARRATIVE                    DEBITS                CREDITS               BALANCE
+    DATE      DATE       NO
+0  28MAY25                                                 B/F                                                   720,000,000.00CR
+                                                           C/F                                                   720,000,000.00CR
+1
+0 NAME & ADDRESS CODE   B      LINE 1                    DEMAND STATEMENT
+  NAME & ADDRESS CODE   B      LINE 2
+  NAME & ADDRESS CODE   B      LINE 3
+  NAME & ADDRESS CODE   B      LINE 4
+                                        OUR REF  850-400113-THB-3465328600-02              BRANCH - OCBC - BANGKOK
+                                                                                                                                 2
+0                                         CURRENCY   THAI BAHT             DATE   27NOV25           PAGE     2
+- POSTING    VALUE     CHEQUE              NARRATIVE                    DEBITS                CREDITS               BALANCE
+    DATE      DATE       NO
+0  28MAY25                                                 B/F                                                             0.00
+                                                           C/F                                                             0.00
+1
+-
+-                                       OUR REF  850-400113-THB-6226128600-02              BRANCH - OCBC - BANGKOK
+                                                                                                                                 3
+0                                         CURRENCY   THAI BAHT             DATE   27NOV25           PAGE     3
+- POSTING    VALUE     CHEQUE              NARRATIVE                    DEBITS                CREDITS               BALANCE
+    DATE      DATE       NO
+0  28MAY25                                                 B/F                                                        13,207.89DR
+   30MAY25   31MAY25            XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX                                  13,207.89
+                                                           C/F                                                             0.00
+1
+0 NAME & ADDRESS CODE   B      LINE 1                    DEMAND STATEMENT
+  NAME & ADDRESS CODE   B      LINE 2
+  NAME & ADDRESS CODE   B      LINE 3
+  NAME & ADDRESS CODE   B      LINE 4
+                                        OUR REF  850-400113-THB-8030128600-02              BRANCH - OCBC - BANGKOK
+                                                                                                                                 4
+0                                         CURRENCY   THAI BAHT             DATE   27NOV25           PAGE     2
+- POSTING    VALUE     CHEQUE              NARRATIVE                    DEBITS                CREDITS               BALANCE
+    DATE      DATE       NO
+0  28MAY25                                                 B/F                                                             0.00
+                                                           C/F                                                             0.00
+1
+0 NAME & ADDRESS CODE   B      LINE 1                    DEMAND STATEMENT
+  NAME & ADDRESS CODE   B      LINE 2
+  NAME & ADDRESS CODE   B      LINE 3
+  NAME & ADDRESS CODE   B      LINE 4
+                                        OUR REF  850-400113-THB-8330128600-02              BRANCH - OCBC - BANGKOK
+                                                                                                                                 5
+0                                         CURRENCY   THAI BAHT             DATE   27NOV25           PAGE     2
+- POSTING    VALUE     CHEQUE              NARRATIVE                    DEBITS                CREDITS               BALANCE
+    DATE      DATE       NO
+0  28MAY25                                                 B/F                                                             0.00
+                                                           C/F                                                             0.00
+1
+0 NAME & ADDRESS CODE   B      LINE 1                    DEMAND STATEMENT
+  NAME & ADDRESS CODE   B      LINE 2
+  NAME & ADDRESS CODE   B      LINE 3
+  NAME & ADDRESS CODE   B      LINE 4
+                                        OUR REF  850-400113-USD-8035128600-02              BRANCH - OCBC - BANGKOK
+                                                                                                                                 6
+0                                         CURRENCY   US DOLLAR             DATE   27NOV25           PAGE     2
+- POSTING    VALUE     CHEQUE              NARRATIVE                    DEBITS                CREDITS               BALANCE
+    DATE      DATE       NO
+0  28MAY25                                                 B/F                                                             0.00
+                                                           C/F                                                             0.00
+1
+0 NAME & ADDRESS CODE   B      LINE 1                    DEMAND STATEMENT
+  NAME & ADDRESS CODE   B      LINE 2
+  NAME & ADDRESS CODE   B      LINE 3
+  NAME & ADDRESS CODE   B      LINE 4
+                                        OUR REF  850-400113-USD-8335128600-02              BRANCH - OCBC - BANGKOK
+                                                                                                                                 7
+0                                         CURRENCY   US DOLLAR             DATE   27NOV25           PAGE     2
+- POSTING    VALUE     CHEQUE              NARRATIVE                    DEBITS                CREDITS               BALANCE
+    DATE      DATE       NO
+0  28MAY25                                                 B/F                                                             0.00
+                                                           C/F                                                             0.00
+1
+0 NAME & ADDRESS CODE   B      LINE 1                    DEMAND STATEMENT
+  NAME & ADDRESS CODE   B      LINE 2
+  NAME & ADDRESS CODE   B      LINE 3
+  NAME & ADDRESS CODE   B      LINE 4
+                                        OUR REF  850-400115-SGD-6235428600-02              BRANCH - OCBC - BANGKOK
+                                                                                                                                 8
+0                                         CURRENCY   SINGAPORE DLRS        DATE   27NOV25           PAGE     2
+- POSTING    VALUE     CHEQUE              NARRATIVE                    DEBITS                CREDITS               BALANCE
+    DATE      DATE       NO
+0  28MAY25                                                 B/F                                                             0.00
+                                                           C/F                                                             0.00
+1
+0 NAME & ADDRESS CODE   B      LINE 1                    DEMAND STATEMENT
+  NAME & ADDRESS CODE   B      LINE 2
+  NAME & ADDRESS CODE   B      LINE 3
+  NAME & ADDRESS CODE   B      LINE 4
+                                        OUR REF  850-400115-THB-6235428600-02              BRANCH - OCBC - BANGKOK
+                                                                                                                                 9
+0                                         CURRENCY   THAI BAHT             DATE   27NOV25           PAGE     2
+- POSTING    VALUE     CHEQUE              NARRATIVE                    DEBITS                CREDITS               BALANCE
+    DATE      DATE       NO
+0  28MAY25                                                 B/F                                                             0.00
+                                                           C/F                                                             0.00
+1
+-                                                 *** END OF REPORT FOR BRANCH 850 ***
+*$$ LE1170P1   27112025 UT 850 00:58:50
+1
+-
+                                                   OCBC - BANGKOK
+0                                                       ROLLOVER CONFIRMATION
+                                                        ---------------------
+-                                                             DATE  27NOV25
+                                                              REF.  200442-400115
+0                                            NAME & ADDRESS CODE   B      LINE 1
+                                             NAME & ADDRESS CODE   B      LINE 2
+         NAME & ADDRESS CODE   B      LINE 1 NAME & ADDRESS CODE   B      LINE 3
+         NAME & ADDRESS CODE   B      LINE 2 NAME & ADDRESS CODE   B      LINE 4
+0        CCY   PRINCIPAL         FROM      TO   INTEREST RATE         INTEREST
+         THB ****302,209,957.85 27NOV25 27FEB26 ****4.1890200  ******3,190,921.84
+0                                           TOTAL              ****305,400,879.69
+0       PAYMENT AT ROLLOVER DATE            PAYMENT AT ROLLOVER DATE BY
+           AS PER YOUR INSTRUCTIONS            DEBIT TO A/C NUMBER
+                                               4001156689
+-
+-
+-
+-
+0     FINAL MATURITY DATE :        27MAY29

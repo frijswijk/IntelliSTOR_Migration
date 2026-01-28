@@ -1,0 +1,98 @@
+================================================================================
+                    LDAP BROWSER - QUICK START
+================================================================================
+
+HOW IT WORKS:
+-------------
+The browser has 2 parts:
+  1. Flask API (Python backend) - Connects to LDAP server
+  2. HTML file (Frontend) - Web interface
+
+You start the API, then open the HTML file in your browser.
+
+
+QUICK START (3 STEPS):
+----------------------
+
+Step 1: Start the Flask API
+----------------------------
+Run this command (or use start_browser.bat):
+
+    python ldap_integration.py serve-browser \
+      --server YLDAPTEST-DC01.ldap1test.loc \
+      --port 636 \
+      --use-ssl \
+      --ssl-no-verify \
+      --bind-dn "cn=administrator,cn=Users,dc=ldap1test,dc=loc" \
+      --password "Linked3-Shorten-Crestless" \
+      --base-dn "dc=ldap1test,dc=loc"
+
+OR just run:
+    start_browser.bat
+
+
+Step 2: Open the HTML file
+---------------------------
+Double-click: ldap_browser.html
+
+OR open in browser:
+    file:///C:/Users/freddievr/claude-projects/IntelliSTOR_Migration/2_LDAP/ldap_browser.html
+
+
+Step 3: Verify Connection
+--------------------------
+Look for green "Connected" status in the browser header.
+
+
+CONFIGURATION:
+--------------
+
+Q: Where do I configure the LDAP connection?
+A: In the command when starting the Flask API (Step 1 above)
+
+Q: Do I need to modify ldap_browser.html?
+A: No, not if you're running locally (127.0.0.1:5000)
+
+Q: What if I need to change the API host/port?
+A: Edit line 318 in ldap_browser.html:
+   const API_BASE = 'http://YOUR_IP:YOUR_PORT/api';
+
+
+SSL OPTIONS:
+------------
+
+Skip verification (testing only):
+    --use-ssl --ssl-no-verify
+
+Custom CA certificate (recommended):
+    --use-ssl --ssl-ca-cert ca-cert.pem
+
+System certificate store (production):
+    --use-ssl
+
+
+TROUBLESHOOTING:
+----------------
+
+Issue: "Connection Failed" in browser
+Fix:   - Is Flask API running? Check terminal
+       - Is port 5000 available?
+       - Check browser console (F12) for errors
+
+Issue: "Disconnected" status in browser
+Fix:   - Check Flask API terminal for LDAP errors
+       - Verify LDAP server is accessible
+       - Check credentials
+
+Issue: Empty tree or no results
+Fix:   - Verify --base-dn is correct
+       - Check bind DN has permissions
+       - Try searching instead of browsing tree
+
+
+NEED MORE DETAILS?
+------------------
+See: BROWSER_CONFIGURATION_GUIDE.md
+
+
+================================================================================

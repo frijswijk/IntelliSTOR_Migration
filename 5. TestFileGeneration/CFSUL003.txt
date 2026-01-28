@@ -1,0 +1,316 @@
+CFSUL003                                BT COI COMPLETED APPLICATION REPORT     RUN DATE:18-01-2025 00:30:34            PAGE:1                                  
+OCBC BANK                                                                       REPORT DATE: 17-01-2025                 
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+   Appln_Ref_No          Hub_Inf    Fac_Typ     Fac_Cat  Fac         Rq_Typ   Bund_Ind  Channel_Src App_Src     App_Typ Sales_Src   Intro_ID    Intro_ID2 Ind         Curr_Sts                           Prev_Sts
+   Main_Applicant_Name   Appl_Id_Ty M_Appl_ID   Appl_Age Appl_DOB    Appl_Nal Appl_Race Appl_G      J1_Name             J1_ID_Ty    J1_ID       J1_Age    J1_DOB      J1_Nal      J1_Race     J1_G
+   S1_Name               S1_IDTy    S1_ID       S1_Age   S1_DOB      S1_NAL   S1_Race   S1_G        S2_Name             S2_IDTy     S2_ID       S2_Age    S2_DOB      S2_NAL      S2_Race     S2_G
+   S3_Name               S3_IDTy    S3_ID       S3_Age   S3_DOB      S3_NAL   S3_Race   S3_G        Holder      Hldr_Id Prev_Hldr   Prev_Hldr_Id          App_crt_dt  Last_Txn_Dt Is_1_Fac    St_Sup_app
+   FC_Acc_To_Open        Crd_Col_Mod            Amt_Approve          1_SMS_time         Appl's_AQI  Joint_1_AQI MAS635_apcb         Strt_Time   End_Time              Staff_ID
+   Pend_Doc_Rson1        Pend_Doc_Rson2         Pend_Doc_Rson3       Pend_Doc_Rson4     Pend_Doc_Rson5          Pend_Info_Rson1     Pend_Info_Rson2       Pend_Info_Rson3         Pend_Info_Rson4       Pend_Info_Rson5
+   Review_Reason_1       Review_Reason_2        Review_Reason_3      Review_Reason_4    Review_Reason_5         Reject_Reason_1                                       Reject_Reason_2
+   Reject_Reason_3                                                   Reject_Reason_4                                                Reject_Reason_5
+   Abort_Reason_1        Abort_Reason_2         Abort_Reason_3       Abort_Reason_4     Abort_Reason_5          STP/NSTP Nm_Of_Ctr  Ctr_Status  SIBS_Acc_No           DDA_Acc_No              Promo_Code
+   Deviation             Prcs_Fee_W Rpmt_Opt    Override_Rsn         Is_Ins_Apvl        Mobile_No               App_Src_cd          LTenor      Cust_Prf_Lmt          Appld_Amt1  Aprvd_Amt1
+   Beneficiary_Bank_1                           Beneficiary_Acct_No1 Beneficiary_Holder_Name1                   Appld_Amt2          Aprvd_Amt2  Beneficiary_Bank_2    Beneficiary_Acct_No2    Beneficiary_Holder_Name2
+   M_ln_card_esso_Acc    S1_ln_card_esso_Acc    S2_ln_card_esso_Acc  S3_ln_card_esso_Acc M_mrktg_cnst           S1_mrktg_cnst       S2_mrktg_cnst         S3_mrktg_cnst           J1_mrktg_cnst         Main_Applicant_Email
+   Supp_1_Email                                 Supp_2_Email                            Supp_3_Email                                Joint_1_Email                     M_apcnt_stmt_ind        MyInfo_Ind
+   Fac_Sts               Recaptured Force_Thru  Man_Card_Creation    Saltn    Hanyu_Pinyin_Name     Hanyu_Pinyin_Als_Nm Married_Name            Marital_Sts           H_Acd_qual  Resident_S  Mother's_Name    Pref_Mail_Add
+   Emp_Typ   Occ         BOS_Mntr_Cd            Pend_Disbus_Exp_Dt   Acc2_Opened        Casa_Acc_No2_lnk        Upd_lnk_casa_addr1  Upd_lnk_casa_addr2    Is_Fastcash_Acc1        Is_Fastcash_Acc2      Base_EIR
+   Cmp_Olay_EIR          Ch_Olay_EIR            Comm_nd_tier_tbl     EIR_Offer          EIR_Pkg_Select          Ln_disbus_Ch        Edu_Inst_Name         Repay_Opt   Course_End  Interest_Rate         Total_Repayment
+   Parent_ID             Child_ID_1             Child_ID_2           System
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+1  0111056840                       BTR         COI      CW          COI      false     MailIn      UIB000                          10000                 Normal      rejected_system_final_check        data_entry                         
+2                                                                                                                                                                                                  
+3                                                                                                                                                                                                  
+4                                                                                                   CLAS        CLAS    CLAS        CLAS                  2025-01-17  2025-01-17  false       N         
+5                                                                                                                                                                     101125      
+6                                                                                                                                                                                                                             
+7                                                                                                               STAFF APPLICATION                                     EXISTING ACCOUNT CONDUCT UNSATISFACTORY - NPL (CCRA)  
+8  RP10AE                                                                                                                                                                                 
+9                                                                                                               NON-STP  NON-STP                                                                               
+10                                                                   N                  92701833                MailIn                          0                                             
+11                                                                                                                                                                                                                          
+12                                                                                                                                                                                                                                 
+13                                                                                                                                                                                                       
+14 rejected_system_final                                                                                                                                                                                                                  
+15                                                                                                                                                                                                                  
+16                                                                                                                                                                                
+17 0111056840            0111056840                                  CLAS      
+1  0111056850                       BTR         BT       ECBT        BT       false     IPA         CCT000      ECBT                                      Normal      rejected_system_final_check        application_created_system         
+2  FTESTEC20240827A      IC         S2096937G   35       01-01-1990  SG       C         M                                                                                                          
+3                                                                                                                                                                                                  
+4                                                                                                   IPA         IPA     IPA         IPA                   2025-01-17  2025-01-17  false       N         
+5                                               500.00                                  8000.00                                                                                   
+6                                                                                                                                                                                                                             
+7                                                                                                               RP10AE                                                FAIL BT/COI/CW UNDERWRITING CRITERIA (CCRA)           
+8  SCOREWARE RESULT - FAIL (CCRA)                                                                                                                                                         
+9                                                                                                               NON-STP  NON-STP                631056454001                                  03F180           
+10                                                                   N                  6589133616              IPA                 3           0                     500.00      500.00      
+11 OCBC BANK                                    5019011641           FTEST                                                                                                                                                  
+12                                                                                                                                                                                                      NGYUFEI@OCBC.COM           
+13                                                                                                                                                                                                       
+14 rejected_system_final                                                                                                                                              G                                                                   
+15                                                                                                                                                                                                                  
+16                       0.00                                        7.38                                                                                                         
+17 ECBT20250117000006    0111056850                                  CLAS      
+1  0111056870                       BTR         BT       CCBT        BT       false     IPA         CCT000      CCBT                                      Normal      rejected_system_final_check        application_created_system         
+2  TESTDYNAMICPRI06      IC         S3528129J   35       01-01-1990  SG       C         M                                                                                                          
+3                                                                                                                                                                                                  
+4                                                                                                   IPA         IPA     IPA         IPA                   2025-01-17  2025-01-17  false       N         
+5                                               800.00                                  9750.00                                                                                   
+6                                                                                                                                                                                                                             
+7                                                                                                               RP10AE                                                SCOREWARE RESULT - FAIL (CCRA)                        
+8  FAIL BT/COI/CW UNDERWRITING CRITERIA (CCRA)                       CREDIT BUREAU FAIL (CCRA)                                                                                            
+9                                                                                                               NON-STP  NON-STP                4831390190005472                              06F250           
+10                                                                   N                  89133616                IPA                 6           0                     800.00      800.00      
+11 OCBC BANK                                    5012011663           FETST                                                                                                                                                  
+12                                                                                                                                                                                                      NGYUFEI@OCBC.COM           
+13                                                                                                                                                                                                       
+14 rejected_system_final                                                                                                                                              G                                                                   
+15                                                                                                                                                                                                                  
+16                       0.00                                        5.34                                                                                                         
+17 CCBT20250117000009    0111056870                                  CLAS      
+*********************************************************************************************************************************************************************************************************************************************
+CFSUL003                                BT COI COMPLETED APPLICATION REPORT     RUN DATE:18-01-2025 00:30:34            PAGE:2                                  
+OCBC BANK                                                                       REPORT DATE: 17-01-2025                 
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+   Appln_Ref_No          Hub_Inf    Fac_Typ     Fac_Cat  Fac         Rq_Typ   Bund_Ind  Channel_Src App_Src     App_Typ Sales_Src   Intro_ID    Intro_ID2 Ind         Curr_Sts                           Prev_Sts
+   Main_Applicant_Name   Appl_Id_Ty M_Appl_ID   Appl_Age Appl_DOB    Appl_Nal Appl_Race Appl_G      J1_Name             J1_ID_Ty    J1_ID       J1_Age    J1_DOB      J1_Nal      J1_Race     J1_G
+   S1_Name               S1_IDTy    S1_ID       S1_Age   S1_DOB      S1_NAL   S1_Race   S1_G        S2_Name             S2_IDTy     S2_ID       S2_Age    S2_DOB      S2_NAL      S2_Race     S2_G
+   S3_Name               S3_IDTy    S3_ID       S3_Age   S3_DOB      S3_NAL   S3_Race   S3_G        Holder      Hldr_Id Prev_Hldr   Prev_Hldr_Id          App_crt_dt  Last_Txn_Dt Is_1_Fac    St_Sup_app
+   FC_Acc_To_Open        Crd_Col_Mod            Amt_Approve          1_SMS_time         Appl's_AQI  Joint_1_AQI MAS635_apcb         Strt_Time   End_Time              Staff_ID
+   Pend_Doc_Rson1        Pend_Doc_Rson2         Pend_Doc_Rson3       Pend_Doc_Rson4     Pend_Doc_Rson5          Pend_Info_Rson1     Pend_Info_Rson2       Pend_Info_Rson3         Pend_Info_Rson4       Pend_Info_Rson5
+   Review_Reason_1       Review_Reason_2        Review_Reason_3      Review_Reason_4    Review_Reason_5         Reject_Reason_1                                       Reject_Reason_2
+   Reject_Reason_3                                                   Reject_Reason_4                                                Reject_Reason_5
+   Abort_Reason_1        Abort_Reason_2         Abort_Reason_3       Abort_Reason_4     Abort_Reason_5          STP/NSTP Nm_Of_Ctr  Ctr_Status  SIBS_Acc_No           DDA_Acc_No              Promo_Code
+   Deviation             Prcs_Fee_W Rpmt_Opt    Override_Rsn         Is_Ins_Apvl        Mobile_No               App_Src_cd          LTenor      Cust_Prf_Lmt          Appld_Amt1  Aprvd_Amt1
+   Beneficiary_Bank_1                           Beneficiary_Acct_No1 Beneficiary_Holder_Name1                   Appld_Amt2          Aprvd_Amt2  Beneficiary_Bank_2    Beneficiary_Acct_No2    Beneficiary_Holder_Name2
+   M_ln_card_esso_Acc    S1_ln_card_esso_Acc    S2_ln_card_esso_Acc  S3_ln_card_esso_Acc M_mrktg_cnst           S1_mrktg_cnst       S2_mrktg_cnst         S3_mrktg_cnst           J1_mrktg_cnst         Main_Applicant_Email
+   Supp_1_Email                                 Supp_2_Email                            Supp_3_Email                                Joint_1_Email                     M_apcnt_stmt_ind        MyInfo_Ind
+   Fac_Sts               Recaptured Force_Thru  Man_Card_Creation    Saltn    Hanyu_Pinyin_Name     Hanyu_Pinyin_Als_Nm Married_Name            Marital_Sts           H_Acd_qual  Resident_S  Mother's_Name    Pref_Mail_Add
+   Emp_Typ   Occ         BOS_Mntr_Cd            Pend_Disbus_Exp_Dt   Acc2_Opened        Casa_Acc_No2_lnk        Upd_lnk_casa_addr1  Upd_lnk_casa_addr2    Is_Fastcash_Acc1        Is_Fastcash_Acc2      Base_EIR
+   Cmp_Olay_EIR          Ch_Olay_EIR            Comm_nd_tier_tbl     EIR_Offer          EIR_Pkg_Select          Ln_disbus_Ch        Edu_Inst_Name         Repay_Opt   Course_End  Interest_Rate         Total_Repayment
+   Parent_ID             Child_ID_1             Child_ID_2           System
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+1  0111056871                       BTR         BT       CCBT        BT       false     IPA         RSP007      CCBT                                      Normal      rejected_system_final_check        application_created_system         
+2  TESTNBNOMLHAQI15      IC         S8847210A   35       01-01-1990  SG       C         M                                                                                                          
+3                                                                                                                                                                                                  
+4                                                                                                   IPA         IPA     IPA         IPA                   2025-01-17  2025-01-17  false       N         
+5                                               800.00                                  9167.00                                                                                   
+6                                                                                                                                                                                                                             
+7                                                                                                               EXISTING ACCOUNT CONDUCT UNSATISFACTORY - NPL (CCRA)  CREDIT BUREAU FAIL (CCRA)                             
+8  BT RECOMMENDED LIMIT BELOW THRESHOLD                              RP10AE                                                                                                               
+9                                                                                                               NON-STP  NON-STP                5400126290022019                              06F250           
+10                                                                   N                  89133616                IPA                 6           0                     800.00      800.00      
+11 OCBC BANK                                    5018011659           FTESTCC                                                                                                                                                
+12                                                                                                                                                                                                      NGYUFEI@OCBC.COM           
+13                                                                                                                                                                                                       
+14 rejected_system_final                                                                                                                                              M                                                                   
+15                                                                                                                                                                                                                  
+16                       0.00                                        5.34                                                                                                         
+17 CCBT20250117000010    0111056871                                  CLAS      
+1  0111056873                       BTR         BT       CCBT        BT       false     IPA         CCT000      CCBT                                      Normal      rejected_system_final_check        application_created_system         
+2  TESTWBWML025          IC         S1224250F   41       01-01-1984  MY       C         M                                                                                                          
+3                                                                                                                                                                                                  
+4                                                                                                   IPA         IPA     IPA         IPA                   2025-01-17  2025-01-17  false       N         
+5                                               600.00                                  2584.00                                                                                   
+6                                                                                                                                                                                                                             
+7                                                                                                               SCOREWARE RESULT - FAIL (CCRA)                        RP10AE                                                
+8  FAIL BT/COI/CW UNDERWRITING CRITERIA (CCRA)                                                                                                                                            
+9                                                                                                               NON-STP  NON-STP                4524192090192596                              06R288           
+10                                                                   N                  89133616                IPA                 6           0                     600.00      600.00      
+11 OCBC BANK                                    5013011423           FTEST                                                                                                                                                  
+12                                                                                                                                                                                                      NGYUFEI@OCBC.COM           
+13                                                                                                                                                                                                       
+14 rejected_system_final                                                                                                                                              G                                                                   
+15                                                                                                                                                                                                                  
+16                       0.03                                        4.90                                                                                                         
+17 CCBT20250117000011    0111056873                                  CLAS      
+1  0111056879                       BTR         BT       CCBT        BT       false     SecureIB    LXJ2J3                                                Normal      rejected_system_final_check        application_created_system         
+2                                                                                                                                                                                                  
+3                                                                                                                                                                                                  
+4                                                                                                   CLAS        CLAS    CLAS        CLAS                  2025-01-17  2025-01-17  false       N         
+5                                                                                                                                                                                 
+6                                                                                                                                                                                                                             
+7                                                                                                               FAIL BT/COI/CW UNDERWRITING CRITERIA (CCRA)           SCOREWARE RESULT - FAIL (CCRA)                        
+8  RP10AE                                                            CREDIT BUREAU FAIL (CCRA)                                                                                            
+9                                                                                                               NON-STP  NON-STP                                                                               
+10                                                                   N                  89133616                SecureIB                        0                                             
+11                                                                                                                                                                                                                          
+12                                                                                                                                                                                                                                 
+13                                                                                                                                                                                                       
+14 rejected_system_final                                                                                                                                                                                                                  
+15                                                                                                                                                                                                                  
+16                                                                                                                                                                                
+17 0111056879            0111056879                                  CLAS      
+*********************************************************************************************************************************************************************************************************************************************
+CFSUL003                                BT COI COMPLETED APPLICATION REPORT     RUN DATE:18-01-2025 00:30:34            PAGE:3                                  
+OCBC BANK                                                                       REPORT DATE: 17-01-2025                 
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+   Appln_Ref_No          Hub_Inf    Fac_Typ     Fac_Cat  Fac         Rq_Typ   Bund_Ind  Channel_Src App_Src     App_Typ Sales_Src   Intro_ID    Intro_ID2 Ind         Curr_Sts                           Prev_Sts
+   Main_Applicant_Name   Appl_Id_Ty M_Appl_ID   Appl_Age Appl_DOB    Appl_Nal Appl_Race Appl_G      J1_Name             J1_ID_Ty    J1_ID       J1_Age    J1_DOB      J1_Nal      J1_Race     J1_G
+   S1_Name               S1_IDTy    S1_ID       S1_Age   S1_DOB      S1_NAL   S1_Race   S1_G        S2_Name             S2_IDTy     S2_ID       S2_Age    S2_DOB      S2_NAL      S2_Race     S2_G
+   S3_Name               S3_IDTy    S3_ID       S3_Age   S3_DOB      S3_NAL   S3_Race   S3_G        Holder      Hldr_Id Prev_Hldr   Prev_Hldr_Id          App_crt_dt  Last_Txn_Dt Is_1_Fac    St_Sup_app
+   FC_Acc_To_Open        Crd_Col_Mod            Amt_Approve          1_SMS_time         Appl's_AQI  Joint_1_AQI MAS635_apcb         Strt_Time   End_Time              Staff_ID
+   Pend_Doc_Rson1        Pend_Doc_Rson2         Pend_Doc_Rson3       Pend_Doc_Rson4     Pend_Doc_Rson5          Pend_Info_Rson1     Pend_Info_Rson2       Pend_Info_Rson3         Pend_Info_Rson4       Pend_Info_Rson5
+   Review_Reason_1       Review_Reason_2        Review_Reason_3      Review_Reason_4    Review_Reason_5         Reject_Reason_1                                       Reject_Reason_2
+   Reject_Reason_3                                                   Reject_Reason_4                                                Reject_Reason_5
+   Abort_Reason_1        Abort_Reason_2         Abort_Reason_3       Abort_Reason_4     Abort_Reason_5          STP/NSTP Nm_Of_Ctr  Ctr_Status  SIBS_Acc_No           DDA_Acc_No              Promo_Code
+   Deviation             Prcs_Fee_W Rpmt_Opt    Override_Rsn         Is_Ins_Apvl        Mobile_No               App_Src_cd          LTenor      Cust_Prf_Lmt          Appld_Amt1  Aprvd_Amt1
+   Beneficiary_Bank_1                           Beneficiary_Acct_No1 Beneficiary_Holder_Name1                   Appld_Amt2          Aprvd_Amt2  Beneficiary_Bank_2    Beneficiary_Acct_No2    Beneficiary_Holder_Name2
+   M_ln_card_esso_Acc    S1_ln_card_esso_Acc    S2_ln_card_esso_Acc  S3_ln_card_esso_Acc M_mrktg_cnst           S1_mrktg_cnst       S2_mrktg_cnst         S3_mrktg_cnst           J1_mrktg_cnst         Main_Applicant_Email
+   Supp_1_Email                                 Supp_2_Email                            Supp_3_Email                                Joint_1_Email                     M_apcnt_stmt_ind        MyInfo_Ind
+   Fac_Sts               Recaptured Force_Thru  Man_Card_Creation    Saltn    Hanyu_Pinyin_Name     Hanyu_Pinyin_Als_Nm Married_Name            Marital_Sts           H_Acd_qual  Resident_S  Mother's_Name    Pref_Mail_Add
+   Emp_Typ   Occ         BOS_Mntr_Cd            Pend_Disbus_Exp_Dt   Acc2_Opened        Casa_Acc_No2_lnk        Upd_lnk_casa_addr1  Upd_lnk_casa_addr2    Is_Fastcash_Acc1        Is_Fastcash_Acc2      Base_EIR
+   Cmp_Olay_EIR          Ch_Olay_EIR            Comm_nd_tier_tbl     EIR_Offer          EIR_Pkg_Select          Ln_disbus_Ch        Edu_Inst_Name         Repay_Opt   Course_End  Interest_Rate         Total_Repayment
+   Parent_ID             Child_ID_1             Child_ID_2           System
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+1  0111056882                       BTR         BT       CCBT        BT       false     SecureIB    LXJ2J3                                                Normal      rejected_system_final_check        application_created_system         
+2                                                                                                                                                                                                  
+3                                                                                                                                                                                                  
+4                                                                                                   CLAS        CLAS    CLAS        CLAS                  2025-01-17  2025-01-17  false       N         
+5                                                                                                                                                                                 
+6                                                                                                                                                                                                                             
+7                                                                                                               RP10AE                                                BT RECOMMENDED LIMIT BELOW THRESHOLD                  
+8                                                                                                                                                                                         
+9                                                                                                               NON-STP  NON-STP                                                                               
+10                                                                   N                  89133616                SecureIB                        0                                             
+11                                                                                                                                                                                                                          
+12                                                                                                                                                                                                                                 
+13                                                                                                                                                                                                       
+14 rejected_system_final                                                                                                                                                                                                                  
+15                                                                                                                                                                                                                  
+16                                                                                                                                                                                
+17 0111056882            0111056882                                  CLAS      
+1  0111056883                       BTR         BT       CCBT        BT       false     SecureIB    LXJ2J3                                                Normal      rejected_system_final_check        application_created_system         
+2                                                                                                                                                                                                  
+3                                                                                                                                                                                                  
+4                                                                                                   CLAS        CLAS    CLAS        CLAS                  2025-01-17  2025-01-17  false       N         
+5                                                                                                                                                                                 
+6                                                                                                                                                                                                                             
+7                                                                                                               RP10AE                                                FAIL BT/COI/CW UNDERWRITING CRITERIA (CCRA)           
+8  BT RECOMMENDED LIMIT BELOW THRESHOLD                              SCOREWARE RESULT - FAIL (CCRA)                                                                                       
+9                                                                                                               NON-STP  NON-STP                                                                               
+10                                                                   N                  89133616                SecureIB                        0                                             
+11                                                                                                                                                                                                                          
+12                                                                                                                                                                                                                                 
+13                                                                                                                                                                                                       
+14 rejected_system_final                                                                                                                                                                                                                  
+15                                                                                                                                                                                                                  
+16                                                                                                                                                                                
+17 0111056883            0111056883                                  CLAS      
+1  0111056887                       BTR         BT       CCBT        BT       false     SecureIB    LXJ2J3                                                Normal      rejected_system_final_check        application_created_system         
+2                                                                                                                                                                                                  
+3                                                                                                                                                                                                  
+4                                                                                                   CLAS        CLAS    CLAS        CLAS                  2025-01-17  2025-01-17  false       N         
+5                                                                                                                                                                                 
+6                                                                                                                                                                                                                             
+7                                                                                                               ACCOUNT BLK UNDER BTI FLAG-NOT TEMP LIMIT             FAIL BT/COI/CW UNDERWRITING CRITERIA (CCRA)           
+8  SCOREWARE RESULT - FAIL (CCRA)                                    RP10AE                                                                                                               
+9                                                                                                               NON-STP  NON-STP                                                                               
+10                                                                   N                  89133616                SecureIB                        0                                             
+11                                                                                                                                                                                                                          
+12                                                                                                                                                                                                                                 
+13                                                                                                                                                                                                       
+14 rejected_system_final                                                                                                                                                                                                                  
+15                                                                                                                                                                                                                  
+16                                                                                                                                                                                
+17 0111056887            0111056887                                  CLAS      
+*********************************************************************************************************************************************************************************************************************************************
+CFSUL003                                BT COI COMPLETED APPLICATION REPORT     RUN DATE:18-01-2025 00:30:34            PAGE:4                                  
+OCBC BANK                                                                       REPORT DATE: 17-01-2025                 
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+   Appln_Ref_No          Hub_Inf    Fac_Typ     Fac_Cat  Fac         Rq_Typ   Bund_Ind  Channel_Src App_Src     App_Typ Sales_Src   Intro_ID    Intro_ID2 Ind         Curr_Sts                           Prev_Sts
+   Main_Applicant_Name   Appl_Id_Ty M_Appl_ID   Appl_Age Appl_DOB    Appl_Nal Appl_Race Appl_G      J1_Name             J1_ID_Ty    J1_ID       J1_Age    J1_DOB      J1_Nal      J1_Race     J1_G
+   S1_Name               S1_IDTy    S1_ID       S1_Age   S1_DOB      S1_NAL   S1_Race   S1_G        S2_Name             S2_IDTy     S2_ID       S2_Age    S2_DOB      S2_NAL      S2_Race     S2_G
+   S3_Name               S3_IDTy    S3_ID       S3_Age   S3_DOB      S3_NAL   S3_Race   S3_G        Holder      Hldr_Id Prev_Hldr   Prev_Hldr_Id          App_crt_dt  Last_Txn_Dt Is_1_Fac    St_Sup_app
+   FC_Acc_To_Open        Crd_Col_Mod            Amt_Approve          1_SMS_time         Appl's_AQI  Joint_1_AQI MAS635_apcb         Strt_Time   End_Time              Staff_ID
+   Pend_Doc_Rson1        Pend_Doc_Rson2         Pend_Doc_Rson3       Pend_Doc_Rson4     Pend_Doc_Rson5          Pend_Info_Rson1     Pend_Info_Rson2       Pend_Info_Rson3         Pend_Info_Rson4       Pend_Info_Rson5
+   Review_Reason_1       Review_Reason_2        Review_Reason_3      Review_Reason_4    Review_Reason_5         Reject_Reason_1                                       Reject_Reason_2
+   Reject_Reason_3                                                   Reject_Reason_4                                                Reject_Reason_5
+   Abort_Reason_1        Abort_Reason_2         Abort_Reason_3       Abort_Reason_4     Abort_Reason_5          STP/NSTP Nm_Of_Ctr  Ctr_Status  SIBS_Acc_No           DDA_Acc_No              Promo_Code
+   Deviation             Prcs_Fee_W Rpmt_Opt    Override_Rsn         Is_Ins_Apvl        Mobile_No               App_Src_cd          LTenor      Cust_Prf_Lmt          Appld_Amt1  Aprvd_Amt1
+   Beneficiary_Bank_1                           Beneficiary_Acct_No1 Beneficiary_Holder_Name1                   Appld_Amt2          Aprvd_Amt2  Beneficiary_Bank_2    Beneficiary_Acct_No2    Beneficiary_Holder_Name2
+   M_ln_card_esso_Acc    S1_ln_card_esso_Acc    S2_ln_card_esso_Acc  S3_ln_card_esso_Acc M_mrktg_cnst           S1_mrktg_cnst       S2_mrktg_cnst         S3_mrktg_cnst           J1_mrktg_cnst         Main_Applicant_Email
+   Supp_1_Email                                 Supp_2_Email                            Supp_3_Email                                Joint_1_Email                     M_apcnt_stmt_ind        MyInfo_Ind
+   Fac_Sts               Recaptured Force_Thru  Man_Card_Creation    Saltn    Hanyu_Pinyin_Name     Hanyu_Pinyin_Als_Nm Married_Name            Marital_Sts           H_Acd_qual  Resident_S  Mother's_Name    Pref_Mail_Add
+   Emp_Typ   Occ         BOS_Mntr_Cd            Pend_Disbus_Exp_Dt   Acc2_Opened        Casa_Acc_No2_lnk        Upd_lnk_casa_addr1  Upd_lnk_casa_addr2    Is_Fastcash_Acc1        Is_Fastcash_Acc2      Base_EIR
+   Cmp_Olay_EIR          Ch_Olay_EIR            Comm_nd_tier_tbl     EIR_Offer          EIR_Pkg_Select          Ln_disbus_Ch        Edu_Inst_Name         Repay_Opt   Course_End  Interest_Rate         Total_Repayment
+   Parent_ID             Child_ID_1             Child_ID_2           System
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+1  0111056892                       BTR         COI      CW          COI      false     IPA         UIB000      CW                                        Normal      rejected_system_final_check        application_created_system         
+2  TESTJANN              IC         S9174333G   34       11-01-1991  SG                 M                                                                                                          
+3                                                                                                                                                                                                  
+4                                                                                                   CLAS        CLAS    CLAS        CLAS                  2025-01-17  2025-01-17  false       N         
+5                                               1000.00                                 0.00                                                                                      
+6                                                                                                                                                                                                                             
+7                                                                                                               RP10AE                                                SCOREWARE RESULT - FAIL (CCRA)                        
+8  FAIL BT/COI/CW UNDERWRITING CRITERIA (CCRA)                                                                                                                                            
+9                                                                                                               NON-STP  NON-STP                4524198890016232                              60580200         
+10                                                                   N                  97915007                IPA                 60          0                     1000.00     1000.00     
+11 OCBC BANK                                    201730546001         TESTJANN                                                                                                                                               
+12                                                                                                                                                                                                      BINTEABDULRAHMANNORZAILA@O 
+13                                                                                                                                                                                                       
+14 rejected_system_final                                                                                                                                              G                                                                   
+15                                                                                                                                                                                                                  
+16                       0.00                                        15.92                                                                                                        
+17 CW20250117000013      0111056892                                  CLAS      
+1  0111056830                       BTR         BT       CCBT        BT       false     IPA         RSP006                                                Normal      aborted_manual                     data_entry                         
+2                                                                                                                                                                                                  
+3                                                                                                                                                                                                  
+4                                                                                                   IPA         IPA     IPA         IPA                   2025-01-17  2025-01-17  false       N         
+5                                                                                                                                                                                 
+6                                                                                                                                                                                                                             
+7                                                                                                                                                                                                                           
+8                                                                                                                                                                                         
+9                                                                                                               NON-STP  NON-STP                                                                               
+10                                                                   N                  89133616                IPA                             0                                             
+11                                                                                                                                                                                                                          
+12                                                                                                                                                                                                                                 
+13                                                                                                                                                                                                       
+14 aborted_manual                                                                                                                                                                                                                         
+15                                                                                                                                                                                                                  
+16                                                                                                                                                                                
+17 CCBT20250117000001    0111056830                                  CLAS      
+1  0111056832                       BTR         BT       CCBT        BT       false     IPA         RSP007      CCBT                                      Normal      aborted_manual                     data_entry                         
+2  TESTDYNAMICPRI06      IC         S3528129J   35       01-01-1990  SG       C         M                                                                                                          
+3                                                                                                                                                                                                  
+4                                                                                                   IPA         IPA     IPA         IPA                   2025-01-17  2025-01-17  false       N         
+5                                               600.00                                  9750.00                                                                                   
+6                                                                                                                                                                                                                             
+7                                                                                                                                                                                                                           
+8                                                                                                                                                                                         
+9                                                                                                               NON-STP  NON-STP                4831390190005472                              06F250           
+10                                                                   N                  89133616                IPA                 6           0                     600.00      600.00      
+11 OCBC BANK                                    5012011663           FETST                                                                                                                                                  
+12                                                                                                                                                                                                      NGYUFEI@OCBC.COM           
+13                                                                                                                                                                                                       
+14 aborted_manual                                                                                                                                                     G                                                                   
+15                                                                                                                                                                                                                  
+16                       0.00                                        5.34                                                                                                         
+17 CCBT20250117000003    0111056832                                  CLAS      
+*********************************************************************************************************************************************************************************************************************************************
+CFSUL003                                BT COI COMPLETED APPLICATION REPORT     RUN DATE:18-01-2025 00:30:34            PAGE:5                                  
+OCBC BANK                                                                       REPORT DATE: 17-01-2025                 
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+   Appln_Ref_No          Hub_Inf    Fac_Typ     Fac_Cat  Fac         Rq_Typ   Bund_Ind  Channel_Src App_Src     App_Typ Sales_Src   Intro_ID    Intro_ID2 Ind         Curr_Sts                           Prev_Sts
+   Main_Applicant_Name   Appl_Id_Ty M_Appl_ID   Appl_Age Appl_DOB    Appl_Nal Appl_Race Appl_G      J1_Name             J1_ID_Ty    J1_ID       J1_Age    J1_DOB      J1_Nal      J1_Race     J1_G
+   S1_Name               S1_IDTy    S1_ID       S1_Age   S1_DOB      S1_NAL   S1_Race   S1_G        S2_Name             S2_IDTy     S2_ID       S2_Age    S2_DOB      S2_NAL      S2_Race     S2_G
+   S3_Name               S3_IDTy    S3_ID       S3_Age   S3_DOB      S3_NAL   S3_Race   S3_G        Holder      Hldr_Id Prev_Hldr   Prev_Hldr_Id          App_crt_dt  Last_Txn_Dt Is_1_Fac    St_Sup_app
+   FC_Acc_To_Open        Crd_Col_Mod            Amt_Approve          1_SMS_time         Appl's_AQI  Joint_1_AQI MAS635_apcb         Strt_Time   End_Time              Staff_ID
+   Pend_Doc_Rson1        Pend_Doc_Rson2         Pend_Doc_Rson3       Pend_Doc_Rson4     Pend_Doc_Rson5          Pend_Info_Rson1     Pend_Info_Rson2       Pend_Info_Rson3         Pend_Info_Rson4       Pend_Info_Rson5
+   Review_Reason_1       Review_Reason_2        Review_Reason_3      Review_Reason_4    Review_Reason_5         Reject_Reason_1                                       Reject_Reason_2
+   Reject_Reason_3                                                   Reject_Reason_4                                                Reject_Reason_5
+   Abort_Reason_1        Abort_Reason_2         Abort_Reason_3       Abort_Reason_4     Abort_Reason_5          STP/NSTP Nm_Of_Ctr  Ctr_Status  SIBS_Acc_No           DDA_Acc_No              Promo_Code
+   Deviation             Prcs_Fee_W Rpmt_Opt    Override_Rsn         Is_Ins_Apvl        Mobile_No               App_Src_cd          LTenor      Cust_Prf_Lmt          Appld_Amt1  Aprvd_Amt1
+   Beneficiary_Bank_1                           Beneficiary_Acct_No1 Beneficiary_Holder_Name1                   Appld_Amt2          Aprvd_Amt2  Beneficiary_Bank_2    Beneficiary_Acct_No2    Beneficiary_Holder_Name2
+   M_ln_card_esso_Acc    S1_ln_card_esso_Acc    S2_ln_card_esso_Acc  S3_ln_card_esso_Acc M_mrktg_cnst           S1_mrktg_cnst       S2_mrktg_cnst         S3_mrktg_cnst           J1_mrktg_cnst         Main_Applicant_Email
+   Supp_1_Email                                 Supp_2_Email                            Supp_3_Email                                Joint_1_Email                     M_apcnt_stmt_ind        MyInfo_Ind
+   Fac_Sts               Recaptured Force_Thru  Man_Card_Creation    Saltn    Hanyu_Pinyin_Name     Hanyu_Pinyin_Als_Nm Married_Name            Marital_Sts           H_Acd_qual  Resident_S  Mother's_Name    Pref_Mail_Add
+   Emp_Typ   Occ         BOS_Mntr_Cd            Pend_Disbus_Exp_Dt   Acc2_Opened        Casa_Acc_No2_lnk        Upd_lnk_casa_addr1  Upd_lnk_casa_addr2    Is_Fastcash_Acc1        Is_Fastcash_Acc2      Base_EIR
+   Cmp_Olay_EIR          Ch_Olay_EIR            Comm_nd_tier_tbl     EIR_Offer          EIR_Pkg_Select          Ln_disbus_Ch        Edu_Inst_Name         Repay_Opt   Course_End  Interest_Rate         Total_Repayment
+   Parent_ID             Child_ID_1             Child_ID_2           System
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+********************************************************************************************************************************************** END OF REPORT ******************************************************************************************
+
+

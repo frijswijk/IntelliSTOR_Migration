@@ -1,0 +1,72 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+*_LOG.txt
+
+# Output directories
+output/
+Migration_data/
+TestFiles*/
+EncryptedArchives*/
+AFP_Resources/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Sensitive
+*.env
+.env
+credentials.json
+secrets.json
+
+# Compressed
+*.7z
+*.zip
+*.rar
+
+# Temporary
+*.tmp
+*.temp
+nul
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini

@@ -1,0 +1,116 @@
+================================================================================
+QUICK START GUIDE - Extract_Instances.py
+================================================================================
+
+STEP 1: Copy these files to the SQL Server machine
+-------------------------------------------------
+  - Extract_Instances.py
+  - test_connection.py
+  - requirements.txt
+  - Report_Species.csv
+
+
+STEP 2: Install Python library
+-------------------------------------------------
+Open Command Prompt and run:
+
+  cd C:\YourProjectFolder
+  pip install -r requirements.txt
+
+(This installs pymssql, the SQL Server connector for Python)
+
+
+STEP 3: Test the connection
+-------------------------------------------------
+Using Windows Authentication:
+
+  python test_connection.py --server localhost --database IntelliSTOR --windows-auth
+
+Using SQL Server Authentication:
+
+  python test_connection.py --server localhost --database IntelliSTOR --user sa --password YourPassword
+
+You should see "CONNECTION TEST SUCCESSFUL!" if everything works.
+
+
+STEP 4: Run the extraction
+-------------------------------------------------
+Using Windows Authentication (extract data from 2023 onwards):
+
+  python Extract_Instances.py --server localhost --database IntelliSTOR --windows-auth --start-year 2023
+
+Using SQL Server Authentication (extract data from 2023 to 2024):
+
+  python Extract_Instances.py --server localhost --database IntelliSTOR --user sa --password YourPassword --start-year 2023 --end-year 2024
+
+Using YEAR from filename (first 2 chars + "20"):
+
+  python Extract_Instances.py --server localhost --database IntelliSTOR --windows-auth --start-year 2023 --year-from-filename
+
+Quiet mode (single-line progress counter instead of detailed logs):
+
+  python Extract_Instances.py --server localhost --database IntelliSTOR --windows-auth --start-year 2023 --quiet
+
+
+WHAT YOU NEED TO KNOW:
+-------------------------------------------------
+1. Server name - Usually "localhost" if running on the SQL Server machine
+2. Database name - Example: "IntelliSTOR"
+3. Authentication:
+   - Windows Auth: Use if your Windows login has SQL Server access
+   - SQL Server Auth: Use if you have a SQL Server username/password
+4. Year filtering (REQUIRED):
+   - --start-year: Extract data from this year onwards (e.g., 2023)
+   - --end-year: Optional, extract data up to this year (e.g., 2024)
+5. YEAR column calculation:
+   - Default: Extract year from AS_OF_TIMESTAMP
+   - With --year-from-filename: Extract from first 2 chars of filename
+     Example: "24013001" becomes "2024"
+
+
+OUTPUT FILES:
+-------------------------------------------------
+The script creates:
+  - Extract_Instances.log (detailed log)
+  - progress.txt (tracks progress)
+  - ReportName.csv (one file per report with data)
+
+OUTPUT CSV FORMAT:
+-------------------------------------------------
+Each CSV file contains these 8 columns:
+  1. RPT_SPECIES_NAME - Report species name
+  2. FILENAME - Report file name
+  3. Country - Country code
+  4. YEAR - Year (from timestamp or filename)
+  5. AS_OF_TIMESTAMP - Timestamp of the report
+  6. SEGMENT_NAME#... - Segment information
+  7. REPORT_SPECIES_ID - Report species ID
+  8. REPORT_FILE_ID - Report file ID
+
+
+RESUME CAPABILITY:
+-------------------------------------------------
+If interrupted, just run the same command again - it resumes automatically!
+
+
+TROUBLESHOOTING:
+-------------------------------------------------
+"No module named 'pymssql'"
+  → Run: pip install pymssql
+
+"Login failed"
+  → Check username/password or try --windows-auth
+
+"Server not found"
+  → Verify server name, try "localhost" if on same machine
+
+"Cannot open database"
+  → Check database name spelling
+
+
+NEED MORE HELP?
+-------------------------------------------------
+See SETUP_GUIDE.md for detailed instructions and troubleshooting.
+
+
+================================================================================

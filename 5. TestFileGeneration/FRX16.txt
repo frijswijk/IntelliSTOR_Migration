@@ -1,0 +1,327 @@
+					   Archival QC International Bank            BRANCH: UBF NY & IBF
+REPORT NO - FXR16                      C U S T O M E R   R I S K   R E P O R T                       DATE AUG 27 98    PAGE NO     1
+CLIENT ACCT/         CURR  DEAL OTHER OP   TRANS   INCEPT VAL/MAT  EXCHANGE BOUGHT/  HOME CURR      EXCHANGE SOLD/   HOME CURR
+NAME                       TYPE CURR  IND   NO      DATE    DATE    DEPOSIT TAKEN    EQUIVALENT       LOAN GIVEN     EQUIVALENT
+******************** ***** **** *****  * ********* ******* ******* *************** *************** *************** ***************
+1230035-005
+CITI LON             DM    SPOT US       072381231 AUG2698 AUG2898       8,735,500       5,000,000
+					       ***** FX SPOT TOTAL       8,735,500       5,000,000                                **
+	       ***** DM    TOTAL                                         8,735,500       5,000,000                                **
+		     US    SPOT DM       072381231 AUG2698 AUG2898                                       5,000,000       5,000,000
+					       ***** FX SPOT TOTAL                                       5,000,000       5,000,000**
+	       ***** US    TOTAL                                                                         5,000,000       5,000,000**
+	       ***** CLIENT TOTAL                                                        5,000,000                       5,000,000**
+1234108-009
+CHEM NYC             DM    SPOT US       062381231 AUG2698 AUG2898      17,471,000      10,000,000
+				US       062381233 AUG2698 AUG2898      17,472,000      10,000,000
+					       ***** FX SPOT TOTAL      34,943,000      20,000,000                                **
+	       ***** DM    TOTAL                                        34,943,000      20,000,000                                **
+		     US    SPOT DM       062381231 AUG2698 AUG2898                                      10,000,000      10,000,000
+				DM       062381233 AUG2698 AUG2898                                      10,000,000      10,000,000
+					       ***** FX SPOT TOTAL                                      20,000,000      20,000,000**
+	       ***** US    TOTAL                                                                        20,000,000      20,000,000**
+	       ***** CLIENT TOTAL                                                       20,000,000                      20,000,000**
+1234108-003
+CHEM LON             DM    FWD  US       070970087 JAN1197 NOV2298                                          56,200          33,274
+				US       070970089 JAN1197 NOV2399                                          56,200          33,323
+				US       080981235 JAN1197 NOV2293                                          56,200          33,522
+				US       080981234 JAN1197 NOV2201                                          56,200          33,723
+				US       070970083 JAN1197 NOV2202                                          56,200          33,824
+				US       070970082 JAN1197 NOV2203                                          56,200          33,926
+				US       070970081 JAN1197 NOV2497                                          56,200          34,029
+				US       070970080 JAN1197 NOV2398                                          56,200          34,133
+				US       070820098 JAN1197 NOV2299                                       1,400,000         852,878
+				US       070820099 JAN1197 NOV2299                                          56,200          34,236
+					       ***** FX FWD  TOTAL                                       1,905,800       1,156,868**
+	       ***** DM    TOTAL                                                                         1,905,800       1,156,868**
+		     US    FWD  DM       070970087 JAN1190 NOV2298          33,274          33,274
+				DM       070970089 JAN1197 NOV2399          33,323          33,323
+				DM       080981235 JAN1197 NOV2293          33,522          33,522
+				DM       080981234 JAN1197 NOV2201          33,723          33,723
+
+** NOTE. CURRENCY AMOUNTS ARE TRUNCATED PRIOR TO PRINTING AND TOTALLING
+                                           Archival QC International Bank            BRANCH: UBF NY & IBF
+REPORT NO - FXR16                      C U S T O M E R   R I S K   R E P O R T                       DATE AUG 27 98    PAGE NO     2
+CLIENT ACCT/         CURR  DEAL OTHER OP   TRANS   INCEPT VAL/MAT  EXCHANGE BOUGHT/  HOME CURR      EXCHANGE SOLD/   HOME CURR
+NAME                       TYPE CURR  IND   NO      DATE    DATE    DEPOSIT TAKEN    EQUIVALENT       LOAN GIVEN     EQUIVALENT
+******************** ***** **** *****  * ********* ******* ******* *************** *************** *************** ***************
+				DM       070970083 JAN1197 NOV2202          33,824          33,824
+				DM       070970082 JAN1197 NOV2203          33,926          33,926
+				DM       070970081 JAN1197 NOV2497          34,029          34,029
+				DM       070970080 JAN1197 NOV2398          34,133          34,133
+				DM       070820098 JAN1197 NOV2299         852,878         852,878
+				DM       070820099 JAN1197 NOV2299          34,236          34,236
+					       ***** FX FWD  TOTAL       1,156,868       1,156,868                                **
+	       ***** US    TOTAL                                         1,156,868       1,156,868                                **
+	       ***** CLIENT TOTAL                                                        1,156,868                       1,156,868**
+1234116-009
+UNIT HEL             DM    SPOT US       062381235 AUG2698 AUG2898                                      69,884,000      40,000,000
+				US       062381232 AUG2698 AUG2898                                      34,944,000      20,000,000
+					       ***** FX SPOT TOTAL                                     104,828,000      60,000,000**
+	       ***** DM    TOTAL                                                                       104,828,000      60,000,000**
+		     US    SPOT DM       062381235 AUG2698 AUG2898      40,000,000      40,000,000
+				DM       062381232 AUG2698 AUG2898      20,000,000      20,000,000
+					       ***** FX SPOT TOTAL      60,000,000      60,000,000                                **
+	       ***** US    TOTAL                                        60,000,000      60,000,000                                **
+	       ***** CLIENT TOTAL                                                       60,000,000                      60,000,000**
+1234116-006
+UNIT LON             FM    SPOT US       052391231 AUG2798 AUG2998                                       2,131,500         500,000
+					       ***** FX SPOT TOTAL                                       2,131,500         500,000**
+			   FWD  US       062341234 AUG2298 SEP2498                                       4,225,000       1,000,000
+					       ***** FX FWD  TOTAL                                       4,225,000       1,000,000**
+	       ***** FM    TOTAL                                                                         6,356,500       1,500,000**
+		     ST    FWD  US       053312342 NOV2697 NOV2998         600,000       1,134,600
+				US       053311233 NOV2797 NOV2998                                         600,000       1,134,600
+				US       053311234 NOV2797 JAN2999         600,000       1,128,000
+				US       053312341 NOV2697 JAN2999                                         600,000       1,128,000
+				US       050561231 FEB2598 MAY2199                                         697,000       1,247,630
+				US       053540098 DEC2097 MAY2199         697,000       1,247,630
+				US       053540097 DEC2097 JUL2199                                         697,000       1,239,266
+				US       050561232 FEB2598 JUL2199         697,000       1,239,266
+					       ***** FX FWD  TOTAL       2,594,000       4,749,496       2,594,000       4,749,496**
+	       ***** ST    TOTAL                                         2,594,000       4,749,496       2,594,000       4,749,496**
+
+** NOTE. CURRENCY AMOUNTS ARE TRUNCATED PRIOR TO PRINTING AND TOTALLING
+                                           Archival QC International Bank            BRANCH: UBF NY & IBF
+REPORT NO - FXR16                      C U S T O M E R   R I S K   R E P O R T                       DATE AUG 27 98    PAGE NO     3
+CLIENT ACCT/         CURR  DEAL OTHER OP   TRANS   INCEPT VAL/MAT  EXCHANGE BOUGHT/  HOME CURR      EXCHANGE SOLD/   HOME CURR
+NAME                       TYPE CURR  IND   NO      DATE    DATE    DEPOSIT TAKEN    EQUIVALENT       LOAN GIVEN     EQUIVALENT
+******************** ***** **** *****  * ********* ******* ******* *************** *************** *************** ***************
+		     US    SPOT FM       052391231 AUG2798 AUG2998         500,000         500,000
+					       ***** FX SPOT TOTAL         500,000         500,000                                **
+			   FWD  FM       062341234 AUG2298 SEP2498       1,000,000       1,000,000
+				ST       053312342 NOV2697 NOV2998                                       1,134,600       1,134,600
+				ST       053311233 NOV2797 NOV2998       1,134,600       1,134,600
+				ST       053311234 NOV2797 JAN2999                                       1,128,000       1,128,000
+				ST       053312341 NOV2697 JAN2999       1,128,000       1,128,000
+				ST       053540098 DEC2097 MAY2199                                       1,247,630       1,247,630
+				ST       050561231 FEB2598 MAY2199       1,247,630       1,247,630
+				ST       050561232 FEB2598 JUL2199                                       1,239,266       1,239,266
+				ST       053540097 DEC2097 JUL2199       1,239,266       1,239,266
+					       ***** FX FWD  TOTAL       5,749,496       5,749,496       4,749,496       4,749,496**
+	       ***** US    TOTAL                                         6,249,496       6,249,496       4,749,496       4,749,496**
+	       ***** CLIENT TOTAL                                                       10,998,992                      10,998,992**
+1234116-008
+ASBC NYCU            DM    SPOT US       052381232 AUG2698 AUG2898         300,000         171,281
+					       ***** FX SPOT TOTAL         300,000         171,281                                **
+	       ***** DM    TOTAL                                           300,000         171,281                                **
+		     FM    SPOT US       052381236 AUG2698 AUG2898                                          10,000           2,344
+					       ***** FX SPOT TOTAL                                          10,000           2,344**
+	       ***** FM    TOTAL                                                                            10,000           2,344**
+		     ST    SPOT US       052381233 AUG2698 AUG2898          39,000          65,403
+					       ***** FX SPOT TOTAL          39,000          65,403                                **
+	       ***** ST    TOTAL                                            39,000          65,403                                **
+		     US    SPOT DM       052381232 AUG2698 AUG2898                                         171,281         171,281
+				FM       052381236 AUG2698 AUG2898           2,344           2,344
+				ST       052381233 AUG2698 AUG2898                                          65,403          65,403
+					       ***** FX SPOT TOTAL           2,344           2,344         236,684         236,684**
+	       ***** US    TOTAL                                             2,344           2,344         236,684         236,684**
+	       ***** CLIENT TOTAL                                                          239,028                         239,028**
+1234140-002
+SBCO NYC             DM    SPOT US       072381232 AUG2698 AUG2898       8,736,000       5,000,000
+					       ***** FX SPOT TOTAL       8,736,000       5,000,000                                **
+	       ***** DM    TOTAL                                         8,736,000       5,000,000                                **
+
+** NOTE. CURRENCY AMOUNTS ARE TRUNCATED PRIOR TO PRINTING AND TOTALLING
+                                           Archival QC International Bank            BRANCH: UBF NY & IBF
+REPORT NO - FXR16                      C U S T O M E R   R I S K   R E P O R T                       DATE AUG 27 98    PAGE NO     4
+CLIENT ACCT/         CURR  DEAL OTHER OP   TRANS   INCEPT VAL/MAT  EXCHANGE BOUGHT/  HOME CURR      EXCHANGE SOLD/   HOME CURR
+NAME                       TYPE CURR  IND   NO      DATE    DATE    DEPOSIT TAKEN    EQUIVALENT       LOAN GIVEN     EQUIVALENT
+******************** ***** **** *****  * ********* ******* ******* *************** *************** *************** ***************
+		     US    SPOT DM       072381232 AUG2698 AUG2898                                       5,000,000       5,000,000
+					       ***** FX SPOT TOTAL                                       5,000,000       5,000,000**
+	       ***** US    TOTAL                                                                         5,000,000       5,000,000**
+	       ***** CLIENT TOTAL                                                        5,000,000                       5,000,000**
+1234191-082
+ABNA ZRH             FM    FWD  US       072350097 AUG2398 NOV2798         864,200         200,000
+					       ***** FX FWD  TOTAL         864,200         200,000                                **
+	       ***** FM    TOTAL                                           864,200         200,000                                **
+		     US    FWD  FM       072350097 AUG2398 NOV2798                                         200,000         200,000
+					       ***** FX FWD  TOTAL                                         200,000         200,000**
+	       ***** US    TOTAL                                                                           200,000         200,000**
+	       ***** CLIENT TOTAL                                                          200,000                         200,000**
+1234450-008
+ESSE NYC             FM    SPOT US       052381237 AUG2698 AUG2898                                       2,135,500         500,000
+					       ***** FX SPOT TOTAL                                       2,135,500         500,000**
+	       ***** FM    TOTAL                                                                         2,135,500         500,000**
+		     US    SPOT FM       052381237 AUG2698 AUG2898         500,000         500,000
+					       ***** FX SPOT TOTAL         500,000         500,000                                **
+	       ***** US    TOTAL                                           500,000         500,000                                **
+	       ***** CLIENT TOTAL                                                          500,000                         500,000**
+1234450-093
+ESSE STOU            SK    SPOT US       052391233 AUG2798 AUG2998                                      31,737,500       5,000,000
+					       ***** FX SPOT TOTAL                                      31,737,500       5,000,000**
+	       ***** SK    TOTAL                                                                        31,737,500       5,000,000**
+		     US    SPOT SK       052391233 AUG2798 AUG2998       5,000,000       5,000,000
+					       ***** FX SPOT TOTAL       5,000,000       5,000,000                                **
+	       ***** US    TOTAL                                         5,000,000       5,000,000                                **
+	       ***** CLIENT TOTAL                                                        5,000,000                       5,000,000**
+
+** NOTE. CURRENCY AMOUNTS ARE TRUNCATED PRIOR TO PRINTING AND TOTALLING
+                                           Archival QC International Bank            BRANCH: UBF NY & IBF
+REPORT NO - FXR16                      C U S T O M E R   R I S K   R E P O R T                       DATE AUG 27 98    PAGE NO     5
+CLIENT ACCT/         CURR  DEAL OTHER OP   TRANS   INCEPT VAL/MAT  EXCHANGE BOUGHT/  HOME CURR      EXCHANGE SOLD/   HOME CURR
+NAME                       TYPE CURR  IND   NO      DATE    DATE    DEPOSIT TAKEN    EQUIVALENT       LOAN GIVEN     EQUIVALENT
+******************** ***** **** *****  * ********* ******* ******* *************** *************** *************** ***************
+1234566-008
+DGBK NYC             DM    SPOT US       062381236 AUG2698 AUG2898      12,230,400       7,000,000
+					       ***** FX SPOT TOTAL      12,230,400       7,000,000                                **
+	       ***** DM    TOTAL                                        12,230,400       7,000,000                                **
+		     US    SPOT DM       062381236 AUG2698 AUG2898                                       7,000,000       7,000,000
+					       ***** FX SPOT TOTAL                                       7,000,000       7,000,000**
+	       ***** US    TOTAL                                                                         7,000,000       7,000,000**
+	       ***** CLIENT TOTAL                                                        7,000,000                       7,000,000**
+1231083-008
+HSBC NYC             FM    FWD  US       072331234 AUG2198 AUG2898                                       5,000,000       1,172,470
+					       ***** FX FWD  TOTAL                                       5,000,000       1,172,470**
+	       ***** FM    TOTAL                                                                         5,000,000       1,172,470**
+		     US    FWD  FM       072331234 AUG2198 AUG2898       1,172,470       1,172,470
+					       ***** FX FWD  TOTAL       1,172,470       1,172,470                                **
+	       ***** US    TOTAL                                         1,172,470       1,172,470                                **
+	       ***** CLIENT TOTAL                                                        1,172,470                       1,172,470**
+1231209-004
+CIBC LON             AD    FWD  US       382251238 AUG1097 FEB1093                                       4,000,000       2,800,000
+					       ***** FX FWD  TOTAL                                       4,000,000       2,800,000**
+	       ***** AD    TOTAL                                                                         4,000,000       2,800,000**
+		     US    FWD  AD       382251238 AUG1097 FEB1093       2,800,000       2,800,000
+					       ***** FX FWD  TOTAL       2,800,000       2,800,000                                **
+	       ***** US    TOTAL                                         2,800,000       2,800,000                                **
+	       ***** CLIENT TOTAL                                                        2,800,000                       2,800,000**
+1231236-008
+ROYC NYC             FM    SPOT US       052391232 AUG2798 AUG2998       2,000,000         468,933
+					       ***** FX SPOT TOTAL       2,000,000         468,933                                **
+	       ***** FM    TOTAL                                         2,000,000         468,933                                **
+		     US    SPOT FM       052391232 AUG2798 AUG2998                                         468,933         468,933
+					       ***** FX SPOT TOTAL                                         468,933         468,933**
+
+** NOTE. CURRENCY AMOUNTS ARE TRUNCATED PRIOR TO PRINTING AND TOTALLING
+                                           Archival QC International Bank            BRANCH: UBF NY & IBF
+REPORT NO - FXR16                      C U S T O M E R   R I S K   R E P O R T                       DATE AUG 27 98    PAGE NO     6
+CLIENT ACCT/         CURR  DEAL OTHER OP   TRANS   INCEPT VAL/MAT  EXCHANGE BOUGHT/  HOME CURR      EXCHANGE SOLD/   HOME CURR
+NAME                       TYPE CURR  IND   NO      DATE    DATE    DEPOSIT TAKEN    EQUIVALENT       LOAN GIVEN     EQUIVALENT
+******************** ***** **** *****  * ********* ******* ******* *************** *************** *************** ***************
+	       ***** US    TOTAL                                                                           468,933         468,933**
+	       ***** CLIENT TOTAL                                                          468,933                         468,933**
+1231236-091
+ROYC TORU            CD    FWD  US       061151232 APR2598 OCT2898                                      29,000,000      24,767,273
+				US       061151233 APR2598 OCT2898                                       1,527,534       1,304,469
+					       ***** FX FWD  TOTAL                                      30,527,534      26,071,742**
+	       ***** CD    TOTAL                                                                        30,527,534      26,071,742**
+		     US    FWD  CD       061151232 APR2598 OCT2898      24,767,273      24,767,273
+				CD       061151233 APR2598 OCT2898       1,304,469       1,304,469
+					       ***** FX FWD  TOTAL      26,071,742      26,071,742                                **
+	       ***** US    TOTAL                                        26,071,742      26,071,742                                **
+	       ***** CLIENT TOTAL                                                       26,071,742                      26,071,742**
+1231317-009
+BOFI DUB             FM    SPOT US       052381239 AUG2698 AUG2898       2,566,500         600,000
+					       ***** FX SPOT TOTAL       2,566,500         600,000                                **
+	       ***** FM    TOTAL                                         2,566,500         600,000                                **
+		     US    SPOT FM       052381239 AUG2698 AUG2898                                         600,000         600,000
+					       ***** FX SPOT TOTAL                                         600,000         600,000**
+	       ***** US    TOTAL                                                                           600,000         600,000**
+	       ***** CLIENT TOTAL                                                          600,000                         600,000**
+1231473-009
+SWED STO             SK    SPOT US       052391234 AUG2798 AUG2998      31,745,000       5,000,000
+					       ***** FX SPOT TOTAL      31,745,000       5,000,000                                **
+	       ***** SK    TOTAL                                        31,745,000       5,000,000                                **
+		     US    SPOT SK       052391234 AUG2798 AUG2998                                       5,000,000       5,000,000
+					       ***** FX SPOT TOTAL                                       5,000,000       5,000,000**
+	       ***** US    TOTAL                                                                         5,000,000       5,000,000**
+	       ***** CLIENT TOTAL                                                        5,000,000                       5,000,000**
+
+** NOTE. CURRENCY AMOUNTS ARE TRUNCATED PRIOR TO PRINTING AND TOTALLING
+                                           Archival QC International Bank            BRANCH: UBF NY & IBF
+REPORT NO - FXR16                      C U S T O M E R   R I S K   R E P O R T                       DATE AUG 27 98    PAGE NO     7
+CLIENT ACCT/         CURR  DEAL OTHER OP   TRANS   INCEPT VAL/MAT  EXCHANGE BOUGHT/  HOME CURR      EXCHANGE SOLD/   HOME CURR
+NAME                       TYPE CURR  IND   NO      DATE    DATE    DEPOSIT TAKEN    EQUIVALENT       LOAN GIVEN     EQUIVALENT
+******************** ***** **** *****  * ********* ******* ******* *************** *************** *************** ***************
+1231597-003
+DNBA BGO             NK    FWD  US       053620097 DEC2897 MAY2999       4,909,850         790,000
+					       ***** FX FWD  TOTAL       4,909,850         790,000                                **
+	       ***** NK    TOTAL                                         4,909,850         790,000                                **
+		     US    FWD  NK       053620097 DEC2897 MAY2999                                         790,000         790,000
+					       ***** FX FWD  TOTAL                                         790,000         790,000**
+	       ***** US    TOTAL                                                                           790,000         790,000**
+	       ***** CLIENT TOTAL                                                          790,000                         790,000**
+1231597-005
+DNBA OSLU            NK    FWD  US       053620099 DEC2897 JUL3199                                       4,941,450         790,000
+					       ***** FX FWD  TOTAL                                       4,941,450         790,000**
+	       ***** NK    TOTAL                                                                         4,941,450         790,000**
+		     US    FWD  NK       053620099 DEC2897 JUL3199         790,000         790,000
+					       ***** FX FWD  TOTAL         790,000         790,000                                **
+	       ***** US    TOTAL                                           790,000         790,000                                **
+	       ***** CLIENT TOTAL                                                          790,000                         790,000**
+1231643-009
+TCBK HOU             FM    SPOT US       052381238 AUG2698 AUG2898                                          25,000           5,858
+					       ***** FX SPOT TOTAL                                          25,000           5,858**
+	       ***** FM    TOTAL                                                                            25,000           5,858**
+		     US    SPOT FM       052381238 AUG2698 AUG2898           5,858           5,858
+					       ***** FX SPOT TOTAL           5,858           5,858                                **
+	       ***** US    TOTAL                                             5,858           5,858                                **
+	       ***** CLIENT TOTAL                                                            5,858                           5,858**
+1231899-009
+CINB CHI             FM    FWD  US       062340093 AUG2298 SEP2498       4,017,265         950,000
+					       ***** FX FWD  TOTAL       4,017,265         950,000                                **
+	       ***** FM    TOTAL                                         4,017,265         950,000                                **
+		     US    FWD  FM       062340093 AUG2298 SEP2498                                         950,000         950,000
+					       ***** FX FWD  TOTAL                                         950,000         950,000**
+
+** NOTE. CURRENCY AMOUNTS ARE TRUNCATED PRIOR TO PRINTING AND TOTALLING
+                                           Archival QC International Bank            BRANCH: UBF NY & IBF
+REPORT NO - FXR16                      C U S T O M E R   R I S K   R E P O R T                       DATE AUG 27 98    PAGE NO     8
+CLIENT ACCT/         CURR  DEAL OTHER OP   TRANS   INCEPT VAL/MAT  EXCHANGE BOUGHT/  HOME CURR      EXCHANGE SOLD/   HOME CURR
+NAME                       TYPE CURR  IND   NO      DATE    DATE    DEPOSIT TAKEN    EQUIVALENT       LOAN GIVEN     EQUIVALENT
+******************** ***** **** *****  * ********* ******* ******* *************** *************** *************** ***************
+	       ***** US    TOTAL                                                                           950,000         950,000**
+	       ***** CLIENT TOTAL                                                          950,000                         950,000**
+1233123-008
+BSUI NYC             DM    SPOT US       062381234 AUG2698 AUG2898      17,474,000      10,000,000
+					       ***** FX SPOT TOTAL      17,474,000      10,000,000                                **
+	       ***** DM    TOTAL                                        17,474,000      10,000,000                                **
+		     US    SPOT DM       062381234 AUG2698 AUG2898                                      10,000,000      10,000,000
+					       ***** FX SPOT TOTAL                                      10,000,000      10,000,000**
+	       ***** US    TOTAL                                                                        10,000,000      10,000,000**
+	       ***** CLIENT TOTAL                                                       10,000,000                      10,000,000**
+1234421-008
+WPAC NYC             DM    SPOT US       072381233 AUG2698 AUG2898       8,736,500       5,000,000
+					       ***** FX SPOT TOTAL       8,736,500       5,000,000                                **
+	       ***** DM    TOTAL                                         8,736,500       5,000,000                                **
+		     US    SPOT DM       072381233 AUG2698 AUG2898                                       5,000,000       5,000,000
+					       ***** FX SPOT TOTAL                                       5,000,000       5,000,000**
+	       ***** US    TOTAL                                                                         5,000,000       5,000,000**
+	       ***** CLIENT TOTAL                                                        5,000,000                       5,000,000**
+1236092-008
+GOLD FX              DM    SPOT US       052380093 AUG2698 AUG2898      13,977,600       8,000,000
+					       ***** FX SPOT TOTAL      13,977,600       8,000,000                                **
+	       ***** DM    TOTAL                                        13,977,600       8,000,000                                **
+		     US    SPOT DM       052380093 AUG2698 AUG2898                                       8,000,000       8,000,000
+					       ***** FX SPOT TOTAL                                       8,000,000       8,000,000**
+	       ***** US    TOTAL                                                                         8,000,000       8,000,000**
+	       ***** CLIENT TOTAL                                                        8,000,000                       8,000,000**
+1237110-008
+CARI NYC             ITL   FWD  US       071680080 JUN1798 SEP1998     236,000,000         174,150
+					       ***** FX FWD  TOTAL     236,000,000         174,150                                **
+	       ***** ITL   TOTAL                                       236,000,000         174,150                                **
+
+** NOTE. CURRENCY AMOUNTS ARE TRUNCATED PRIOR TO PRINTING AND TOTALLING
+                                           Archival QC International Bank            BRANCH: UBF NY & IBF
+REPORT NO - FXR16                      C U S T O M E R   R I S K   R E P O R T                       DATE AUG 27 98    PAGE NO     9
+CLIENT ACCT/         CURR  DEAL OTHER OP   TRANS   INCEPT VAL/MAT  EXCHANGE BOUGHT/  HOME CURR      EXCHANGE SOLD/   HOME CURR
+NAME                       TYPE CURR  IND   NO      DATE    DATE    DEPOSIT TAKEN    EQUIVALENT       LOAN GIVEN     EQUIVALENT
+******************** ***** **** *****  * ********* ******* ******* *************** *************** *************** ***************
+		     US    FWD  ITL      071680080 JUN1798 SEP1998                                         174,150         174,150
+					       ***** FX FWD  TOTAL                                         174,150         174,150**
+	       ***** US    TOTAL                                                                           174,150         174,150**
+	       ***** CLIENT TOTAL                                                          174,150                         174,150**
+4093905-009
+AHLCAP               CD    FWD  US       053581233 DEC2497 OCT3198                                          29,579          25,324
+					       ***** FX FWD  TOTAL                                          29,579          25,324**
+	       ***** CD    TOTAL                                                                            29,579          25,324**
+		     US    FWD  CD       053581233 DEC2497 OCT3198          25,324          25,324
+					       ***** FX FWD  TOTAL          25,324          25,324                                **
+	       ***** US    TOTAL                                            25,324          25,324                                **
+	       ***** CLIENT TOTAL                                                           25,324                          25,324**
+
+   E N D   O F   R E P O R T
+** NOTE. CURRENCY AMOUNTS ARE TRUNCATED PRIOR TO PRINTING AND TOTALLING
+

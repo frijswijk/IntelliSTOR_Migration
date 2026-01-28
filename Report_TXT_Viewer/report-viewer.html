@@ -1,0 +1,2994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Report/Spoolfile Viewer</title>
+    <style>
+        /* ===========================
+           CSS VARIABLES (THEMING)
+           =========================== */
+        :root {
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --bg-tertiary: #0f3460;
+            --accent-primary: #e94560;
+            --text-primary: #e0e0e0;
+            --text-secondary: #7f8c8d;
+            --report-bg: #0a0a0a;
+            --border-color: #0f3460;
+            --highlight-color: #f1c40f;
+            --zebra-color1: #1a1a2e;
+            --zebra-color2: #0f3460;
+        }
+
+        /* ===========================
+           RESET & BASE STYLES
+           =========================== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* ===========================
+           LAYOUT CONTAINER
+           =========================== */
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            padding: 0;
+        }
+
+        /* ===========================
+           HEADER SECTION
+           =========================== */
+        header {
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+            padding: 20px 30px;
+            border-bottom: 3px solid var(--accent-primary);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--text-primary);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .file-name {
+            font-size: 14px;
+            color: var(--text-secondary);
+            background: var(--bg-primary);
+            padding: 8px 15px;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+
+        .file-name.loaded {
+            color: var(--accent-primary);
+            font-weight: 600;
+        }
+
+        .upload-btn {
+            background: var(--accent-primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .upload-btn:hover {
+            background: #d63851;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+        }
+
+        .upload-btn:active {
+            transform: translateY(0);
+        }
+
+        /* ===========================
+           CONTROL PANEL (STICKY)
+           =========================== */
+        .control-panel {
+            background: var(--bg-secondary);
+            padding: 15px 30px;
+            border-bottom: 2px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .control-sections {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .control-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .control-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .btn {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s ease;
+        }
+
+        .btn:hover {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+            color: white;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn.active-indicator {
+            background: var(--accent-primary);
+            color: white;
+            border-color: var(--accent-primary);
+            position: relative;
+        }
+
+        .btn.active-indicator::after {
+            content: '●';
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            font-size: 16px;
+            color: #2ecc71;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        select {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            outline: none;
+        }
+
+        input[type="text"]:focus,
+        input[type="number"]:focus,
+        select:focus {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 2px rgba(233, 69, 96, 0.2);
+        }
+
+        input[type="color"] {
+            width: 40px;
+            height: 32px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            cursor: pointer;
+            background: transparent;
+        }
+
+        .search-box {
+            width: 300px;
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--bg-tertiary);
+            transition: 0.3s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--accent-primary);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        /* ===========================
+           REPORT DISPLAY AREA
+           =========================== */
+        .report-container {
+            padding: 20px 30px;
+            min-height: calc(100vh - 300px);
+        }
+
+        .report-display {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: var(--report-font-size, 11px);
+            white-space: pre;
+            overflow-x: auto;
+            background: var(--report-bg);
+            padding: 0;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            position: relative;
+        }
+
+        .report-display.light-mode {
+            background: #ffffff;
+            color: #000000;
+        }
+
+        .report-display.light-mode .report-line {
+            color: #000000;
+        }
+
+        .report-display.light-mode .ruler {
+            background: #f0f0f0;
+            color: #333333;
+        }
+
+        .report-display.light-mode .ruler-numbers {
+            color: #e94560;
+        }
+
+        .report-display.light-mode .ruler-ticks {
+            color: #666666;
+        }
+
+        .report-display.light-mode .cursor-position {
+            background: #e94560;
+            color: #ffffff;
+        }
+
+        .report-content {
+            padding-left: 0;
+            transition: padding-left 0.2s ease;
+        }
+
+        .report-display.light-mode .page-label {
+            background: #f0f0f0;
+            color: #e94560;
+            border: 1px solid #cccccc;
+        }
+
+        .report-display.light-mode .separator-line {
+            border-top-color: #e94560;
+            opacity: 0.3;
+        }
+
+        .report-display.light-mode .zebra-even {
+            background-color: #f5f5f5;
+        }
+
+        .report-display.light-mode .zebra-odd {
+            background-color: #ffffff;
+        }
+
+        .report-display.light-mode .line-number {
+            color: #666666;
+            border-right-color: #cccccc;
+        }
+
+        .ruler {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: var(--report-font-size, 11px);
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            padding: 5px 20px;
+            white-space: pre;
+            overflow-x: hidden;
+            border-bottom: 2px solid var(--accent-primary);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            user-select: none;
+            pointer-events: none;
+            transition: padding-left 0.2s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .ruler-content {
+            flex: 1;
+        }
+
+        .cursor-position {
+            background: var(--accent-primary);
+            color: #ffffff;
+            padding: 2px 10px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            margin-left: 20px;
+            white-space: nowrap;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .cursor-position.visible {
+            opacity: 1;
+        }
+
+        .ruler.with-line-numbers {
+            padding-left: 101px;  /* 60px width + 10px padding + 1px border + 10px margin + 20px base padding */
+        }
+
+        .ruler-numbers {
+            color: var(--accent-primary);
+            font-weight: bold;
+        }
+
+        .ruler-ticks {
+            color: var(--text-secondary);
+        }
+
+        .report-content {
+            padding: 20px;
+            position: relative;
+        }
+
+        .report-page {
+            white-space: pre;
+            background-image: var(--watermark-image, none);
+            background-repeat: no-repeat;
+            background-position: var(--watermark-position, center);
+            background-size: var(--watermark-size, auto);
+        }
+
+        .report-line {
+            padding: 2px 5px;
+            transition: background-color 0.2s ease;
+            position: relative;
+        }
+
+        .line-number {
+            display: inline-block;
+            min-width: 60px;
+            color: var(--text-secondary);
+            text-align: right;
+            padding-right: 10px;
+            border-right: 1px solid var(--border-color);
+            margin-right: 10px;
+            user-select: none;
+            font-size: 0.9em;
+            vertical-align: top;
+        }
+
+        .line-content {
+            display: inline;
+            white-space: pre;
+        }
+
+        .report-line.zebra-even {
+            background-color: var(--zebra-color1);
+        }
+
+        .report-line.zebra-odd {
+            background-color: var(--zebra-color2);
+        }
+
+        .page-separator {
+            margin: 20px 0;
+            text-align: left;
+            position: relative;
+            padding-left: 20px;
+        }
+
+        .page-label {
+            display: inline-block;
+            background: var(--bg-secondary);
+            color: var(--accent-primary);
+            padding: 5px 15px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            font-family: 'Courier New', Courier, monospace;
+            margin-bottom: 5px;
+        }
+
+        .separator-line {
+            border: none;
+            border-top: 2px solid var(--accent-primary);
+            margin: 5px 0 15px 0;
+            opacity: 0.3;
+        }
+
+        /* ===========================
+           SEARCH HIGHLIGHTING
+           =========================== */
+        .search-highlight {
+            background-color: var(--highlight-color);
+            color: #000;
+            padding: 1px 2px;
+            border-radius: 2px;
+        }
+
+        .search-highlight.current {
+            background-color: #ff6b6b;
+            color: white;
+            font-weight: bold;
+        }
+
+        /* ===========================
+           MODALS
+           =========================== */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+        }
+
+        .modal.active {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-color);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .close-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 28px;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .close-btn:hover {
+            background: var(--accent-primary);
+            color: white;
+        }
+
+        .modal-body {
+            margin-bottom: 20px;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        /* ===========================
+           WATERMARK CONFIGURATION
+           =========================== */
+        .watermark-config {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        .config-section {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .config-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .config-group label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .position-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .position-btn {
+            padding: 15px;
+            background: var(--bg-tertiary);
+            border: 2px solid var(--border-color);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 12px;
+            color: var(--text-primary);
+        }
+
+        .position-btn:hover {
+            border-color: var(--accent-primary);
+        }
+
+        .position-btn.active {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+            color: white;
+        }
+
+        .slider-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .slider-control input[type="range"] {
+            flex: 1;
+            height: 6px;
+            border-radius: 3px;
+            background: var(--bg-tertiary);
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .slider-control input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--accent-primary);
+            cursor: pointer;
+        }
+
+        .slider-control input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--accent-primary);
+            cursor: pointer;
+            border: none;
+        }
+
+        .slider-value {
+            min-width: 50px;
+            text-align: right;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--accent-primary);
+        }
+
+        .watermark-preview {
+            background: var(--report-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .watermark-preview img {
+            max-width: 100%;
+            max-height: 100%;
+            opacity: 0.3;
+        }
+
+        .upload-area {
+            border: 2px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .upload-area:hover {
+            border-color: var(--accent-primary);
+            background: var(--bg-tertiary);
+        }
+
+        .upload-area.dragover {
+            border-color: var(--accent-primary);
+            background: var(--bg-tertiary);
+        }
+
+        /* ===========================
+           PAGE RANGE TABLE
+           =========================== */
+        .ranges-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        .ranges-table th,
+        .ranges-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .ranges-table th {
+            background: var(--bg-tertiary);
+            font-weight: 600;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .ranges-table td {
+            font-size: 13px;
+        }
+
+        .ranges-table tr:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .range-input {
+            width: 100%;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        /* ===========================
+           FOOTER
+           =========================== */
+        footer {
+            background: var(--bg-secondary);
+            padding: 15px 30px;
+            border-top: 2px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .footer-info {
+            display: flex;
+            gap: 30px;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .footer-info span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .footer-info strong {
+            color: var(--accent-primary);
+        }
+
+        /* ===========================
+           PROGRESS INDICATOR
+           =========================== */
+        .progress-overlay {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(4px);
+        }
+
+        .progress-overlay.active {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .progress-content {
+            background: var(--bg-secondary);
+            padding: 40px;
+            border-radius: 12px;
+            text-align: center;
+            min-width: 400px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+
+        .progress-title {
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-primary), #ff8fa3);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        /* ===========================
+           TOAST NOTIFICATIONS
+           =========================== */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            border-left: 4px solid var(--accent-primary);
+            z-index: 3000;
+            display: none;
+            animation: slideIn 0.3s ease;
+        }
+
+        .toast.active {
+            display: block;
+        }
+
+        .toast.error {
+            border-left-color: #e74c3c;
+        }
+
+        .toast.success {
+            border-left-color: #2ecc71;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* ===========================
+           EMPTY STATE
+           =========================== */
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        .empty-state-text {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        .empty-state-subtext {
+            font-size: 14px;
+            opacity: 0.7;
+        }
+
+        /* ===========================
+           RESPONSIVE DESIGN
+           =========================== */
+        @media (max-width: 768px) {
+            .control-sections {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .control-section {
+                justify-content: space-between;
+            }
+
+            .search-box {
+                width: 100%;
+            }
+
+            .watermark-config {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* ===========================
+           PRINT STYLES
+           =========================== */
+        @media print {
+            body {
+                background: white;
+                color: black;
+            }
+
+            header,
+            .control-panel,
+            footer,
+            .modal,
+            .toast {
+                display: none !important;
+            }
+
+            .report-display {
+                border: none;
+                padding: 0;
+            }
+
+            .page-separator {
+                page-break-after: always;
+            }
+        }
+
+        /* ===========================
+           DRAG AND DROP FILE UPLOAD
+           =========================== */
+        .drop-zone {
+            border: 3px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 60px 20px;
+            text-align: center;
+            background: var(--bg-tertiary);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            margin: 20px 0;
+        }
+
+        .drop-zone:hover,
+        .drop-zone.dragover {
+            border-color: var(--accent-primary);
+            background: var(--bg-secondary);
+        }
+
+        .drop-zone-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+            opacity: 0.6;
+        }
+
+        .drop-zone-text {
+            font-size: 16px;
+            color: var(--text-primary);
+            margin-bottom: 10px;
+        }
+
+        .drop-zone-subtext {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <div class="header-content">
+            <h1>📄 Report/Spoolfile Viewer</h1>
+            <div class="file-info">
+                <span class="file-name" id="fileName">No file loaded</span>
+                <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                    📁 Open File
+                </button>
+                <input type="file" id="fileInput" accept=".txt,.TXT" style="display: none;" onchange="handleFileSelect(event)">
+            </div>
+        </div>
+    </header>
+
+    <!-- Control Panel -->
+    <div class="control-panel">
+        <div class="control-sections">
+            <!-- Left Section: Zebra & Page Mode -->
+            <div class="control-section">
+                <span class="control-label">Zebra:</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="zebraToggle" onchange="toggleZebra()">
+                    <span class="slider"></span>
+                </label>
+                <input type="color" id="zebraColor1" value="#1a1a2e" title="Zebra Color 1" onchange="updateZebraColors()">
+                <input type="color" id="zebraColor2" value="#0f3460" title="Zebra Color 2" onchange="updateZebraColors()">
+
+                <span class="control-label" style="margin-left: 15px;">Ruler:</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="rulerToggle" checked onchange="toggleRuler()">
+                    <span class="slider"></span>
+                </label>
+
+                <span class="control-label" style="margin-left: 15px;">Line #:</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="lineNumToggle" checked onchange="toggleLineNumbers()">
+                    <span class="slider"></span>
+                </label>
+
+                <span class="control-label" style="margin-left: 15px;">Light:</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="lightModeToggle" onchange="toggleLightMode()">
+                    <span class="slider"></span>
+                </label>
+
+                <span class="control-label" style="margin-left: 15px;">Page Mode:</span>
+                <select id="pageModeSelect" onchange="changePageMode()">
+                    <option value="dynamic">Dynamic</option>
+                    <option value="66">Fixed 66 Lines</option>
+                    <option value="88">Fixed 88 Lines</option>
+                </select>
+
+                <span class="control-label" style="margin-left: 15px;">Width:</span>
+                <select id="widthSelect" onchange="changeWidth()">
+                    <option value="auto" selected>Auto</option>
+                    <option value="80">80 Col</option>
+                    <option value="132">132 Col</option>
+                    <option value="198">198 Col</option>
+                    <option value="255">255 Col</option>
+                </select>
+                <span id="widthIndicator" style="font-size: 11px; color: var(--text-secondary); margin-left: 5px;"></span>
+            </div>
+
+            <!-- Center Section: Search -->
+            <div class="control-section">
+                <input type="text" id="searchBox" class="search-box" placeholder="🔍 Search..." onkeyup="handleSearchKeyup(event)">
+                <label style="font-size: 12px;">
+                    <input type="checkbox" id="caseSensitive"> Case Sensitive
+                </label>
+                <button class="btn btn-small" onclick="performSearch()">Search</button>
+                <button class="btn btn-small" onclick="clearSearch()">Clear</button>
+                <span id="searchResults" style="font-size: 12px; color: var(--text-secondary);"></span>
+                <button class="btn btn-small" onclick="previousSearchResult()">◀</button>
+                <button class="btn btn-small" onclick="nextSearchResult()">▶</button>
+            </div>
+
+            <!-- Right Section: Navigation & Actions -->
+            <div class="control-section">
+                <span class="control-label">Zoom:</span>
+                <button class="btn btn-small" onclick="zoomOut()">-</button>
+                <span id="zoomLevel" style="min-width: 50px; text-align: center; font-size: 12px;">100%</span>
+                <button class="btn btn-small" onclick="zoomIn()">+</button>
+                <button class="btn btn-small" onclick="resetZoom()">Reset</button>
+
+                <span class="control-label" style="margin-left: 20px;">Jump to Page:</span>
+                <input type="number" id="pageJump" min="1" style="width: 80px;" onkeyup="handlePageJumpKeyup(event)">
+                <button class="btn btn-small" onclick="jumpToPage()">Go</button>
+                <button class="btn" onclick="openWatermarkModal()">💧 Watermark</button>
+                <button class="btn" onclick="openRangesModal()" id="rangesBtn">📑 Ranges</button>
+                <button class="btn" onclick="exportToPDF()">📥 Export PDF</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Display -->
+    <div class="report-container">
+        <div id="reportDisplay" class="report-display">
+            <div class="empty-state">
+                <div class="empty-state-icon">📄</div>
+                <div class="empty-state-text">No report loaded</div>
+                <div class="empty-state-subtext">Click "Open File" or drag & drop a .TXT file to begin</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-info">
+            <span><strong>Page:</strong> <span id="currentPage">-</span> of <span id="totalPages">-</span></span>
+            <span><strong>Lines:</strong> <span id="totalLines">-</span></span>
+            <span><strong>File Size:</strong> <span id="fileSize">-</span></span>
+        </div>
+        <div class="footer-info">
+            <span>Keyboard: Ctrl+O (Open) | Ctrl+F (Search) | Ctrl+G (Jump) | Ctrl+E (Export) | Ctrl+/- (Zoom) | F3 (Next)</span>
+        </div>
+    </footer>
+
+    <!-- Watermark Configuration Modal -->
+    <div id="watermarkModal" class="modal">
+        <div class="modal-content" style="max-width: 900px;">
+            <div class="modal-header">
+                <h2 class="modal-title">💧 Watermark Configuration</h2>
+                <button class="close-btn" onclick="closeWatermarkModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="watermark-config">
+                    <div class="config-section">
+                        <div class="config-group">
+                            <label>Upload Watermark Image</label>
+                            <div class="upload-area" id="watermarkUploadArea" onclick="document.getElementById('watermarkInput').click()">
+                                <div style="font-size: 36px; margin-bottom: 10px;">🖼️</div>
+                                <div>Click to upload or drag & drop</div>
+                                <div style="font-size: 12px; margin-top: 5px; color: var(--text-secondary);">PNG, JPG, SVG (max 5MB)</div>
+                            </div>
+                            <input type="file" id="watermarkInput" accept="image/*" style="display: none;" onchange="handleWatermarkUpload(event)">
+                        </div>
+
+                        <div class="config-group">
+                            <label>Position</label>
+                            <div class="position-grid">
+                                <button class="position-btn" data-position="top-left" onclick="setWatermarkPosition('top-left')">Top Left</button>
+                                <button class="position-btn" data-position="top-center" onclick="setWatermarkPosition('top-center')">Top Center</button>
+                                <button class="position-btn" data-position="top-right" onclick="setWatermarkPosition('top-right')">Top Right</button>
+                                <button class="position-btn" data-position="middle-left" onclick="setWatermarkPosition('middle-left')">Middle Left</button>
+                                <button class="position-btn active" data-position="center" onclick="setWatermarkPosition('center')">Center</button>
+                                <button class="position-btn" data-position="middle-right" onclick="setWatermarkPosition('middle-right')">Middle Right</button>
+                                <button class="position-btn" data-position="bottom-left" onclick="setWatermarkPosition('bottom-left')">Bottom Left</button>
+                                <button class="position-btn" data-position="bottom-center" onclick="setWatermarkPosition('bottom-center')">Bottom Center</button>
+                                <button class="position-btn" data-position="bottom-right" onclick="setWatermarkPosition('bottom-right')">Bottom Right</button>
+                            </div>
+                        </div>
+
+                        <div class="config-group">
+                            <label>Rotation: <span id="rotationValue">0°</span></label>
+                            <div class="slider-control">
+                                <input type="range" id="rotationSlider" min="-180" max="180" value="0" oninput="updateRotation(this.value)">
+                            </div>
+                        </div>
+
+                        <div class="config-group">
+                            <label>Opacity: <span id="opacityValue">30%</span></label>
+                            <div class="slider-control">
+                                <input type="range" id="opacitySlider" min="0" max="100" value="30" oninput="updateOpacity(this.value)">
+                            </div>
+                        </div>
+
+                        <div class="config-group">
+                            <label>Scale: <span id="scaleValue">1.0x</span></label>
+                            <div class="slider-control">
+                                <input type="range" id="scaleSlider" min="50" max="200" value="100" oninput="updateScale(this.value)">
+                            </div>
+                        </div>
+
+                        <div class="config-group">
+                            <label>
+                                <input type="checkbox" id="watermarkEnabled" onchange="toggleWatermark()"> Enable Watermark
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="config-section">
+                        <div class="config-group">
+                            <label>Preview</label>
+                            <div class="watermark-preview" id="watermarkPreview">
+                                <div style="color: var(--text-secondary); text-align: center;">
+                                    <div style="font-size: 48px; margin-bottom: 10px;">🖼️</div>
+                                    <div>Upload an image to preview</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeWatermarkModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page Ranges Modal -->
+    <div id="rangesModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h2 class="modal-title">📑 Page Ranges</h2>
+                <button class="close-btn" onclick="closeRangesModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <table class="ranges-table">
+                    <thead>
+                        <tr>
+                            <th>Section Name</th>
+                            <th>Start Page</th>
+                            <th>Page Count</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rangesTableBody">
+                        <!-- Ranges will be added here dynamically -->
+                    </tbody>
+                </table>
+                <button class="btn" onclick="addNewRange()">+ Add Range</button>
+                <label style="margin-left: 20px;">
+                    <input type="checkbox" id="showRangesOnly" onchange="toggleRangesFilter()"> Show Ranges Only
+                </label>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeRangesModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Overlay -->
+    <div id="progressOverlay" class="progress-overlay">
+        <div class="progress-content">
+            <div class="progress-title" id="progressTitle">Processing...</div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">0%</div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <!-- CDN Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <!-- Main Application Script -->
+    <script>
+        // ===========================
+        // STATE MANAGEMENT
+        // ===========================
+        const AppState = {
+            // File data
+            rawContent: null,
+            lines: [],
+            pages: [],
+            fileName: '',
+            fileSize: 0,
+
+            // View settings
+            zebraEnabled: false,
+            zebraColor1: '#1a1a2e',
+            zebraColor2: '#0f3460',
+            zoomLevel: 100,
+            showRuler: true,
+            showLineNumbers: true,
+            lightMode: false,
+
+            // Page settings
+            pageLengthMode: 'dynamic',
+            fixedPageLength: 66,
+            detectedWidth: 132,
+
+            // Page ranges
+            pageRanges: [],
+            showRangesOnly: false,
+
+            // Search
+            searchTerm: '',
+            searchResults: [],
+            currentSearchIndex: -1,
+
+            // Watermark
+            watermark: {
+                enabled: false,
+                imageData: null,
+                imageSrc: null,
+                position: 'center',
+                rotation: 0,
+                opacity: 30,
+                scale: 100
+            },
+
+            // UI state
+            currentPage: 1
+        };
+
+        // ===========================
+        // INITIALIZATION
+        // ===========================
+        window.addEventListener('DOMContentLoaded', function() {
+            loadSettings();
+            setupDragAndDrop();
+            setupKeyboardShortcuts();
+            applyZebraColors();
+            setupRulerSync();
+        });
+
+        function setupRulerSync() {
+            // Sync ruler horizontal scroll with report display
+            const reportDisplay = document.getElementById('reportDisplay');
+            reportDisplay.addEventListener('scroll', function() {
+                const ruler = reportDisplay.querySelector('.ruler');
+                if (ruler) {
+                    ruler.scrollLeft = reportDisplay.scrollLeft;
+                }
+            });
+        }
+
+        // Load saved settings from localStorage
+        function loadSettings() {
+            const saved = localStorage.getItem('reportViewerSettings');
+            if (saved) {
+                try {
+                    const settings = JSON.parse(saved);
+                    if (settings.zebraColor1) AppState.zebraColor1 = settings.zebraColor1;
+                    if (settings.zebraColor2) AppState.zebraColor2 = settings.zebraColor2;
+                    if (settings.zebraEnabled !== undefined) AppState.zebraEnabled = settings.zebraEnabled;
+
+                    document.getElementById('zebraColor1').value = AppState.zebraColor1;
+                    document.getElementById('zebraColor2').value = AppState.zebraColor2;
+                    document.getElementById('zebraToggle').checked = AppState.zebraEnabled;
+
+                    applyZebraColors();
+                } catch (e) {
+                    console.error('Error loading settings:', e);
+                }
+            }
+        }
+
+        // Save settings to localStorage
+        function saveSettings() {
+            const settings = {
+                zebraColor1: AppState.zebraColor1,
+                zebraColor2: AppState.zebraColor2,
+                zebraEnabled: AppState.zebraEnabled
+            };
+            localStorage.setItem('reportViewerSettings', JSON.stringify(settings));
+        }
+
+        // ===========================
+        // FILE HANDLING
+        // ===========================
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                loadFile(file);
+            }
+        }
+
+        function loadFile(file) {
+            showProgress('Loading file...', 0);
+
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                try {
+                    AppState.rawContent = e.target.result;
+                    AppState.fileName = file.name;
+                    AppState.fileSize = file.size;
+
+                    // Clear page ranges when loading a new file
+                    AppState.pageRanges = [];
+                    AppState.showRangesOnly = false;
+
+                    // Update the checkbox UI
+                    const rangesCheckbox = document.getElementById('showRangesOnly');
+                    if (rangesCheckbox) {
+                        rangesCheckbox.checked = false;
+                    }
+
+                    updateProgress(30, 'Parsing content...');
+
+                    // Use setTimeout to allow UI to update
+                    setTimeout(() => {
+                        parseReportFile();
+                        updateProgress(60, 'Detecting pages...');
+
+                        setTimeout(() => {
+                            detectPages();
+                            detectReportWidth();
+                            updateProgress(80, 'Rendering display...');
+
+                            setTimeout(() => {
+                                renderReport();
+                                updateFileInfo();
+                                updateProgress(100, 'Complete!');
+
+                                setTimeout(() => {
+                                    hideProgress();
+                                    showToast(`File loaded! Width: ${AppState.detectedWidth} columns`, 'success');
+                                }, 500);
+                            }, 100);
+                        }, 100);
+                    }, 100);
+                } catch (error) {
+                    hideProgress();
+                    showToast('Error loading file: ' + error.message, 'error');
+                    console.error('File load error:', error);
+                }
+            };
+
+            reader.onerror = function() {
+                hideProgress();
+                showToast('Error reading file', 'error');
+            };
+
+            reader.readAsText(file);
+        }
+
+        // ===========================
+        // FILE PARSING
+        // ===========================
+        function parseReportFile() {
+            const lines = AppState.rawContent.split(/\r?\n/);
+            AppState.lines = [];
+            let currentPage = 1;
+
+            // Detect if file uses ASA carriage control (first char of every line is control)
+            // Check first non-empty line
+            let usesASACarriageControl = false;
+            for (let i = 0; i < Math.min(5, lines.length); i++) {
+                const firstChar = lines[i].charAt(0);
+                if (lines[i].length > 0 && (firstChar === '1' || firstChar === '0' || firstChar === '-' || firstChar === ' ')) {
+                    // Check if second character is space (typical of ASA format)
+                    if (lines[i].charAt(1) === ' ' || firstChar === '1') {
+                        usesASACarriageControl = true;
+                        break;
+                    }
+                }
+            }
+
+            lines.forEach((rawLine, index) => {
+                // Skip JES2 spool commands (lines starting with *$)
+                if (rawLine.startsWith('*$')) {
+                    return;
+                }
+
+                if (rawLine.length === 0) {
+                    // Empty line
+                    const lineObj = {
+                        lineNumber: index + 1,
+                        rawText: rawLine,
+                        displayText: '',
+                        controlChar: '',
+                        pageNumber: currentPage,
+                        isPageBreak: false,
+                        hasMatch: false
+                    };
+                    AppState.lines.push(lineObj);
+                    return;
+                }
+
+                const controlChar = rawLine.charAt(0);
+                let displayText = rawLine;
+                let isPageBreak = false;
+
+                // Check for form feed character (ASCII 12)
+                const isFormFeed = controlChar === '\f' || controlChar.charCodeAt(0) === 12;
+
+                if (isFormFeed) {
+                    // Form feed - always a page break, strip it
+                    displayText = rawLine.substring(1);
+                    isPageBreak = true;
+                } else if (usesASACarriageControl) {
+                    // ASA carriage control format - first char is always control
+                    if (controlChar === '1') {
+                        displayText = rawLine.substring(1);
+                        isPageBreak = true;
+                    } else if (controlChar === '0' || controlChar === '-' || controlChar === ' ' || controlChar === '+') {
+                        // Other carriage control chars (0=double space, -=single space, +=overprint, space=normal)
+                        displayText = rawLine.substring(1);
+                    }
+                } else {
+                    // No carriage control - keep line as-is unless it's a form feed
+                    displayText = rawLine;
+                }
+
+                const lineObj = {
+                    lineNumber: index + 1,
+                    rawText: rawLine,
+                    displayText: displayText,
+                    controlChar: controlChar,
+                    pageNumber: currentPage,
+                    isPageBreak: isPageBreak,
+                    hasMatch: false
+                };
+
+                // If this is a page break (and not the first line), increment page
+                if (isPageBreak && index > 0) {
+                    currentPage++;
+                    lineObj.pageNumber = currentPage;
+                }
+
+                AppState.lines.push(lineObj);
+            });
+        }
+
+        // ===========================
+        // PAGE DETECTION
+        // ===========================
+        function detectPages() {
+            AppState.pages = [];
+
+            if (AppState.pageLengthMode === 'dynamic') {
+                detectPagesDynamic();
+            } else {
+                detectPagesFixed();
+            }
+        }
+
+        function detectPagesDynamic() {
+            let currentPage = {
+                pageNumber: 1,
+                startLineNumber: 1,
+                lines: [],
+                hasSearchMatch: false
+            };
+
+            AppState.lines.forEach((line, index) => {
+                if (line.isPageBreak && index > 0) {
+                    // Finalize current page
+                    currentPage.endLineNumber = AppState.lines[index - 1].lineNumber;
+                    currentPage.lineCount = currentPage.lines.length;
+                    AppState.pages.push(currentPage);
+
+                    // Start new page
+                    currentPage = {
+                        pageNumber: currentPage.pageNumber + 1,
+                        startLineNumber: line.lineNumber,
+                        lines: [],
+                        hasSearchMatch: false
+                    };
+                }
+
+                line.pageNumber = currentPage.pageNumber;
+                currentPage.lines.push(line);
+            });
+
+            // Add final page
+            if (currentPage.lines.length > 0) {
+                currentPage.endLineNumber = AppState.lines[AppState.lines.length - 1].lineNumber;
+                currentPage.lineCount = currentPage.lines.length;
+                AppState.pages.push(currentPage);
+            }
+        }
+
+        function detectPagesFixed() {
+            const linesPerPage = parseInt(AppState.fixedPageLength);
+            let pageNumber = 1;
+
+            for (let i = 0; i < AppState.lines.length; i += linesPerPage) {
+                const pageLines = AppState.lines.slice(i, i + linesPerPage);
+
+                pageLines.forEach(line => {
+                    line.pageNumber = pageNumber;
+                });
+
+                const page = {
+                    pageNumber: pageNumber,
+                    startLineNumber: pageLines[0].lineNumber,
+                    endLineNumber: pageLines[pageLines.length - 1].lineNumber,
+                    lineCount: pageLines.length,
+                    lines: pageLines,
+                    hasSearchMatch: false
+                };
+
+                AppState.pages.push(page);
+                pageNumber++;
+            }
+        }
+
+        // ===========================
+        // RENDERING
+        // ===========================
+        function renderReport() {
+            const display = document.getElementById('reportDisplay');
+
+            // Determine which pages to display
+            let pagesToDisplay = AppState.pages;
+            if (AppState.showRangesOnly && AppState.pageRanges.length > 0) {
+                pagesToDisplay = filterPagesByRanges();
+            }
+
+            // Build ruler
+            const ruler = buildRuler();
+
+            // Build report content efficiently
+            let html = '';
+            if (AppState.showRuler) {
+                const rulerClass = AppState.showLineNumbers ? 'ruler with-line-numbers' : 'ruler';
+                html += '<div class="' + rulerClass + '">' + ruler + '</div>';
+            }
+            html += '<div class="report-content">';
+
+            pagesToDisplay.forEach((page, pageIndex) => {
+                // Add page separator
+                const sectionName = getSectionNameForPage(page.pageNumber);
+                const pageLabelText = sectionName
+                    ? `── PAGE ${page.pageNumber} (${sectionName}) ──`
+                    : `── PAGE ${page.pageNumber} ──`;
+                html += `<div class="page-separator" data-page="${page.pageNumber}">`;
+                html += `<div><span class="page-label">${pageLabelText}</span></div>`;
+                html += `<hr class="separator-line"></div>`;
+
+                // Create page container
+                html += `<div class="report-page" data-page="${page.pageNumber}" id="page-${page.pageNumber}">`;
+
+                // Add all lines for this page
+                page.lines.forEach((line, lineIndex) => {
+                    const zebraClass = AppState.zebraEnabled ? (lineIndex % 2 === 0 ? 'zebra-even' : 'zebra-odd') : '';
+                    html += `<div class="report-line ${zebraClass}" data-line="${line.lineNumber}" data-page="${page.pageNumber}" data-page-line="${lineIndex + 1}">`;
+                    if (AppState.showLineNumbers) {
+                        html += `<span class="line-number">${lineIndex + 1}</span>`;
+                    }
+                    html += `<span class="line-content">${escapeHtml(line.displayText)}</span>`;
+                    html += `</div>`;
+                });
+
+                html += '</div>';
+            });
+
+            html += '</div>';
+            display.innerHTML = html;
+
+            // Apply watermark if enabled
+            if (AppState.watermark.enabled && AppState.watermark.imageSrc) {
+                applyWatermarkToDisplay();
+            }
+
+            // Update page jump input
+            document.getElementById('pageJump').max = pagesToDisplay.length;
+
+            // Update ranges button indicator
+            updateRangesIndicator();
+        }
+
+        function buildRuler() {
+            if (!AppState.showRuler) {
+                return '';
+            }
+
+            const width = AppState.detectedWidth;
+            let numbers = '';
+            let ticks = '';
+
+            for (let i = 1; i <= width; i++) {
+                if (i % 10 === 0) {
+                    // Show the full number (10, 20, 30, etc.)
+                    const num = String(i);
+                    // Back up and place the digits
+                    const padding = num.length - 1;
+                    // We need to place the digits backwards from this position
+                    numbers += num.charAt(num.length - 1);
+                    ticks += '|';
+                } else if (i % 5 === 0) {
+                    numbers += ' ';
+                    ticks += '+';
+                } else {
+                    numbers += ' ';
+                    ticks += '.';
+                }
+            }
+
+            // Now build the proper number line
+            let numberLine = '';
+            for (let i = 1; i <= width; i++) {
+                if (i % 10 === 0) {
+                    const num = String(i);
+                    // Place the number right-aligned at this position
+                    const start = i - num.length;
+                    for (let j = 0; j < num.length; j++) {
+                        const pos = start + j;
+                        if (pos >= 0 && pos < numberLine.length) {
+                            numberLine = numberLine.substring(0, pos) + num[j] + numberLine.substring(pos + 1);
+                        }
+                    }
+                } else {
+                    if (numberLine.length < i) {
+                        numberLine += ' ';
+                    }
+                }
+            }
+
+            // Rebuild properly
+            numberLine = '';
+            for (let i = 1; i <= width; i++) {
+                let placed = false;
+
+                // Check if this position is part of a decade number
+                for (let decade = 10; decade <= width; decade += 10) {
+                    const numStr = String(decade);
+                    const startPos = decade - numStr.length + 1;
+                    const endPos = decade;
+
+                    if (i >= startPos && i <= endPos) {
+                        const digitIndex = i - startPos;
+                        numberLine += numStr[digitIndex];
+                        placed = true;
+                        break;
+                    }
+                }
+
+                if (!placed) {
+                    numberLine += ' ';
+                }
+            }
+
+            return `<div class="ruler-content"><div class="ruler-numbers">${numberLine}</div><div class="ruler-ticks">${ticks}</div></div><div class="cursor-position" id="cursorPosition">Row 1 Col 1</div>`;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function updateFileInfo() {
+            document.getElementById('fileName').textContent = AppState.fileName;
+            document.getElementById('fileName').classList.add('loaded');
+            document.getElementById('totalPages').textContent = AppState.pages.length;
+            document.getElementById('totalLines').textContent = AppState.lines.length;
+            document.getElementById('fileSize').textContent = formatFileSize(AppState.fileSize);
+            document.getElementById('currentPage').textContent = '1';
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        // ===========================
+        // ZEBRA STRIPING
+        // ===========================
+        function toggleZebra() {
+            AppState.zebraEnabled = document.getElementById('zebraToggle').checked;
+            applyZebraPattern();
+            saveSettings();
+        }
+
+        function updateZebraColors() {
+            AppState.zebraColor1 = document.getElementById('zebraColor1').value;
+            AppState.zebraColor2 = document.getElementById('zebraColor2').value;
+            applyZebraColors();
+            if (AppState.zebraEnabled) {
+                applyZebraPattern();
+            }
+            saveSettings();
+        }
+
+        function applyZebraColors() {
+            document.documentElement.style.setProperty('--zebra-color1', AppState.zebraColor1);
+            document.documentElement.style.setProperty('--zebra-color2', AppState.zebraColor2);
+        }
+
+        function resetZebraColors() {
+            AppState.zebraColor1 = '#1a1a2e';
+            AppState.zebraColor2 = '#0f3460';
+            document.getElementById('zebraColor1').value = AppState.zebraColor1;
+            document.getElementById('zebraColor2').value = AppState.zebraColor2;
+            applyZebraColors();
+            if (AppState.zebraEnabled) {
+                applyZebraPattern();
+            }
+            saveSettings();
+        }
+
+        function applyZebraPattern() {
+            // Re-render to apply zebra pattern
+            if (AppState.searchTerm) {
+                renderReportWithSearch();
+            } else {
+                renderReport();
+            }
+        }
+
+        // ===========================
+        // PAGE MODE
+        // ===========================
+        function changePageMode() {
+            const mode = document.getElementById('pageModeSelect').value;
+            AppState.pageLengthMode = mode;
+
+            if (mode === '66') {
+                AppState.fixedPageLength = 66;
+            } else if (mode === '88') {
+                AppState.fixedPageLength = 88;
+            }
+
+            if (AppState.lines.length > 0) {
+                showProgress('Recalculating pages...', 50);
+                setTimeout(() => {
+                    detectPages();
+                    renderReport();
+                    hideProgress();
+                    showToast('Page mode changed', 'success');
+                }, 100);
+            }
+        }
+
+        // ===========================
+        // VIEW TOGGLES
+        // ===========================
+        function toggleRuler() {
+            AppState.showRuler = document.getElementById('rulerToggle').checked;
+            if (AppState.lines.length > 0) {
+                if (AppState.searchTerm) {
+                    renderReportWithSearch();
+                } else {
+                    renderReport();
+                }
+            }
+        }
+
+        function toggleLineNumbers() {
+            AppState.showLineNumbers = document.getElementById('lineNumToggle').checked;
+            if (AppState.lines.length > 0) {
+                if (AppState.searchTerm) {
+                    renderReportWithSearch();
+                } else {
+                    renderReport();
+                }
+            }
+        }
+
+        function toggleLightMode() {
+            AppState.lightMode = document.getElementById('lightModeToggle').checked;
+            const display = document.getElementById('reportDisplay');
+            if (AppState.lightMode) {
+                display.classList.add('light-mode');
+            } else {
+                display.classList.remove('light-mode');
+            }
+            // Update watermark preview if modal is open
+            if (AppState.watermark.imageData) {
+                updateWatermarkPreview();
+            }
+            // Re-apply watermark to match new background
+            if (AppState.watermark.enabled && AppState.lines.length > 0) {
+                applyWatermarkToDisplay();
+            }
+        }
+
+        function changeWidth() {
+            const widthSelect = document.getElementById('widthSelect');
+            const value = widthSelect.value;
+
+            if (value === 'auto') {
+                // Auto-detect width
+                detectReportWidth();
+            } else {
+                AppState.detectedWidth = parseInt(value);
+                document.getElementById('widthIndicator').textContent = '';
+            }
+
+            if (AppState.lines.length > 0) {
+                if (AppState.searchTerm) {
+                    renderReportWithSearch();
+                } else {
+                    renderReport();
+                }
+            }
+        }
+
+        function detectReportWidth() {
+            let maxWidth = 132; // Default
+            let actualMaxWidth = 0;
+
+            AppState.lines.forEach(line => {
+                const lineLength = line.displayText.length;
+                if (lineLength > actualMaxWidth) {
+                    actualMaxWidth = lineLength;
+                }
+            });
+
+            maxWidth = actualMaxWidth;
+
+            // Round up to nearest standard width
+            if (maxWidth <= 80) {
+                AppState.detectedWidth = 80;
+            } else if (maxWidth <= 132) {
+                AppState.detectedWidth = 132;
+            } else if (maxWidth <= 198) {
+                AppState.detectedWidth = 198;
+            } else {
+                AppState.detectedWidth = 255;
+            }
+
+            // Update select to show detected width if auto
+            const widthSelect = document.getElementById('widthSelect');
+            if (widthSelect.value === 'auto') {
+                document.getElementById('widthIndicator').textContent = `(${AppState.detectedWidth})`;
+            } else {
+                document.getElementById('widthIndicator').textContent = '';
+            }
+        }
+
+        function updateRangesIndicator() {
+            const btn = document.getElementById('rangesBtn');
+            if (AppState.showRangesOnly && AppState.pageRanges.length > 0) {
+                btn.classList.add('active-indicator');
+                btn.title = `Filter active: ${AppState.pageRanges.length} range(s)`;
+            } else {
+                btn.classList.remove('active-indicator');
+                btn.title = 'Define page ranges';
+            }
+        }
+
+        // ===========================
+        // SEARCH FUNCTIONALITY
+        // ===========================
+        function handleSearchKeyup(event) {
+            if (event.key === 'Enter') {
+                performSearch();
+            } else if (event.key === 'Escape') {
+                clearSearch();
+            }
+        }
+
+        function performSearch() {
+            const term = document.getElementById('searchBox').value.trim();
+            if (!term || AppState.lines.length === 0) return;
+
+            const caseSensitive = document.getElementById('caseSensitive').checked;
+            AppState.searchTerm = term;
+            AppState.searchResults = [];
+            AppState.currentSearchIndex = -1;
+
+            // Clear previous matches
+            AppState.lines.forEach(line => line.hasMatch = false);
+
+            // Escape special regex characters
+            const escapedTerm = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(escapedTerm, caseSensitive ? 'g' : 'gi');
+
+            // Find all matches
+            AppState.lines.forEach((line, index) => {
+                let match;
+                const testRegex = new RegExp(escapedTerm, caseSensitive ? 'g' : 'gi');
+                while ((match = testRegex.exec(line.displayText)) !== null) {
+                    AppState.searchResults.push({
+                        lineIndex: index,
+                        lineNumber: line.lineNumber,
+                        pageNumber: line.pageNumber,
+                        matchStart: match.index,
+                        matchLength: term.length
+                    });
+                    line.hasMatch = true;
+                }
+            });
+
+            // Update UI
+            const resultsText = document.getElementById('searchResults');
+            if (AppState.searchResults.length > 0) {
+                resultsText.textContent = `Found ${AppState.searchResults.length} match${AppState.searchResults.length > 1 ? 'es' : ''}`;
+                renderReportWithSearch();
+                jumpToSearchResult(0);
+            } else {
+                resultsText.textContent = 'No matches found';
+                showToast('No matches found', 'error');
+            }
+        }
+
+        function highlightSearchResults() {
+            // Re-render with search highlights
+            renderReportWithSearch();
+        }
+
+        function renderReportWithSearch() {
+            const display = document.getElementById('reportDisplay');
+
+            // Determine which pages to display
+            let pagesToDisplay = AppState.pages;
+            if (AppState.showRangesOnly && AppState.pageRanges.length > 0) {
+                pagesToDisplay = filterPagesByRanges();
+            }
+
+            const caseSensitive = document.getElementById('caseSensitive').checked;
+            const escapedTerm = AppState.searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(escapedTerm, caseSensitive ? 'g' : 'gi');
+
+            // Build ruler
+            const ruler = buildRuler();
+
+            // Build report content with search highlights
+            let html = '';
+            if (AppState.showRuler) {
+                const rulerClass = AppState.showLineNumbers ? 'ruler with-line-numbers' : 'ruler';
+                html += '<div class="' + rulerClass + '">' + ruler + '</div>';
+            }
+            html += '<div class="report-content">';
+
+            pagesToDisplay.forEach((page, pageIndex) => {
+                // Add page separator
+                const sectionName = getSectionNameForPage(page.pageNumber);
+                const pageLabelText = sectionName
+                    ? `── PAGE ${page.pageNumber} (${sectionName}) ──`
+                    : `── PAGE ${page.pageNumber} ──`;
+                html += `<div class="page-separator" data-page="${page.pageNumber}">`;
+                html += `<div><span class="page-label">${pageLabelText}</span></div>`;
+                html += `<hr class="separator-line"></div>`;
+
+                // Create page container
+                html += `<div class="report-page" data-page="${page.pageNumber}" id="page-${page.pageNumber}">`;
+
+                // Add all lines for this page
+                page.lines.forEach((line, lineIndex) => {
+                    let lineText = escapeHtml(line.displayText);
+
+                    // Apply search highlighting if this line has a match
+                    if (line.hasMatch && AppState.searchTerm) {
+                        lineText = lineText.replace(regex, '<mark class="search-highlight">$&</mark>');
+                    }
+
+                    const zebraClass = AppState.zebraEnabled ? (lineIndex % 2 === 0 ? 'zebra-even' : 'zebra-odd') : '';
+                    html += `<div class="report-line ${zebraClass}" data-line="${line.lineNumber}">`;
+                    if (AppState.showLineNumbers) {
+                        html += `<span class="line-number">${line.lineNumber}</span>`;
+                    }
+                    html += `<span class="line-content">${lineText}</span>`;
+                    html += `</div>`;
+                });
+
+                html += '</div>';
+            });
+
+            html += '</div>';
+            display.innerHTML = html;
+
+            // Apply watermark if enabled
+            if (AppState.watermark.enabled && AppState.watermark.imageSrc) {
+                applyWatermarkToDisplay();
+            }
+
+            // Update ranges button indicator
+            updateRangesIndicator();
+        }
+
+        function jumpToSearchResult(index) {
+            if (AppState.searchResults.length === 0) return;
+
+            AppState.currentSearchIndex = index;
+            const result = AppState.searchResults[index];
+
+            // Update current highlight
+            const highlights = document.querySelectorAll('.search-highlight');
+            highlights.forEach(h => h.classList.remove('current'));
+
+            // Find and highlight current result
+            const lineElement = document.querySelector(`[data-line="${result.lineNumber}"]`);
+            if (lineElement) {
+                const highlight = lineElement.querySelectorAll('.search-highlight')[0];
+                if (highlight) {
+                    highlight.classList.add('current');
+                }
+                lineElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+
+            // Update results text
+            document.getElementById('searchResults').textContent =
+                `Match ${index + 1} of ${AppState.searchResults.length}`;
+        }
+
+        function nextSearchResult() {
+            if (AppState.searchResults.length === 0) return;
+            const nextIndex = (AppState.currentSearchIndex + 1) % AppState.searchResults.length;
+            jumpToSearchResult(nextIndex);
+        }
+
+        function previousSearchResult() {
+            if (AppState.searchResults.length === 0) return;
+            const prevIndex = (AppState.currentSearchIndex - 1 + AppState.searchResults.length) % AppState.searchResults.length;
+            jumpToSearchResult(prevIndex);
+        }
+
+        function clearSearch() {
+            document.getElementById('searchBox').value = '';
+            document.getElementById('searchResults').textContent = '';
+            AppState.searchTerm = '';
+            AppState.searchResults = [];
+            AppState.currentSearchIndex = -1;
+
+            // Clear hasMatch flags
+            AppState.lines.forEach(line => line.hasMatch = false);
+
+            // Re-render without search highlights
+            renderReport();
+        }
+
+        // ===========================
+        // PAGE NAVIGATION
+        // ===========================
+        function handlePageJumpKeyup(event) {
+            if (event.key === 'Enter') {
+                jumpToPage();
+            }
+        }
+
+        function jumpToPage() {
+            const pageNum = parseInt(document.getElementById('pageJump').value);
+            if (isNaN(pageNum) || pageNum < 1 || pageNum > AppState.pages.length) {
+                showToast('Invalid page number', 'error');
+                return;
+            }
+
+            const separator = document.querySelector(`[data-page="${pageNum}"]`);
+            if (separator) {
+                separator.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                AppState.currentPage = pageNum;
+                document.getElementById('currentPage').textContent = pageNum;
+            }
+        }
+
+        // ===========================
+        // PAGE RANGES
+        // ===========================
+        function openRangesModal() {
+            if (AppState.pages.length === 0) {
+                showToast('Please load a file first', 'error');
+                return;
+            }
+            renderRangesTable();
+            document.getElementById('showRangesOnly').checked = AppState.showRangesOnly;
+            document.getElementById('rangesModal').classList.add('active');
+        }
+
+        function closeRangesModal() {
+            document.getElementById('rangesModal').classList.remove('active');
+        }
+
+        function renderRangesTable() {
+            const tbody = document.getElementById('rangesTableBody');
+            tbody.innerHTML = '';
+
+            if (AppState.pageRanges.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-secondary);">No ranges defined</td></tr>';
+                return;
+            }
+
+            AppState.pageRanges.forEach((range, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><input type="text" class="range-input" value="${range.name}" onchange="updateRangeName(${index}, this.value)"></td>
+                    <td><input type="number" class="range-input" value="${range.startPage}" min="1" max="${AppState.pages.length}" onchange="updateRangeStart(${index}, this.value)"></td>
+                    <td><input type="number" class="range-input" value="${range.pageCount}" min="1" onchange="updateRangeCount(${index}, this.value)"></td>
+                    <td><button class="btn btn-small" onclick="deleteRange(${index})">Delete</button></td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function addNewRange() {
+            const newRange = {
+                id: Date.now(),
+                name: `Section ${AppState.pageRanges.length + 1}`,
+                startPage: 1,
+                pageCount: 1
+            };
+            AppState.pageRanges.push(newRange);
+            renderRangesTable();
+            if (AppState.showRangesOnly && AppState.lines.length > 0) {
+                renderReport();
+            }
+            updateRangesIndicator();
+        }
+
+        function updateRangeName(index, name) {
+            AppState.pageRanges[index].name = name;
+            if (AppState.showRangesOnly && AppState.lines.length > 0) {
+                renderReport();
+            }
+        }
+
+        function updateRangeStart(index, value) {
+            const startPage = parseInt(value);
+            if (startPage >= 1 && startPage <= AppState.pages.length) {
+                AppState.pageRanges[index].startPage = startPage;
+                if (AppState.showRangesOnly && AppState.lines.length > 0) {
+                    renderReport();
+                }
+            }
+        }
+
+        function updateRangeCount(index, value) {
+            const count = parseInt(value);
+            if (count >= 1) {
+                AppState.pageRanges[index].pageCount = count;
+                if (AppState.showRangesOnly && AppState.lines.length > 0) {
+                    renderReport();
+                }
+            }
+        }
+
+        function deleteRange(index) {
+            AppState.pageRanges.splice(index, 1);
+            renderRangesTable();
+            if (AppState.showRangesOnly && AppState.lines.length > 0) {
+                renderReport();
+            }
+            updateRangesIndicator();
+        }
+
+        function toggleRangesFilter() {
+            AppState.showRangesOnly = document.getElementById('showRangesOnly').checked;
+            if (AppState.lines.length > 0) {
+                renderReport();
+                if (AppState.showRangesOnly && AppState.pageRanges.length > 0) {
+                    showToast('Showing selected ranges only', 'success');
+                } else {
+                    showToast('Showing all pages', 'success');
+                }
+            }
+            updateRangesIndicator();
+        }
+
+        // ===========================
+        // WATERMARK
+        // ===========================
+        function openWatermarkModal() {
+            document.getElementById('watermarkModal').classList.add('active');
+            setupWatermarkDragDrop();
+            updateWatermarkPreview();
+        }
+
+        function closeWatermarkModal() {
+            document.getElementById('watermarkModal').classList.remove('active');
+            // Re-render if watermark settings changed
+            if (AppState.lines.length > 0 && AppState.watermark.enabled) {
+                if (AppState.searchTerm) {
+                    renderReportWithSearch();
+                } else {
+                    renderReport();
+                }
+            }
+        }
+
+        function setupWatermarkDragDrop() {
+            const uploadArea = document.getElementById('watermarkUploadArea');
+
+            uploadArea.ondragover = (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            };
+
+            uploadArea.ondragleave = () => {
+                uploadArea.classList.remove('dragover');
+            };
+
+            uploadArea.ondrop = (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith('image/')) {
+                    loadWatermarkImage(file);
+                }
+            };
+        }
+
+        function handleWatermarkUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                loadWatermarkImage(file);
+            }
+        }
+
+        function loadWatermarkImage(file) {
+            if (file.size > 5 * 1024 * 1024) {
+                showToast('Image too large (max 5MB)', 'error');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    // Scale down large images to fit page better
+                    const maxDimension = 400; // Max width or height in pixels
+                    let scaledImg = img;
+
+                    if (img.width > maxDimension || img.height > maxDimension) {
+                        // Create a scaled version
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+
+                        let scale = 1;
+                        if (img.width > img.height) {
+                            scale = maxDimension / img.width;
+                        } else {
+                            scale = maxDimension / img.height;
+                        }
+
+                        canvas.width = img.width * scale;
+                        canvas.height = img.height * scale;
+
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                        // Create new image from scaled canvas
+                        scaledImg = new Image();
+                        scaledImg.onload = () => {
+                            AppState.watermark.imageData = scaledImg;
+                            AppState.watermark.imageSrc = canvas.toDataURL();
+                            updateWatermarkPreview();
+                            showToast(`Watermark loaded (scaled to ${Math.round(canvas.width)}x${Math.round(canvas.height)})`, 'success');
+                        };
+                        scaledImg.src = canvas.toDataURL();
+                    } else {
+                        AppState.watermark.imageData = img;
+                        AppState.watermark.imageSrc = e.target.result;
+                        updateWatermarkPreview();
+                        showToast('Watermark image loaded', 'success');
+                    }
+                };
+                img.onerror = () => {
+                    showToast('Error loading image', 'error');
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function setWatermarkPosition(position) {
+            AppState.watermark.position = position;
+
+            // Update button styles
+            document.querySelectorAll('.position-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-position="${position}"]`).classList.add('active');
+
+            updateWatermarkPreview();
+            updateLiveWatermark();
+        }
+
+        function updateRotation(value) {
+            AppState.watermark.rotation = parseInt(value);
+            document.getElementById('rotationValue').textContent = value + '°';
+            updateWatermarkPreview();
+            updateLiveWatermark();
+        }
+
+        function updateOpacity(value) {
+            AppState.watermark.opacity = parseInt(value);
+            document.getElementById('opacityValue').textContent = value + '%';
+            updateWatermarkPreview();
+            updateLiveWatermark();
+        }
+
+        function updateScale(value) {
+            AppState.watermark.scale = parseInt(value);
+            document.getElementById('scaleValue').textContent = (value / 100).toFixed(1) + 'x';
+            updateWatermarkPreview();
+            updateLiveWatermark();
+        }
+
+        function updateLiveWatermark() {
+            // Update watermark in real-time if enabled and content is loaded
+            if (AppState.watermark.enabled && AppState.lines.length > 0 && AppState.watermark.imageData) {
+                applyWatermarkToDisplay();
+            }
+        }
+
+        function toggleWatermark() {
+            AppState.watermark.enabled = document.getElementById('watermarkEnabled').checked;
+            if (AppState.watermark.enabled && !AppState.watermark.imageData) {
+                showToast('Please upload a watermark image first', 'error');
+                document.getElementById('watermarkEnabled').checked = false;
+                AppState.watermark.enabled = false;
+                return;
+            }
+            if (AppState.lines.length > 0) {
+                renderReport();
+            }
+        }
+
+        function applyWatermarkToDisplay() {
+            if (!AppState.watermark.enabled || !AppState.watermark.imageSrc) {
+                return;
+            }
+
+            const opacity = AppState.watermark.opacity / 100;
+            const scale = AppState.watermark.scale / 100;
+            const rotation = AppState.watermark.rotation;
+
+            // Apply to all page elements
+            const pages = document.querySelectorAll('.report-page');
+            pages.forEach(pageEl => {
+                // Calculate content area dimensions
+                // Monospace font: approximate character width
+                const fontSize = parseFloat(getComputedStyle(pageEl).fontSize) || 11;
+                const charWidth = fontSize * 0.6; // Courier New ratio
+                const lineHeight = fontSize * 1.2;
+
+                // Content dimensions based on report width
+                const contentWidth = AppState.detectedWidth * charWidth;
+                const linesInPage = pageEl.querySelectorAll('.report-line').length;
+                const contentHeight = linesInPage * lineHeight;
+
+                // Create watermark canvas sized to content area
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = contentWidth;
+                canvas.height = Math.max(contentHeight, 400); // Minimum height
+
+                // Calculate position within content area
+                const positions = {
+                    'top-left': { x: 0.15, y: 0.15 },
+                    'top-center': { x: 0.5, y: 0.15 },
+                    'top-right': { x: 0.85, y: 0.15 },
+                    'middle-left': { x: 0.15, y: 0.5 },
+                    'center': { x: 0.5, y: 0.5 },
+                    'middle-right': { x: 0.85, y: 0.5 },
+                    'bottom-left': { x: 0.15, y: 0.85 },
+                    'bottom-center': { x: 0.5, y: 0.85 },
+                    'bottom-right': { x: 0.85, y: 0.85 }
+                };
+
+                const pos = positions[AppState.watermark.position] || positions['center'];
+                const x = canvas.width * pos.x;
+                const y = canvas.height * pos.y;
+
+                // Draw watermark
+                ctx.save();
+                ctx.globalAlpha = opacity;
+                ctx.translate(x, y);
+                ctx.rotate(rotation * Math.PI / 180);
+
+                const imgWidth = AppState.watermark.imageData.width * scale;
+                const imgHeight = AppState.watermark.imageData.height * scale;
+
+                ctx.drawImage(
+                    AppState.watermark.imageData,
+                    -imgWidth / 2,
+                    -imgHeight / 2,
+                    imgWidth,
+                    imgHeight
+                );
+                ctx.restore();
+
+                // Apply watermark to page
+                pageEl.style.backgroundImage = `url(${canvas.toDataURL()})`;
+                pageEl.style.backgroundRepeat = 'no-repeat';
+                pageEl.style.backgroundPosition = 'left top';
+                pageEl.style.backgroundSize = `${contentWidth}px ${canvas.height}px`;
+            });
+        }
+
+        function updateWatermarkPreview() {
+            const preview = document.getElementById('watermarkPreview');
+
+            if (!AppState.watermark.imageData) {
+                preview.innerHTML = `
+                    <div style="color: var(--text-secondary); text-align: center;">
+                        <div style="font-size: 48px; margin-bottom: 10px;">🖼️</div>
+                        <div>Upload an image to preview</div>
+                    </div>
+                `;
+                return;
+            }
+
+            // Create preview with watermark
+            preview.innerHTML = '';
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            // Use preview pane dimensions
+            const previewWidth = preview.offsetWidth || 400;
+            const previewHeight = preview.offsetHeight || 300;
+
+            canvas.width = previewWidth;
+            canvas.height = previewHeight;
+
+            // Fill background to simulate report
+            ctx.fillStyle = AppState.lightMode ? '#ffffff' : '#0a0a0a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw sample text at readable size (don't scale down)
+            ctx.fillStyle = AppState.lightMode ? '#000000' : '#e0e0e0';
+            ctx.font = '9px Courier New';
+            const sampleLines = [
+                'REPORT NO - SAMPLE          PREVIEW OF WATERMARK PLACEMENT',
+                'ACCOUNT  NAME           AMOUNT      DATE       STATUS',
+                '12345    JOHN DOE        1,234.56    01/27/26   ACTIVE',
+                '67890    JANE SMITH      5,678.90    01/27/26   ACTIVE',
+                '11111    BOB JOHNSON     9,012.34    01/27/26   PENDING',
+                '22222    ALICE BROWN     3,456.78    01/27/26   ACTIVE'
+            ];
+
+            const lineHeight = 11;
+            const startY = 20;
+            for (let i = 0; i < sampleLines.length; i++) {
+                ctx.fillText(sampleLines[i], 10, startY + i * lineHeight);
+            }
+
+            // Continue pattern
+            for (let i = sampleLines.length; i < Math.floor((canvas.height - startY) / lineHeight); i++) {
+                const lineIndex = i % sampleLines.length;
+                ctx.fillText(sampleLines[lineIndex], 10, startY + i * lineHeight);
+            }
+
+            // Calculate position for watermark
+            const positions = {
+                'top-left': { x: 0.15, y: 0.15 },
+                'top-center': { x: 0.5, y: 0.15 },
+                'top-right': { x: 0.85, y: 0.15 },
+                'middle-left': { x: 0.15, y: 0.5 },
+                'center': { x: 0.5, y: 0.5 },
+                'middle-right': { x: 0.85, y: 0.5 },
+                'bottom-left': { x: 0.15, y: 0.85 },
+                'bottom-center': { x: 0.5, y: 0.85 },
+                'bottom-right': { x: 0.85, y: 0.85 }
+            };
+
+            const pos = positions[AppState.watermark.position] || positions['center'];
+            const x = canvas.width * pos.x;
+            const y = canvas.height * pos.y;
+
+            // Draw watermark at preview scale
+            ctx.save();
+            ctx.globalAlpha = AppState.watermark.opacity / 100;
+            ctx.translate(x, y);
+            ctx.rotate(AppState.watermark.rotation * Math.PI / 180);
+
+            const userScale = AppState.watermark.scale / 100;
+            // Show watermark at a reasonable preview size (0.5x of actual for preview)
+            const previewScale = 0.5;
+            const imgWidth = AppState.watermark.imageData.width * userScale * previewScale;
+            const imgHeight = AppState.watermark.imageData.height * userScale * previewScale;
+
+            ctx.drawImage(
+                AppState.watermark.imageData,
+                -imgWidth / 2,
+                -imgHeight / 2,
+                imgWidth,
+                imgHeight
+            );
+            ctx.restore();
+
+            preview.appendChild(canvas);
+        }
+
+        // ===========================
+        // PDF EXPORT
+        // ===========================
+        async function exportToPDF() {
+            if (AppState.pages.length === 0) {
+                showToast('Please load a file first', 'error');
+                return;
+            }
+
+            // Check if libraries are loaded
+            if (typeof window.jspdf === 'undefined' || typeof html2canvas === 'undefined') {
+                showToast('PDF libraries not loaded. Please refresh the page.', 'error');
+                return;
+            }
+
+            try {
+                showProgress('Preparing PDF export...', 0);
+
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({
+                    orientation: 'landscape',
+                    unit: 'in',
+                    format: [11, 14.875]
+                });
+
+                // Determine which pages to export
+                let pagesToExport = AppState.pages;
+                if (AppState.showRangesOnly && AppState.pageRanges.length > 0) {
+                    pagesToExport = filterPagesByRanges();
+                }
+
+                const totalPages = pagesToExport.length;
+
+                for (let i = 0; i < totalPages; i++) {
+                    const page = pagesToExport[i];
+                    updateProgress(((i + 1) / totalPages) * 100, `Exporting page ${i + 1} of ${totalPages}...`);
+
+                    // Create temporary container for this page
+                    const pageContainer = createPageElement(page);
+                    document.body.appendChild(pageContainer);
+
+                    // Apply zebra striping if enabled
+                    if (AppState.zebraEnabled) {
+                        applyZebraToElement(pageContainer);
+                    }
+
+                    // Apply watermark if enabled
+                    if (AppState.watermark.enabled && AppState.watermark.imageData) {
+                        await applyWatermarkToElement(pageContainer);
+                    }
+
+                    // Render to canvas
+                    const canvas = await html2canvas(pageContainer, {
+                        scale: 2,
+                        backgroundColor: AppState.zebraEnabled ? AppState.zebraColor1 : '#ffffff',
+                        logging: false
+                    });
+
+                    // Remove temporary container
+                    document.body.removeChild(pageContainer);
+
+                    // Add to PDF
+                    const imgData = canvas.toDataURL('image/png');
+                    if (i > 0) pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', 0, 0, 14.875, 11, undefined, 'FAST');
+
+                    // Allow UI to update
+                    await new Promise(resolve => setTimeout(resolve, 10));
+                }
+
+                // Save PDF
+                const fileName = `${AppState.fileName.replace('.txt', '').replace('.TXT', '')}_export_${Date.now()}.pdf`;
+                pdf.save(fileName);
+
+                hideProgress();
+                showToast('PDF exported successfully!', 'success');
+            } catch (error) {
+                hideProgress();
+                showToast('Error exporting PDF: ' + error.message, 'error');
+                console.error('PDF export error:', error);
+            }
+        }
+
+        function filterPagesByRanges() {
+            const filteredPages = [];
+            AppState.pageRanges.forEach(range => {
+                for (let i = 0; i < range.pageCount; i++) {
+                    const pageNum = range.startPage + i;
+                    const page = AppState.pages.find(p => p.pageNumber === pageNum);
+                    if (page) {
+                        filteredPages.push(page);
+                    }
+                }
+            });
+            return filteredPages;
+        }
+
+        function getSectionNameForPage(pageNumber) {
+            if (!AppState.showRangesOnly || AppState.pageRanges.length === 0) {
+                return null;
+            }
+
+            for (const range of AppState.pageRanges) {
+                const endPage = range.startPage + range.pageCount - 1;
+                if (pageNumber >= range.startPage && pageNumber <= endPage) {
+                    return range.name;
+                }
+            }
+            return null;
+        }
+
+        function createPageElement(page) {
+            const container = document.createElement('div');
+
+            // Calculate fixed height based on standard page
+            // 66 lines × 13px per line (11px font + 4px padding) = 858px + 40px padding = 898px
+            const fixedHeight = 898;
+
+            container.style.cssText = `
+                position: absolute;
+                left: -9999px;
+                top: 0;
+                width: 1487px;
+                height: ${fixedHeight}px;
+                min-height: ${fixedHeight}px;
+                padding: 20px;
+                background: ${AppState.zebraEnabled ? AppState.zebraColor1 : '#ffffff'};
+                font-family: 'Courier New', Courier, monospace;
+                font-size: 11px;
+                white-space: pre;
+                color: ${AppState.zebraEnabled ? '#e0e0e0' : '#000000'};
+                overflow: hidden;
+            `;
+
+            page.lines.forEach((line, idx) => {
+                const lineDiv = document.createElement('div');
+                lineDiv.textContent = line.displayText;
+                lineDiv.style.padding = '2px 5px';
+                lineDiv.style.lineHeight = '1.2';
+                container.appendChild(lineDiv);
+            });
+
+            return container;
+        }
+
+        function applyZebraToElement(element) {
+            const lines = element.querySelectorAll('div');
+            lines.forEach((line, idx) => {
+                line.style.backgroundColor = (idx % 2 === 0) ? AppState.zebraColor1 : AppState.zebraColor2;
+            });
+        }
+
+        async function applyWatermarkToElement(element) {
+            // Create canvas for watermark
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            canvas.width = element.offsetWidth;
+            canvas.height = element.offsetHeight;
+
+            // Calculate position (same as display)
+            const positions = {
+                'top-left': { x: 0.15, y: 0.15 },
+                'top-center': { x: 0.5, y: 0.15 },
+                'top-right': { x: 0.85, y: 0.15 },
+                'middle-left': { x: 0.15, y: 0.5 },
+                'center': { x: 0.5, y: 0.5 },
+                'middle-right': { x: 0.85, y: 0.5 },
+                'bottom-left': { x: 0.15, y: 0.85 },
+                'bottom-center': { x: 0.5, y: 0.85 },
+                'bottom-right': { x: 0.85, y: 0.85 }
+            };
+
+            const pos = positions[AppState.watermark.position] || positions['center'];
+            const x = canvas.width * pos.x;
+            const y = canvas.height * pos.y;
+
+            // Draw watermark
+            ctx.save();
+            ctx.globalAlpha = AppState.watermark.opacity / 100;
+            ctx.translate(x, y);
+            ctx.rotate(AppState.watermark.rotation * Math.PI / 180);
+
+            const scale = AppState.watermark.scale / 100;
+            const imgWidth = AppState.watermark.imageData.width * scale;
+            const imgHeight = AppState.watermark.imageData.height * scale;
+
+            ctx.drawImage(
+                AppState.watermark.imageData,
+                -imgWidth / 2,
+                -imgHeight / 2,
+                imgWidth,
+                imgHeight
+            );
+            ctx.restore();
+
+            // Apply as background
+            element.style.backgroundImage = `url(${canvas.toDataURL()})`;
+            element.style.backgroundRepeat = 'no-repeat';
+            element.style.backgroundPosition = 'left top';
+            element.style.backgroundSize = '100% 100%';
+        }
+
+        // ===========================
+        // DRAG AND DROP
+        // ===========================
+        function setupDragAndDrop() {
+            const dropZone = document.getElementById('reportDisplay');
+
+            dropZone.ondragover = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            };
+
+            dropZone.ondrop = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const file = e.dataTransfer.files[0];
+                if (file && (file.name.endsWith('.txt') || file.name.endsWith('.TXT'))) {
+                    loadFile(file);
+                } else {
+                    showToast('Please drop a .TXT file', 'error');
+                }
+            };
+        }
+
+        // ===========================
+        // KEYBOARD SHORTCUTS
+        // ===========================
+        function setupKeyboardShortcuts() {
+            document.addEventListener('keydown', (e) => {
+                // Ctrl+O: Open file
+                if (e.ctrlKey && e.key === 'o') {
+                    e.preventDefault();
+                    document.getElementById('fileInput').click();
+                }
+
+                // Ctrl+F: Focus search
+                if (e.ctrlKey && e.key === 'f') {
+                    e.preventDefault();
+                    document.getElementById('searchBox').focus();
+                }
+
+                // Ctrl+G: Jump to page
+                if (e.ctrlKey && e.key === 'g') {
+                    e.preventDefault();
+                    document.getElementById('pageJump').focus();
+                }
+
+                // Ctrl+E: Export PDF
+                if (e.ctrlKey && e.key === 'e') {
+                    e.preventDefault();
+                    exportToPDF();
+                }
+
+                // Ctrl+W: Toggle watermark modal
+                if (e.ctrlKey && e.key === 'w') {
+                    e.preventDefault();
+                    openWatermarkModal();
+                }
+
+                // Ctrl+Z: Toggle zebra
+                if (e.ctrlKey && e.key === 'z') {
+                    e.preventDefault();
+                    const toggle = document.getElementById('zebraToggle');
+                    toggle.checked = !toggle.checked;
+                    toggleZebra();
+                }
+
+                // Ctrl+ (Plus/Equal): Zoom in
+                if (e.ctrlKey && (e.key === '+' || e.key === '=')) {
+                    e.preventDefault();
+                    zoomIn();
+                }
+
+                // Ctrl- (Minus): Zoom out
+                if (e.ctrlKey && e.key === '-') {
+                    e.preventDefault();
+                    zoomOut();
+                }
+
+                // Ctrl+0: Reset zoom
+                if (e.ctrlKey && e.key === '0') {
+                    e.preventDefault();
+                    resetZoom();
+                }
+
+                // F3: Next search result
+                if (e.key === 'F3') {
+                    e.preventDefault();
+                    if (e.shiftKey) {
+                        previousSearchResult();
+                    } else {
+                        nextSearchResult();
+                    }
+                }
+
+                // Escape: Close modals
+                if (e.key === 'Escape') {
+                    closeWatermarkModal();
+                    closeRangesModal();
+                }
+            });
+        }
+
+        // ===========================
+        // PROGRESS INDICATOR
+        // ===========================
+        function showProgress(title, percent) {
+            document.getElementById('progressTitle').textContent = title;
+            document.getElementById('progressFill').style.width = percent + '%';
+            document.getElementById('progressText').textContent = Math.round(percent) + '%';
+            document.getElementById('progressOverlay').classList.add('active');
+        }
+
+        function updateProgress(percent, title) {
+            if (title) {
+                document.getElementById('progressTitle').textContent = title;
+            }
+            document.getElementById('progressFill').style.width = percent + '%';
+            document.getElementById('progressText').textContent = Math.round(percent) + '%';
+        }
+
+        function hideProgress() {
+            document.getElementById('progressOverlay').classList.remove('active');
+        }
+
+        // ===========================
+        // TOAST NOTIFICATIONS
+        // ===========================
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} active`;
+
+            setTimeout(() => {
+                toast.classList.remove('active');
+            }, 3000);
+        }
+
+        // ===========================
+        // ZOOM FUNCTIONS
+        // ===========================
+        function zoomIn() {
+            AppState.zoomLevel = Math.min(AppState.zoomLevel + 10, 200);
+            applyZoom();
+        }
+
+        function zoomOut() {
+            AppState.zoomLevel = Math.max(AppState.zoomLevel - 10, 50);
+            applyZoom();
+        }
+
+        function resetZoom() {
+            AppState.zoomLevel = 100;
+            applyZoom();
+        }
+
+        function applyZoom() {
+            const fontSize = Math.round(11 * (AppState.zoomLevel / 100));
+            document.documentElement.style.setProperty('--report-font-size', fontSize + 'px');
+            document.getElementById('zoomLevel').textContent = AppState.zoomLevel + '%';
+        }
+
+        // ===========================
+        // UTILITY FUNCTIONS
+        // ===========================
+
+        // Scroll detection for current page indicator
+        let scrollTimeout;
+        document.getElementById('reportDisplay')?.addEventListener('scroll', function() {
+            clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(() => {
+                updateCurrentPageIndicator();
+            }, 100);
+        });
+
+        function updateCurrentPageIndicator() {
+            const display = document.getElementById('reportDisplay');
+            const scrollTop = display.scrollTop;
+            const separators = document.querySelectorAll('.page-separator');
+
+            let currentPage = 1;
+            separators.forEach(sep => {
+                if (sep.offsetTop <= scrollTop + 100) {
+                    currentPage = parseInt(sep.getAttribute('data-page'));
+                }
+            });
+
+            document.getElementById('currentPage').textContent = currentPage;
+            AppState.currentPage = currentPage;
+        }
+
+        // ===========================
+        // CURSOR POSITION TRACKING
+        // ===========================
+        function updateCursorPosition(row, col) {
+            const indicator = document.getElementById('cursorPosition');
+            if (indicator) {
+                indicator.textContent = `Row ${row} Col ${col}`;
+                indicator.classList.add('visible');
+            }
+        }
+
+        function handleReportClick(event) {
+            // Find the clicked line element
+            let target = event.target;
+            while (target && !target.classList.contains('report-line')) {
+                target = target.parentElement;
+                if (target === document.getElementById('reportDisplay')) {
+                    return; // Clicked outside a line
+                }
+            }
+
+            if (!target) return;
+
+            // Get the page-relative line number
+            const pageLineNum = parseInt(target.getAttribute('data-page-line')) || 1;
+
+            // Calculate column position
+            const lineContent = target.querySelector('.line-content');
+            if (!lineContent) return;
+
+            // Get click position relative to line content
+            const rect = lineContent.getBoundingClientRect();
+            const clickX = event.clientX - rect.left;
+
+            // Calculate character width (monospace font)
+            const fontSize = parseFloat(getComputedStyle(lineContent).fontSize) || 11;
+            const charWidth = fontSize * 0.6; // Courier New character width approximation
+
+            // Calculate column (1-based)
+            const col = Math.max(1, Math.min(AppState.detectedWidth, Math.floor(clickX / charWidth) + 1));
+
+            updateCursorPosition(pageLineNum, col);
+        }
+
+        // Add click event listener to report display with event delegation
+        function setupCursorTracking() {
+            const reportDisplay = document.getElementById('reportDisplay');
+            if (reportDisplay && !reportDisplay.dataset.cursorTrackingEnabled) {
+                reportDisplay.addEventListener('click', handleReportClick);
+                reportDisplay.dataset.cursorTrackingEnabled = 'true';
+            }
+        }
+
+        // Set up tracking when DOM is loaded
+        document.addEventListener('DOMContentLoaded', setupCursorTracking);
+        // Also call it immediately in case DOM is already loaded
+        setupCursorTracking();
+
+    </script>
+</body>
+</html>

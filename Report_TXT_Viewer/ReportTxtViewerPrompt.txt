@@ -1,0 +1,18 @@
+create a html report viewer that can run standalone that where i can pick a report .txt file and it shows it in a view frame.
+The viewer must have the following abilities:
+1) view each line without wrapping to next line
+2) have ability to turn on/of zebra pattern for each line and color chooser (see PDF)
+3) visual indicate pages using the CR/LF at the beginning of the line as page separator
+4) Option to set page length to fix length or dynamic see below the key characterstics
+5) Page ranges, import criteria to allow to show only sections of the report for example Section1: from page 1 - 5 pages, Section2: from page 15 3 pages, etc.
+6) Jump to page & Jump to Page No ás defined in the text itself.
+7) Search for text inside the report and jump to it and highlight the found text.
+8) Choose from watermark images and apply it on each page on the position and rotation provided
+9)) output the txt as PDF with zebra pattern and watermark, and when there are page ranges defined-only those page ranges
+
+Key Characteristics of 132-Column Spoolfile Reports:
+Lines per Page: 66 lines (default standard), though some configurations use 88 lines per page (often at 8 LPI).
+Columns per Line: 132 characters (10 characters per inch - CPI).
+Paper Size: Usually 14 7/8 inches wide by 11 inches long (often with green or blue stripes).
+Physical Orientation: Portrait (viewing the 11-inch side vertically).
+Spacing: 6 lines per inch (LPI) is most common, fitting 66 lines into 11 inches. 

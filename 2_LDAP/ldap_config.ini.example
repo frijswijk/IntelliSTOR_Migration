@@ -1,0 +1,59 @@
+# LDAP Configuration Example
+# Copy this file to ldap_config.ini and update with your values
+# DO NOT commit ldap_config.ini to version control!
+
+[connection]
+server = ldap.ocbc.com
+port = 389
+# Use port 636 for SSL (required for password operations)
+# port = 636
+use_ssl = false
+# Set to true for password operations
+# use_ssl = true
+
+[authentication]
+bind_dn = cn=admin,dc=ocbc,dc=com
+# WARNING: Store password securely, consider using environment variables
+password = YourPasswordHere
+
+[directory]
+base_dn = dc=ocbc,dc=com
+groups_ou = ou=Groups,dc=ocbc,dc=com
+users_ou = ou=Users,dc=ocbc,dc=com
+
+[import]
+groups_csv = UserGroups.csv
+users_csv = Users.csv
+password_strategy = default
+# Options: use-csv, default, skip, random
+default_password = TempP@ss123
+# Required if password_strategy is 'default'
+
+[options]
+dry_run = false
+continue_on_error = true
+output_dir = .
+quiet = false
+
+[browser]
+api_host = 127.0.0.1
+api_port = 5000
+
+# Usage:
+# While this tool doesn't directly read INI files, you can use these values
+# as a reference when constructing your command-line arguments.
+#
+# Example:
+# python ldap_integration.py add-all \
+#   --server ldap.ocbc.com \
+#   --port 636 \
+#   --use-ssl \
+#   --bind-dn "cn=admin,dc=ocbc,dc=com" \
+#   --password "YourPassword" \
+#   --base-dn "dc=ocbc,dc=com" \
+#   --groups-ou "ou=Groups,dc=ocbc,dc=com" \
+#   --users-ou "ou=Users,dc=ocbc,dc=com" \
+#   --groups-csv UserGroups.csv \
+#   --users-csv Users.csv \
+#   --password-strategy default \
+#   --default-password "TempP@ss123"

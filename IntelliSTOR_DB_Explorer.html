@@ -1,0 +1,3581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IntelliSTOR Database Schema Explorer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            text-align: center;
+            padding: 30px 0;
+            border-bottom: 2px solid #0f3460;
+            margin-bottom: 30px;
+        }
+        header h1 {
+            color: #e94560;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        header p {
+            color: #7f8c8d;
+            font-size: 1.1em;
+        }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .tab {
+            padding: 12px 24px;
+            background: #0f3460;
+            border: none;
+            color: #e0e0e0;
+            cursor: pointer;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: all 0.3s;
+        }
+        .tab:hover, .tab.active {
+            background: #e94560;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.5s;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ER Diagram Styles */
+        .er-diagram {
+            background: #1a1a2e;
+            border-radius: 12px;
+            padding: 20px;
+            overflow: auto;
+            min-height: 600px;
+        }
+        .er-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: flex-start;
+        }
+        .table-group {
+            background: #0f3460;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .table-group h3 {
+            color: #e94560;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #1a1a2e;
+        }
+        .table-box {
+            background: #16213e;
+            border: 2px solid #0f3460;
+            border-radius: 8px;
+            min-width: 250px;
+            max-width: 300px;
+            margin: 5px;
+            display: inline-block;
+            vertical-align: top;
+        }
+        .table-box.highlighted {
+            border-color: #e94560;
+            box-shadow: 0 0 20px rgba(233, 69, 96, 0.3);
+        }
+        .table-header {
+            background: #e94560;
+            color: white;
+            padding: 10px 15px;
+            font-weight: bold;
+            border-radius: 6px 6px 0 0;
+            cursor: pointer;
+        }
+        .table-columns {
+            padding: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .column {
+            padding: 4px 8px;
+            font-size: 0.85em;
+            border-bottom: 1px solid #0f3460;
+            display: flex;
+            justify-content: space-between;
+        }
+        .column:last-child {
+            border-bottom: none;
+        }
+        .column-name {
+            color: #3498db;
+        }
+        .column-type {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+        .pk {
+            color: #f1c40f;
+        }
+        .fk {
+            color: #e74c3c;
+        }
+
+        /* Relationships Panel */
+        .relationships-panel {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .relationship {
+            background: #0f3460;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        .relationship h4 {
+            color: #e94560;
+            margin-bottom: 10px;
+        }
+        .relationship code {
+            background: #1a1a2e;
+            padding: 10px;
+            display: block;
+            border-radius: 4px;
+            font-family: 'Consolas', monospace;
+            color: #2ecc71;
+            overflow-x: auto;
+        }
+
+        /* SQL Query Builder */
+        .query-builder {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .query-section {
+            margin-bottom: 20px;
+        }
+        .query-section h3 {
+            color: #e94560;
+            margin-bottom: 15px;
+        }
+        .query-templates {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 20px;
+        }
+        .query-card {
+            background: #0f3460;
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .query-card h4 {
+            color: #3498db;
+            margin-bottom: 10px;
+        }
+        .query-card p {
+            color: #7f8c8d;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+        }
+        .query-card pre {
+            background: #1a1a2e;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-family: 'Consolas', monospace;
+            font-size: 0.85em;
+            color: #2ecc71;
+        }
+        .copy-btn {
+            background: #e94560;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+            font-size: 0.85em;
+        }
+        .copy-btn:hover {
+            background: #d63651;
+        }
+
+        /* Documentation */
+        .documentation {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .doc-section {
+            margin-bottom: 30px;
+        }
+        .doc-section h3 {
+            color: #e94560;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #0f3460;
+        }
+        .concept-card {
+            background: #0f3460;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .concept-card h4 {
+            color: #3498db;
+            margin-bottom: 10px;
+        }
+        .concept-card p {
+            line-height: 1.6;
+        }
+        .concept-card ul {
+            margin-left: 20px;
+            margin-top: 10px;
+        }
+        .concept-card li {
+            margin-bottom: 5px;
+        }
+
+        /* Flow Diagram */
+        .flow-diagram {
+            background: #0f3460;
+            padding: 30px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .flow-steps {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .flow-step {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            min-width: 150px;
+            margin: 10px;
+        }
+        .flow-step h5 {
+            color: #e94560;
+            margin-bottom: 10px;
+        }
+        .flow-arrow {
+            color: #e94560;
+            font-size: 2em;
+        }
+
+        /* Search and Filter */
+        .search-box {
+            margin-bottom: 20px;
+        }
+        .search-box input {
+            width: 100%;
+            max-width: 400px;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            background: #0f3460;
+            color: white;
+            font-size: 1em;
+        }
+        .search-box input::placeholder {
+            color: #7f8c8d;
+        }
+
+        /* Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: #0f3460;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-card .number {
+            font-size: 2.5em;
+            color: #e94560;
+            font-weight: bold;
+        }
+        .stat-card .label {
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1a1a2e;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #0f3460;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #e94560;
+        }
+
+        .highlight {
+            background: #e94560 !important;
+            color: white !important;
+        }
+
+        /* Table Detail Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal.active {
+            display: flex;
+        }
+        .modal-content {
+            background: #16213e;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+            width: 90%;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .modal-header h2 {
+            color: #e94560;
+        }
+        .close-modal {
+            background: none;
+            border: none;
+            color: #e94560;
+            font-size: 2em;
+            cursor: pointer;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75em;
+            margin-left: 5px;
+        }
+        .badge-pk { background: #f1c40f; color: black; }
+        .badge-fk { background: #e74c3c; color: white; }
+        .badge-idx { background: #3498db; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>IntelliSTOR Database Schema Explorer</h1>
+            <p>Interactive visualization and query builder for OCBC Archive Solution</p>
+        </header>
+
+        <!-- Stats Overview -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="number">85+</div>
+                <div class="label">Database Tables</div>
+            </div>
+            <div class="stat-card">
+                <div class="number">630+</div>
+                <div class="label">Total Columns</div>
+            </div>
+            <div class="stat-card">
+                <div class="number">8</div>
+                <div class="label">Core Modules</div>
+            </div>
+            <div class="stat-card">
+                <div class="number">45+</div>
+                <div class="label">Key Relationships</div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('overview')">System Overview</button>
+            <button class="tab" onclick="showTab('warehouse')">Warehouse Manager</button>
+            <button class="tab" onclick="showTab('diagram')">ER Diagram</button>
+            <button class="tab" onclick="showTab('relationships')">Relationships & Joins</button>
+            <button class="tab" onclick="showTab('queries')">SQL Queries</button>
+            <button class="tab" onclick="showTab('dataflow')">Data Flow</button>
+            <button class="tab" onclick="showTab('signature')">Signature Matching</button>
+            <button class="tab" onclick="showTab('afpstreaming')">AFP Streaming</button>
+            <button class="tab" onclick="showTab('sectionpermissions')">Section Permissions</button>
+            <button class="tab" onclick="showTab('reportfileaccess')" style="background: #27ae60;">Report File Access</button>
+        </div>
+
+        <!-- Warehouse Manager Tab -->
+        <div id="warehouse" class="tab-content">
+            <div class="documentation">
+                <div class="doc-section">
+                    <h3>UAT Warehouse Manager</h3>
+                    <p style="color: #7f8c8d; margin-bottom: 20px;">Browse the IntelliSTOR folder structure, view report species, and explore report instances. AFP reports are highlighted.</p>
+
+                    <div style="display: flex; gap: 20px; height: 700px;">
+                        <!-- Left Panel: Folder Tree -->
+                        <div style="width: 350px; background: #0a0a1a; border-radius: 8px; padding: 15px; overflow-y: auto;">
+                            <h4 style="color: #3498db; margin-bottom: 15px; border-bottom: 1px solid #0f3460; padding-bottom: 10px;">
+                                Folder Structure
+                            </h4>
+                            <div id="folderTree"></div>
+                        </div>
+
+                        <!-- Right Panel: Details -->
+                        <div style="flex: 1; display: flex; flex-direction: column; gap: 15px;">
+                            <!-- Report Species Details -->
+                            <div style="background: #0a0a1a; border-radius: 8px; padding: 15px; height: 200px; overflow-y: auto;">
+                                <h4 style="color: #3498db; margin-bottom: 10px;">Report Species Details</h4>
+                                <div id="speciesDetails" style="color: #7f8c8d;">Select a report species from the tree to view details</div>
+                            </div>
+
+                            <!-- Report Instances Table -->
+                            <div style="flex: 1; background: #0a0a1a; border-radius: 8px; padding: 15px; overflow-y: auto;">
+                                <h4 style="color: #3498db; margin-bottom: 10px;">
+                                    Report Instances
+                                    <span id="instanceCount" style="font-size: 12px; color: #7f8c8d; margin-left: 10px;"></span>
+                                </h4>
+                                <div id="instancesTable">
+                                    <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                                        <thead>
+                                            <tr style="background: #0f3460;">
+                                                <th style="padding: 8px; text-align: left;">As Of Date</th>
+                                                <th style="padding: 8px; text-align: left;">Type</th>
+                                                <th style="padding: 8px; text-align: right;">Size (KB)</th>
+                                                <th style="padding: 8px; text-align: center;">Cached</th>
+                                                <th style="padding: 8px; text-align: center;">Archived</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="instancesBody">
+                                            <tr><td colspan="5" style="padding: 20px; text-align: center; color: #7f8c8d;">Select a report species to view instances</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Legend -->
+                    <div style="margin-top: 15px; padding: 10px; background: #0a0a1a; border-radius: 8px; display: flex; gap: 30px; flex-wrap: wrap;">
+                        <span><span style="color: #f39c12;">&#128193;</span> Folder</span>
+                        <span><span style="color: #3498db;">&#128196;</span> Report Species (TXT)</span>
+                        <span style="background: #1a1a2e; padding: 2px 8px; border-radius: 4px; border: 1px solid #9b59b6;"><span style="color: #9b59b6;">&#128196;</span> AFP Report</span>
+                        <span>&#127480;&#127468; Singapore</span>
+                        <span>&#127474;&#127486; Malaysia</span>
+                        <span>&#127469;&#127472; Hong Kong</span>
+                        <span>&#127468;&#127463; United Kingdom</span>
+                        <span>&#127483;&#127475; Vietnam</span>
+                        <span>&#127477;&#127469; Philippines</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Overview Tab -->
+        <div id="overview" class="tab-content active">
+            <div class="documentation">
+                <div class="doc-section">
+                    <h3>IntelliSTOR Architecture Overview</h3>
+                    <div class="concept-card">
+                        <h4>What is IntelliSTOR?</h4>
+                        <p>IntelliSTOR is an enterprise archive solution for managing print output from mainframes, AS400, and other systems. It captures spoolfiles (text, PDF, AFP print output), applies pattern matching to extract metadata, and stores reports in a hierarchical folder structure with security controls.</p>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>Core Components</h4>
+                        <ul>
+                            <li><strong>Pagination Manager:</strong> Windows Registry-based configuration for input sources and processing rules</li>
+                            <li><strong>Signature Groups:</strong> Pattern definitions for recognizing different report types</li>
+                            <li><strong>Warehouse Manager:</strong> Folder hierarchy for organizing Report Species</li>
+                            <li><strong>Report Species:</strong> Report type definitions with metadata extraction rules</li>
+                            <li><strong>Report Instances:</strong> Actual archived report documents with timestamps</li>
+                            <li><strong>Sections:</strong> Sub-divisions (branches, segments, countries) within reports</li>
+                        </ul>
+                    </div>
+
+                    <div class="concept-card" style="border: 2px solid #e94560;">
+                        <h4>Primary Key Patterns (CRITICAL for Joins)</h4>
+                        <p>IntelliSTOR uses composite primary keys with a consistent pattern:</p>
+                        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                            <tr style="background: #0f3460;">
+                                <th style="padding: 10px; text-align: left;">Table Type</th>
+                                <th style="padding: 10px; text-align: left;">Primary Key Columns (in order)</th>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;"><strong>REPORT_SPECIES</strong></td>
+                                <td style="padding: 10px;"><code>DOMAIN_ID, REPORT_SPECIES_ID</code></td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;"><strong>REPORT_INSTANCE</strong></td>
+                                <td style="padding: 10px;"><code>DOMAIN_ID, REPORT_SPECIES_ID, AS_OF_TIMESTAMP, REPROCESS_IN_PROGRESS</code></td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;"><strong>REPORT_INSTANCE_SEGMENT</strong></td>
+                                <td style="padding: 10px;"><code>DOMAIN_ID, REPORT_SPECIES_ID, AS_OF_TIMESTAMP, REPROCESS_IN_PROGRESS, SEGMENT_NUMBER</code></td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;"><strong>SECTION</strong></td>
+                                <td style="padding: 10px;"><code>DOMAIN_ID, REPORT_SPECIES_ID, SECTION_ID</code></td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;"><strong>STYPE_SECTION</strong></td>
+                                <td style="padding: 10px;"><code>REPORT_SPECIES_ID, SECTION_ID</code></td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;"><strong>REPORT_SPECIES_NAME</strong></td>
+                                <td style="padding: 10px;"><code>DOMAIN_ID, REPORT_SPECIES_ID, ITEM_ID</code></td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;"><strong>FOLDER_SPECIES</strong></td>
+                                <td style="padding: 10px;"><code>ITEM_ID, DOMAIN_ID, REPORT_SPECIES_ID</code></td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;"><strong>AFPRESOURCES</strong></td>
+                                <td style="padding: 10px;"><code>ID</code> (bigint - standalone PK)</td>
+                            </tr>
+                        </table>
+                        <p style="margin-top: 15px; color: #e94560;"><strong>Rule:</strong> Always join using ALL primary key columns in the correct order!</p>
+                    </div>
+                </div>
+
+                <div class="doc-section">
+                    <h3>Key Database Table Groups</h3>
+
+                    <div class="concept-card">
+                        <h4>1. Signature & Pattern Matching</h4>
+                        <p>These tables define how incoming spoolfiles are recognized and classified:</p>
+                        <ul>
+                            <li><strong>SIGNATURE_GROUP:</strong> Groups of related signatures (e.g., MIDAS_RPTS, TANDEM_CCCONV)</li>
+                            <li><strong>SIGNATURE:</strong> Individual report signatures with matching rules</li>
+                            <li><strong>LINE:</strong> Line pattern templates for matching (using A=Alpha, 9=Digit patterns)</li>
+                            <li><strong>FIELD:</strong> Field definitions within lines (position, type, extraction rules)</li>
+                            <li><strong>LINES_IN_SIGN:</strong> Links signatures to line patterns for 5-line header matching</li>
+                        </ul>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>2. Report Management</h4>
+                        <p>Core tables for storing and organizing archived reports:</p>
+                        <ul>
+                            <li><strong>REPORT_SPECIES:</strong> Report type definitions with storage/processing rules</li>
+                            <li><strong>REPORT_SPECIES_NAME:</strong> Human-readable names for report types</li>
+                            <li><strong>REPORT_INSTANCE:</strong> Actual report documents (daily instances)</li>
+                            <li><strong>REPORT_INSTANCE_SEGMENT:</strong> Segments within report instances</li>
+                            <li><strong>SECTION:</strong> Branch/Segment/Country subdivisions</li>
+                        </ul>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>3. Folder & Organization</h4>
+                        <p>Hierarchical structure for organizing reports:</p>
+                        <ul>
+                            <li><strong>FOLDER:</strong> Nested folder structure (PUBLIC, SECURITY roots)</li>
+                            <li><strong>FOLDER_SPECIES:</strong> Links folders to report species</li>
+                            <li><strong>DOMAIN:</strong> Logical domains/namespaces</li>
+                        </ul>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>4. Security & Access Control</h4>
+                        <p>User and group permission management:</p>
+                        <ul>
+                            <li><strong>SCM_SECURITYDOMAIN:</strong> Security domains</li>
+                            <li><strong>SCM_USERS:</strong> User accounts</li>
+                            <li><strong>SCM_GROUPS:</strong> Security groups</li>
+                            <li><strong>SCM_USER_GROUP:</strong> User-group memberships</li>
+                            <li><strong>STYPE_*:</strong> Security type tables for folders, reports, sections</li>
+                        </ul>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>5. Storage & Archival</h4>
+                        <p>Physical storage management:</p>
+                        <ul>
+                            <li><strong>STORAGE_CLASS:</strong> Storage policies (archive timing, cache duration)</li>
+                            <li><strong>CLUSTER_SET:</strong> Storage device clusters</li>
+                            <li><strong>LOCATION:</strong> Physical storage locations (platters/paths)</li>
+                            <li><strong>RPTFILE:</strong> Report file storage references</li>
+                            <li><strong>MAPFILE:</strong> Index/map file storage</li>
+                        </ul>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>6. Job Processing</h4>
+                        <p>Pagination and processing job tracking:</p>
+                        <ul>
+                            <li><strong>JOB_STATUS:</strong> Current job processing status</li>
+                            <li><strong>JOB_FILE_NAME:</strong> Files being processed</li>
+                            <li><strong>PAGINATOR_JOB_GEN_ATTR:</strong> Job attributes</li>
+                            <li><strong>RECYCLE_QUEUE:</strong> Reprocessing queue</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ER Diagram Tab -->
+        <div id="diagram" class="tab-content">
+            <div class="search-box">
+                <input type="text" id="tableSearch" placeholder="Search tables..." onkeyup="filterTables()">
+            </div>
+            <div class="er-diagram">
+                <!-- Signature & Pattern Matching -->
+                <div class="table-group" id="group-signature">
+                    <h3>Signature & Pattern Matching</h3>
+                    <div class="er-container">
+                        <div class="table-box" onclick="showTableDetail('SIGNATURE_GROUP')">
+                            <div class="table-header">SIGNATURE_GROUP</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk">SIGNATURE_GROUP_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name">NAME</span><span class="column-type">char(50)</span></div>
+                                <div class="column"><span class="column-name">DESCRIPTION</span><span class="column-type">char(100)</span></div>
+                                <div class="column"><span class="column-name">CREATION_BY_USER</span><span class="column-type">char(50)</span></div>
+                                <div class="column"><span class="column-name">CREATION_DATE_TIME</span><span class="column-type">datetime</span></div>
+                            </div>
+                        </div>
+
+                        <div class="table-box" onclick="showTableDetail('SIGNATURE')">
+                            <div class="table-header">SIGNATURE</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk">SIGN_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name pk">MINOR_VERSION</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name fk">DOMAIN_ID</span><span class="column-type">int FK</span></div>
+                                <div class="column"><span class="column-name fk">REPORT_SPECIES_ID</span><span class="column-type">int FK</span></div>
+                                <div class="column"><span class="column-name">POSITION</span><span class="column-type">int</span></div>
+                                <div class="column"><span class="column-name">MATCHING</span><span class="column-type">int</span></div>
+                                <div class="column"><span class="column-name">REPORT_DATE_TYPE</span><span class="column-type">int</span></div>
+                                <div class="column"><span class="column-name">DESCRIPTION</span><span class="column-type">char</span></div>
+                            </div>
+                        </div>
+
+                        <div class="table-box" onclick="showTableDetail('LINE')">
+                            <div class="table-header">LINE</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk">STRUCTURE_DEF_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name pk">MINOR_VERSION</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name pk">LINE_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name">NAME</span><span class="column-type">char(50)</span></div>
+                                <div class="column"><span class="column-name">TEMPLATE</span><span class="column-type">char</span></div>
+                                <div class="column"><span class="column-name">COLOR</span><span class="column-type">int</span></div>
+                                <div class="column"><span class="column-name">NOISE</span><span class="column-type">smallint</span></div>
+                            </div>
+                        </div>
+
+                        <div class="table-box" onclick="showTableDetail('FIELD')">
+                            <div class="table-header">FIELD</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk">STRUCTURE_DEF_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name pk">LINE_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name pk">FIELD_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name">NAME</span><span class="column-type">char(50)</span></div>
+                                <div class="column"><span class="column-name">START_COLUMN</span><span class="column-type">smallint</span></div>
+                                <div class="column"><span class="column-name">END_COLUMN</span><span class="column-type">smallint</span></div>
+                                <div class="column"><span class="column-name">FIELD_TYPE_NAME</span><span class="column-type">char</span></div>
+                                <div class="column"><span class="column-name">IS_INDEXED</span><span class="column-type">smallint</span></div>
+                            </div>
+                        </div>
+
+                        <div class="table-box" onclick="showTableDetail('LINES_IN_SIGN')">
+                            <div class="table-header">LINES_IN_SIGN</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk fk">SIGN_ID</span><span class="column-type">int PK/FK</span></div>
+                                <div class="column"><span class="column-name pk">MINOR_VERSION</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name pk fk">LINE_ID</span><span class="column-type">int PK/FK</span></div>
+                                <div class="column"><span class="column-name">LINE_NUMBER</span><span class="column-type">int</span></div>
+                            </div>
+                        </div>
+
+                        <div class="table-box" onclick="showTableDetail('MINOR_DEF')">
+                            <div class="table-header">MINOR_DEF</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk">STRUCTURE_DEF_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name pk">MINOR_VERSION</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name">THRESHOLD</span><span class="column-type">float</span></div>
+                                <div class="column"><span class="column-name">FLAGS</span><span class="column-type">smallint</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Report Management -->
+                <div class="table-group" id="group-reports">
+                    <h3>Report Management</h3>
+                    <div class="er-container">
+                        <div class="table-box" onclick="showTableDetail('REPORT_SPECIES')">
+                            <div class="table-header">REPORT_SPECIES</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk">DOMAIN_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name pk">REPORT_SPECIES_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name fk">OVERLAY_PROFILE_ID</span><span class="column-type">int FK</span></div>
+                                <div class="column"><span class="column-name fk">STORAGE_CLASS_ID</span><span class="column-type">int FK</span></div>
+                                <div class="column"><span class="column-name fk">CLUSTER_SET_ID</span><span class="column-type">int FK</span></div>
+                                <div class="column"><span class="column-name">NAME_SPACE</span><span class="column-type">char(50)</span></div>
+                                <div class="column"><span class="column-name">INSTANCE_HANDLING</span><span class="column-type">smallint</span></div>
+                                <div class="column"><span class="column-name">REPORT_INDEXED</span><span class="column-type">smallint</span></div>
+                            </div>
+                        </div>
+
+                        <div class="table-box" onclick="showTableDetail('REPORT_SPECIES_NAME')">
+                            <div class="table-header">REPORT_SPECIES_NAME</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk fk">DOMAIN_ID</span><span class="column-type">int PK/FK</span></div>
+                                <div class="column"><span class="column-name pk fk">REPORT_SPECIES_ID</span><span class="column-type">int PK/FK</span></div>
+                                <div class="column"><span class="column-name pk">ITEM_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name">NAME</span><span class="column-type">char(50)</span></div>
+                            </div>
+                        </div>
+
+                        <div class="table-box" onclick="showTableDetail('REPORT_INSTANCE')">
+                            <div class="table-header">REPORT_INSTANCE</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk fk">DOMAIN_ID</span><span class="column-type">int PK/FK</span></div>
+                                <div class="column"><span class="column-name pk fk">REPORT_SPECIES_ID</span><span class="column-type">int PK/FK</span></div>
+                                <div class="column"><span class="column-name pk">AS_OF_TIMESTAMP</span><span class="column-type">datetime PK</span></div>
+                                <div class="column"><span class="column-name fk">STRUCTURE_DEF_ID</span><span class="column-type">int FK</span></div>
+                                <div class="column"><span class="column-name">REPORT_IN_CACHE</span><span class="column-type">smallint</span></div>
+                                <div class="column"><span class="column-name">REPORT_ARCHIVED</span><span class="column-type">smallint</span></div>
+                                <div class="column"><span class="column-name">RPT_FILE_SIZE_KB</span><span class="column-type">int</span></div>
+                            </div>
+                        </div>
+
+                                                <div class="table-box" onclick="showTableDetail('REPORT_INSTANCE_SEGMENT')">
+                            <div class="table-header">REPORT_INSTANCE_SEGMENT</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk fk">DOMAIN_ID</span><span class="column-type">int</span></div>
+                                <div class="column"><span class="column-name pk fk">REPORT_SPECIES_ID</span><span class="column-type">int</span></div>
+                                <div class="column"><span class="column-name pk fk">AS_OF_TIMESTAMP</span><span class="column-type">datetime</span></div>
+                                <div class="column"><span class="column-name ">REPROCESS_IN_PROGRESS</span><span class="column-type">smallint</span></div>
+                                <div class="column"><span class="column-name ">ARRIVAL_TIMESTAMP</span><span class="column-type">datetime</span></div>
+                                <div class="column">...</div>
+                            </div>
+                        </div>
+                        </div>
+
+                        <div class="table-box" onclick="showTableDetail('SECTION')">
+                            <div class="table-header">SECTION</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk fk">DOMAIN_ID</span><span class="column-type">int PK/FK</span></div>
+                                <div class="column"><span class="column-name pk fk">REPORT_SPECIES_ID</span><span class="column-type">int PK/FK</span></div>
+                                <div class="column"><span class="column-name pk">SECTION_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name">NAME</span><span class="column-type">char(50)</span></div>
+                            </div>
+                        </div>
+
+                        <div class="table-box" onclick="showTableDetail('REPORT_STRUCTURE_DEF')">
+                            <div class="table-header">REPORT_STRUCTURE_DEF</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk">STRUCTURE_DEF_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name fk">DOMAIN_ID</span><span class="column-type">int FK</span></div>
+                                <div class="column"><span class="column-name fk">REPORT_SPECIES_ID</span><span class="column-type">int FK</span></div>
+                                <div class="column"><span class="column-name">MAJOR_VERSION</span><span class="column-type">int</span></div>
+                            </div>
+                        </div>
+
+                        <div class="table-box" onclick="showTableDetail('RPTFILE_INSTANCE')" style="border-color: #2ecc71;">
+                            <div class="table-header" style="background: #2ecc71;">RPTFILE_INSTANCE</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk fk">DOMAIN_ID</span><span class="column-type">int PK/FK</span></div>
+                                <div class="column"><span class="column-name pk fk">REPORT_SPECIES_ID</span><span class="column-type">int PK/FK</span></div>
+                                <div class="column"><span class="column-name pk fk">AS_OF_TIMESTAMP</span><span class="column-type">datetime PK/FK</span></div>
+                                <div class="column"><span class="column-name pk fk">REPROCESS_IN_PROGRESS</span><span class="column-type">smallint PK/FK</span></div>
+                                <div class="column"><span class="column-name fk">RPT_FILE_ID</span><span class="column-type">int FK</span></div>
+                            </div>
+                        </div>
+
+                        <div class="table-box" onclick="showTableDetail('RPTFILE')" style="border-color: #2ecc71;">
+                            <div class="table-header" style="background: #27ae60;">RPTFILE</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk">RPT_FILE_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name fk">LOCATION_ID</span><span class="column-type">int FK</span></div>
+                                <div class="column"><span class="column-name">FILENAME</span><span class="column-type">varchar</span></div>
+                                <div class="column"><span class="column-name">STORED_ON_SIDE</span><span class="column-type">smallint</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Folder & Organization -->
+                <div class="table-group" id="group-folders">
+                    <h3>Folder & Organization</h3>
+                    <div class="er-container">
+                        <div class="table-box" onclick="showTableDetail('FOLDER')">
+                            <div class="table-header">FOLDER</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk">ITEM_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name">NAME</span><span class="column-type">char(50)</span></div>
+                                <div class="column"><span class="column-name fk">PARENT_ID</span><span class="column-type">int FK (self)</span></div>
+                                <div class="column"><span class="column-name">PRIVATE_ROOT_ID</span><span class="column-type">int</span></div>
+                                <div class="column"><span class="column-name">ITEM_TYPE</span><span class="column-type">smallint</span></div>
+                                <div class="column"><span class="column-name">CREATED_BY_USER</span><span class="column-type">char(50)</span></div>
+                            </div>
+                        </div>
+
+                        <div class="table-box" onclick="showTableDetail('FOLDER_SPECIES')">
+                            <div class="table-header">FOLDER_SPECIES</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk fk">ITEM_ID</span><span class="column-type">int PK/FK</span></div>
+                                <div class="column"><span class="column-name pk fk">DOMAIN_ID</span><span class="column-type">int PK/FK</span></div>
+                                <div class="column"><span class="column-name pk fk">REPORT_SPECIES_ID</span><span class="column-type">int PK/FK</span></div>
+                            </div>
+                        </div>
+
+                        <div class="table-box" onclick="showTableDetail('DOMAIN')">
+                            <div class="table-header">DOMAIN</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk">DOMAIN_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name">DOMAIN_NAME</span><span class="column-type">char(50)</span></div>
+                                <div class="column"><span class="column-name">TIME_STAMP</span><span class="column-type">datetime</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Security -->
+                <div class="table-group" id="group-security">
+                    <h3>Security & Access Control</h3>
+                    <div class="er-container">
+                        <div class="table-box" onclick="showTableDetail('SCM_USERS')">
+                            <div class="table-header">SCM_USERS</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk">SECURITYDOMAIN_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name pk">USER_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name">USERNAME</span><span class="column-type">char</span></div>
+                                <div class="column"><span class="column-name">PASSWORD</span><span class="column-type">varbinary</span></div>
+                                <div class="column"><span class="column-name">FULLNAME</span><span class="column-type">varchar</span></div>
+                            </div>
+                        </div>
+
+                        <div class="table-box" onclick="showTableDetail('SCM_GROUPS')">
+                            <div class="table-header">SCM_GROUPS</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk">SECURITYDOMAIN_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name pk">GROUP_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name">GROUPNAME</span><span class="column-type">varchar</span></div>
+                                <div class="column"><span class="column-name">DESCRIPTION</span><span class="column-type">varchar</span></div>
+                            </div>
+                        </div>
+
+                        <div class="table-box" onclick="showTableDetail('SCM_USER_GROUP')">
+                            <div class="table-header">SCM_USER_GROUP</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk fk">SECURITYDOMAIN_ID</span><span class="column-type">int PK/FK</span></div>
+                                <div class="column"><span class="column-name pk fk">USER_ID</span><span class="column-type">int PK/FK</span></div>
+                                <div class="column"><span class="column-name pk fk">GROUP_ID</span><span class="column-type">int PK/FK</span></div>
+                                <div class="column"><span class="column-name">FLAGS</span><span class="column-type">int</span></div>
+                            </div>
+                        </div>
+
+                        <div class="table-box" onclick="showTableDetail('STYPE_FOLDER')">
+                            <div class="table-header">STYPE_FOLDER</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk fk">FOLDER_ID</span><span class="column-type">int PK/FK</span></div>
+                                <div class="column"><span class="column-name">VALUE</span><span class="column-type">binary</span></div>
+                            </div>
+                        </div>
+
+                        <div class="table-box" onclick="showTableDetail('STYPE_REPORT_SPECIES')">
+                            <div class="table-header">STYPE_REPORT_SPECIES</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk fk">REPORT_SPECIES_ID</span><span class="column-type">int PK/FK</span></div>
+                                <div class="column"><span class="column-name">VALUE</span><span class="column-type">binary</span></div>
+                            </div>
+                        </div>
+
+                        <div class="table-box" onclick="showTableDetail('STYPE_SECTION')">
+                            <div class="table-header">STYPE_SECTION</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk fk">REPORT_SPECIES_ID</span><span class="column-type">int PK/FK</span></div>
+                                <div class="column"><span class="column-name pk fk">SECTION_ID</span><span class="column-type">int PK/FK</span></div>
+                                <div class="column"><span class="column-name">VALUE</span><span class="column-type">binary</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Storage -->
+                <div class="table-group" id="group-storage">
+                    <h3>Storage & Archival</h3>
+                    <div class="er-container">
+                        <div class="table-box" onclick="showTableDetail('STORAGE_CLASS')">
+                            <div class="table-header">STORAGE_CLASS</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk">STORAGE_CLASS_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name">NAME</span><span class="column-type">char(50)</span></div>
+                                <div class="column"><span class="column-name">REPORT_ARCHIVE_TIMING</span><span class="column-type">smallint</span></div>
+                                <div class="column"><span class="column-name">REPORT_CACHE_DURATION</span><span class="column-type">smallint</span></div>
+                            </div>
+                        </div>
+
+                        <div class="table-box" onclick="showTableDetail('CLUSTER_SET')">
+                            <div class="table-header">CLUSTER_SET</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk">CLUSTER_SET_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name fk">DEVICE_ID</span><span class="column-type">int FK</span></div>
+                                <div class="column"><span class="column-name">NAME</span><span class="column-type">char(50)</span></div>
+                                <div class="column"><span class="column-name">NR_PLATTERS</span><span class="column-type">int</span></div>
+                            </div>
+                        </div>
+
+                        <div class="table-box" onclick="showTableDetail('LOCATION')">
+                            <div class="table-header">LOCATION</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk">LOCATION_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name fk">CLUSTER_SET_ID</span><span class="column-type">int FK</span></div>
+                                <div class="column"><span class="column-name">PATHNAME_A</span><span class="column-type">char</span></div>
+                                <div class="column"><span class="column-name">PATHNAME_B</span><span class="column-type">char</span></div>
+                                <div class="column"><span class="column-name">REMAINING_KB_A</span><span class="column-type">int</span></div>
+                            </div>
+                        </div>
+
+                        <div class="table-box" onclick="showTableDetail('RPTFILE')">
+                            <div class="table-header">RPTFILE</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk">RPT_FILE_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name fk">LOCATION_ID</span><span class="column-type">int FK</span></div>
+                                <div class="column"><span class="column-name">FILENAME</span><span class="column-type">varchar</span></div>
+                                <div class="column"><span class="column-name">STORED_ON_SIDE</span><span class="column-type">smallint</span></div>
+                            </div>
+                        </div>
+
+                        <div class="table-box" onclick="showTableDetail('AFPRESOURCES')">
+                            <div class="table-header">AFPRESOURCES</div>
+                            <div class="table-columns">
+                                <div class="column"><span class="column-name pk">DOMAIN_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name pk">REPORT_SPECIES_ID</span><span class="column-type">int PK</span></div>
+                                <div class="column"><span class="column-name pk fk">STREAMNUMBER</span><span class="column-type">int PK/FK</span></div>
+                                <div class="column"><span class="column-name pk">RESOURCETYPE</span><span class="column-type">smallint PK</span></div>
+                                <div class="column"><span class="column-name pk">RESOURCENAME</span><span class="column-type">char PK</span></div>
+                                <div class="column"><span class="column-name">LENGTH</span><span class="column-type">int</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Relationships Tab -->
+        <div id="relationships" class="tab-content">
+            <div class="relationships-panel">
+                <h3>Core Entity Relationships</h3>
+
+                <div class="relationship">
+                    <h4>Report Species to Report Instance</h4>
+                    <p>Each Report Species can have many Report Instances (daily occurrences)</p>
+                    <code>REPORT_SPECIES (1) ----< (N) REPORT_INSTANCE
+
+JOIN: REPORT_SPECIES.DOMAIN_ID = REPORT_INSTANCE.DOMAIN_ID
+  AND REPORT_SPECIES.REPORT_SPECIES_ID = REPORT_INSTANCE.REPORT_SPECIES_ID</code>
+                </div>
+
+                <div class="relationship">
+                    <h4>Report Instance to Segments (Sections)</h4>
+                    <p>Each Report Instance can have multiple segments - these ARE the sections (branch codes like 001, 002). Used for section-based page access control.</p>
+                    <code>REPORT_INSTANCE (1) ----< (N) REPORT_INSTANCE_SEGMENT
+
+JOIN: REPORT_INSTANCE.DOMAIN_ID = REPORT_INSTANCE_SEGMENT.DOMAIN_ID
+  AND REPORT_INSTANCE.REPORT_SPECIES_ID = REPORT_INSTANCE_SEGMENT.REPORT_SPECIES_ID
+  AND REPORT_INSTANCE.AS_OF_TIMESTAMP = REPORT_INSTANCE_SEGMENT.AS_OF_TIMESTAMP
+  AND REPORT_INSTANCE.REPROCESS_IN_PROGRESS = REPORT_INSTANCE_SEGMENT.REPROCESS_IN_PROGRESS
+
+REPORT_INSTANCE PK: DOMAIN_ID, REPORT_SPECIES_ID, AS_OF_TIMESTAMP, REPROCESS_IN_PROGRESS
+
+PAGE_STREAM_INSTANCE_NUMBER = Starting page number for this segment (NOT a FK!)
+Example: Segment 1 (section 001) has pages 1-5, PAGE_STREAM_INSTANCE_NUMBER = 1
+         Segment 2 (section 002) has pages 6-10, PAGE_STREAM_INSTANCE_NUMBER = 6</code>
+                </div>
+
+                <div class="relationship" style="border-left: 4px solid #2ecc71;">
+                    <h4>Report Instance to Report File (KEY DISCOVERY!)</h4>
+                    <p>Links report instances to their physical .RPT files on disk. RPTFILE_INSTANCE is the junction table that connects a specific report instance to its file location.</p>
+                    <code>REPORT_INSTANCE (1) ----< (1) RPTFILE_INSTANCE >---- (N) RPTFILE
+
+JOIN: REPORT_INSTANCE to RPTFILE_INSTANCE (same 4-column composite key):
+  REPORT_INSTANCE.DOMAIN_ID = RPTFILE_INSTANCE.DOMAIN_ID
+  AND REPORT_INSTANCE.REPORT_SPECIES_ID = RPTFILE_INSTANCE.REPORT_SPECIES_ID
+  AND REPORT_INSTANCE.AS_OF_TIMESTAMP = RPTFILE_INSTANCE.AS_OF_TIMESTAMP
+  AND REPORT_INSTANCE.REPROCESS_IN_PROGRESS = RPTFILE_INSTANCE.REPROCESS_IN_PROGRESS
+
+JOIN: RPTFILE_INSTANCE to RPTFILE:
+  RPTFILE_INSTANCE.RPT_FILE_ID = RPTFILE.RPT_FILE_ID
+
+JOIN: RPTFILE to LOCATION (physical path):
+  RPTFILE.LOCATION_ID = LOCATION.LOCATION_ID
+
+Complete File Path Resolution:
+  Full path = LOCATION.PATHNAME_A (or PATHNAME_B) + RPTFILE.FILENAME
+  STORED_ON_SIDE indicates which path (A=0, B=1)
+
+Example Query:
+SELECT ri.*, rf.FILENAME, l.PATHNAME_A, l.PATHNAME_B, rf.STORED_ON_SIDE
+FROM REPORT_INSTANCE ri
+JOIN RPTFILE_INSTANCE rfi ON ri.DOMAIN_ID = rfi.DOMAIN_ID
+    AND ri.REPORT_SPECIES_ID = rfi.REPORT_SPECIES_ID
+    AND ri.AS_OF_TIMESTAMP = rfi.AS_OF_TIMESTAMP
+    AND ri.REPROCESS_IN_PROGRESS = rfi.REPROCESS_IN_PROGRESS
+JOIN RPTFILE rf ON rfi.RPT_FILE_ID = rf.RPT_FILE_ID
+JOIN LOCATION l ON rf.LOCATION_ID = l.LOCATION_ID</code>
+                </div>
+
+                <div class="relationship">
+                    <h4>Report Species to Section</h4>
+                    <p>Sections define subdivisions (Branch codes, Segments, Countries) within a report type</p>
+                    <code>REPORT_SPECIES (1) ----< (N) SECTION
+
+JOIN: REPORT_SPECIES.DOMAIN_ID = SECTION.DOMAIN_ID
+  AND REPORT_SPECIES.REPORT_SPECIES_ID = SECTION.REPORT_SPECIES_ID</code>
+                </div>
+
+                <div class="relationship">
+                    <h4>Folder Hierarchy (Self-Join)</h4>
+                    <p>Folders form a tree structure through PARENT_ID</p>
+                    <code>FOLDER (Parent) (1) ----< (N) FOLDER (Child)
+
+JOIN: FOLDER.ITEM_ID = FOLDER.PARENT_ID (child records)</code>
+                </div>
+
+                <div class="relationship">
+                    <h4>Folder to Report Species</h4>
+                    <p>Links folders to the report types they contain</p>
+                    <code>FOLDER (1) ----< (N) FOLDER_SPECIES >---- (N) REPORT_SPECIES
+
+JOIN: FOLDER.ITEM_ID = FOLDER_SPECIES.ITEM_ID
+  AND FOLDER_SPECIES.DOMAIN_ID = REPORT_SPECIES.DOMAIN_ID
+  AND FOLDER_SPECIES.REPORT_SPECIES_ID = REPORT_SPECIES.REPORT_SPECIES_ID</code>
+                </div>
+
+                <div class="relationship">
+                    <h4>Signature to Line Patterns</h4>
+                    <p>Signatures use line patterns for matching (typically 5 lines)</p>
+                    <code>SIGNATURE (1) ----< (N) LINES_IN_SIGN >---- (N) LINE
+
+JOIN: SIGNATURE.SIGN_ID = LINES_IN_SIGN.SIGN_ID
+  AND LINES_IN_SIGN.LINE_ID = LINE.LINE_ID</code>
+                </div>
+
+                <div class="relationship">
+                    <h4>Line to Field Definitions</h4>
+                    <p>Each line has multiple field definitions for data extraction</p>
+                    <code>LINE (1) ----< (N) FIELD
+
+JOIN: LINE.STRUCTURE_DEF_ID = FIELD.STRUCTURE_DEF_ID
+  AND LINE.MINOR_VERSION = FIELD.MINOR_VERSION
+  AND LINE.LINE_ID = FIELD.LINE_ID</code>
+                </div>
+
+                <div class="relationship">
+                    <h4>Report Species to Storage Configuration</h4>
+                    <p>Storage policies and cluster assignments</p>
+                    <code>REPORT_SPECIES >---- (1) STORAGE_CLASS
+                     |
+                     +----> (1) CLUSTER_SET ----< (N) LOCATION ----< (N) RPTFILE</code>
+                </div>
+
+                <div class="relationship">
+                    <h4>AFP Resource Resolution (DISCOVERED!)</h4>
+                    <p>AFP resources are linked via REPORT_INSTANCE.FORM_DEF_NAME - contains namespace and timestamp for "time travel" resource lookup.</p>
+                    <code>AFP Resource Resolution - KEY DISCOVERY:
+
+REPORT_INSTANCE.FORM_DEF_NAME format:
+  "F1PRSDEF.NS.2025\07\10,10:17:27:43.913"
+   ^^^^^^^^ ^^ ^^^^^^^^^^^^^^^^^^^^^^^^
+   Resource NS Date/Time anchor point
+   Name     |
+            Namespace (folder on filesystem)
+
+Resolution Logic:
+1. Parse FORM_DEF_NAME to get: ResourceName, Namespace, DateTime
+2. Look in Namespace folder for dated subfolders
+3. Find resources that were ACTIVE at that DateTime
+   (look backwards from anchor date to find each resource's version)
+4. This enables "time travel" - viewing report with resources as they were
+
+AFPRESOURCES Table Purpose:
+- Efficient CRC-based change detection for resources
+- When new/changed resource detected: add to namespace folder under TODAY's date
+- CRCVALUE used to detect if resource content has changed
+- New resources registered with current TIMESTAMP
+
+File Storage:
+  .RPT file = Text + AFP binary (use /b to extract)
+  Namespace folders = AFP resources organized by date first seen
+    e.g., F:\intelliSTOR\NS\2025\07\10\F1PRSDEF (resource files)
+
+For Migration: Check FORMAT file for namespace definitions</code>
+                </div>
+
+                <div class="relationship">
+                    <h4>Segment Page Ranges (for Section Access Control)</h4>
+                    <p>PAGE_STREAM_INSTANCE_NUMBER is the starting page for each segment/section.</p>
+                    <code>PAGE_STREAM_INSTANCE_NUMBER is NOT a FK to AFPRESOURCES!
+  - It is the STARTING PAGE NUMBER for that segment/section
+  - Used for quick navigation to section page ranges
+
+Example:
+  Report with 2 sections (001 and 002):
+  - Segment 1 (section 001): 5 pages, PAGE_STREAM_INSTANCE_NUMBER = 1
+  - Segment 2 (section 002): 5 pages, PAGE_STREAM_INSTANCE_NUMBER = 6</code>
+                </div>
+
+                <div class="relationship">
+                    <h4>Section to Section Permissions (ACL)</h4>
+                    <p>Section-level security is stored in STYPE_SECTION with binary ACL in VALUE column</p>
+                    <code>SECTION (1) ----< (1) STYPE_SECTION
+
+JOIN: SECTION.DOMAIN_ID = STYPE_SECTION.DOMAIN_ID
+  AND SECTION.REPORT_SPECIES_ID = STYPE_SECTION.REPORT_SPECIES_ID
+  AND SECTION.SECTION_ID = STYPE_SECTION.SECTION_ID
+
+Page-to-Section mapping is stored in .MAP files (not in database)
+Used at view time to filter pages user can see based on their section permissions</code>
+                </div>
+            </div>
+        </div>
+
+        <!-- SQL Queries Tab -->
+        <div id="queries" class="tab-content">
+            <div class="query-builder">
+                <div class="query-section">
+                    <h3>Essential SQL Queries for IntelliSTOR</h3>
+
+                    <div class="query-templates">
+                        <div class="query-card">
+                            <h4>1. List All Report Types with Names</h4>
+                            <p>Get all report species with their human-readable names</p>
+                            <pre>SELECT
+    rs.DOMAIN_ID,
+    rs.REPORT_SPECIES_ID,
+    rsn.NAME AS REPORT_NAME,
+    rs.NAME_SPACE,
+    rs.INSTANCE_HANDLING,
+    rs.REPORT_INDEXED,
+    rs.CREATED_BY_USER,
+    rs.CREATION_DATE_TIME
+FROM REPORT_SPECIES rs
+INNER JOIN REPORT_SPECIES_NAME rsn
+    ON rs.DOMAIN_ID = rsn.DOMAIN_ID
+    AND rs.REPORT_SPECIES_ID = rsn.REPORT_SPECIES_ID
+WHERE rsn.ITEM_ID = 0  -- Primary name
+ORDER BY rsn.NAME;</pre>
+                            <button class="copy-btn" onclick="copyQuery(this)">Copy Query</button>
+                        </div>
+
+                        <div class="query-card">
+                            <h4>2. Get Report Instances for a Date Range</h4>
+                            <p>Find all report instances within a specific date range</p>
+                            <pre>SELECT
+    ri.DOMAIN_ID,
+    ri.REPORT_SPECIES_ID,
+    rsn.NAME AS REPORT_NAME,
+    ri.AS_OF_TIMESTAMP,
+    ri.REPORT_IN_CACHE,
+    ri.REPORT_ARCHIVED,
+    ri.RPT_FILE_SIZE_KB
+FROM REPORT_INSTANCE ri
+INNER JOIN REPORT_SPECIES_NAME rsn
+    ON ri.DOMAIN_ID = rsn.DOMAIN_ID
+    AND ri.REPORT_SPECIES_ID = rsn.REPORT_SPECIES_ID
+WHERE rsn.ITEM_ID = 0
+    AND ri.AS_OF_TIMESTAMP >= '2024-01-01'
+    AND ri.AS_OF_TIMESTAMP < '2024-02-01'
+ORDER BY ri.AS_OF_TIMESTAMP DESC;</pre>
+                            <button class="copy-btn" onclick="copyQuery(this)">Copy Query</button>
+                        </div>
+
+                        <div class="query-card">
+                            <h4>3. Folder Hierarchy with Reports</h4>
+                            <p>Get complete folder structure with assigned reports</p>
+                            <pre>WITH FolderHierarchy AS (
+    SELECT
+        ITEM_ID,
+        NAME,
+        PARENT_ID,
+        ITEM_TYPE,
+        CAST(NAME AS VARCHAR(1000)) AS Path,
+        0 AS Level
+    FROM FOLDER
+    WHERE PARENT_ID = 0
+
+    UNION ALL
+
+    SELECT
+        f.ITEM_ID,
+        f.NAME,
+        f.PARENT_ID,
+        f.ITEM_TYPE,
+        CAST(fh.Path + ' > ' + RTRIM(f.NAME) AS VARCHAR(1000)),
+        fh.Level + 1
+    FROM FOLDER f
+    INNER JOIN FolderHierarchy fh ON f.PARENT_ID = fh.ITEM_ID
+)
+SELECT
+    fh.Path,
+    fh.Level,
+    rsn.NAME AS REPORT_NAME,
+    rs.REPORT_SPECIES_ID
+FROM FolderHierarchy fh
+LEFT JOIN FOLDER_SPECIES fs ON fh.ITEM_ID = fs.ITEM_ID
+LEFT JOIN REPORT_SPECIES rs ON fs.DOMAIN_ID = rs.DOMAIN_ID
+    AND fs.REPORT_SPECIES_ID = rs.REPORT_SPECIES_ID
+LEFT JOIN REPORT_SPECIES_NAME rsn ON rs.DOMAIN_ID = rsn.DOMAIN_ID
+    AND rs.REPORT_SPECIES_ID = rsn.REPORT_SPECIES_ID
+    AND rsn.ITEM_ID = 0
+ORDER BY fh.Path;</pre>
+                            <button class="copy-btn" onclick="copyQuery(this)">Copy Query</button>
+                        </div>
+
+                        <div class="query-card">
+                            <h4>4. Get Sections (Branches) for a Report</h4>
+                            <p>List all sections/branches for a specific report type</p>
+                            <pre>SELECT
+    s.DOMAIN_ID,
+    s.REPORT_SPECIES_ID,
+    rsn.NAME AS REPORT_NAME,
+    s.SECTION_ID,
+    RTRIM(s.NAME) AS SECTION_NAME,
+    s.TIME_STAMP
+FROM SECTION s
+INNER JOIN REPORT_SPECIES_NAME rsn
+    ON s.DOMAIN_ID = rsn.DOMAIN_ID
+    AND s.REPORT_SPECIES_ID = rsn.REPORT_SPECIES_ID
+WHERE rsn.ITEM_ID = 0
+    AND s.REPORT_SPECIES_ID = 1  -- Replace with actual ID
+ORDER BY s.NAME;</pre>
+                            <button class="copy-btn" onclick="copyQuery(this)">Copy Query</button>
+                        </div>
+
+                        <div class="query-card">
+                            <h4>5. Signature Groups and Patterns</h4>
+                            <p>Get signature groups with their line patterns</p>
+                            <pre>SELECT
+    sg.SIGNATURE_GROUP_ID,
+    RTRIM(sg.NAME) AS GROUP_NAME,
+    s.SIGN_ID,
+    s.MINOR_VERSION,
+    RTRIM(s.DESCRIPTION) AS SIGNATURE_DESC,
+    rsn.NAME AS MAPPED_REPORT,
+    l.LINE_ID,
+    RTRIM(l.NAME) AS LINE_NAME,
+    l.TEMPLATE AS PATTERN_TEMPLATE
+FROM SIGNATURE_GROUP sg
+INNER JOIN SIGNATURE s ON 1=1  -- Signature has group reference in app
+INNER JOIN LINES_IN_SIGN lis ON s.SIGN_ID = lis.SIGN_ID
+    AND s.MINOR_VERSION = lis.MINOR_VERSION
+INNER JOIN LINE l ON lis.LINE_ID = l.LINE_ID
+LEFT JOIN REPORT_SPECIES_NAME rsn ON s.DOMAIN_ID = rsn.DOMAIN_ID
+    AND s.REPORT_SPECIES_ID = rsn.REPORT_SPECIES_ID
+    AND rsn.ITEM_ID = 0
+WHERE sg.SIGNATURE_GROUP_ID = 176  -- MIDASPLUS example
+ORDER BY s.SIGN_ID, lis.LINE_NUMBER;</pre>
+                            <button class="copy-btn" onclick="copyQuery(this)">Copy Query</button>
+                        </div>
+
+                        <div class="query-card">
+                            <h4>6. Field Definitions for Pattern Matching</h4>
+                            <p>Get field extraction rules for a signature</p>
+                            <pre>SELECT
+    f.STRUCTURE_DEF_ID,
+    f.LINE_ID,
+    f.FIELD_ID,
+    RTRIM(f.NAME) AS FIELD_NAME,
+    f.START_COLUMN,
+    f.END_COLUMN,
+    RTRIM(f.FIELD_TYPE_NAME) AS FIELD_TYPE,
+    f.IS_SIGNIFICANT,
+    f.IS_INDEXED,
+    f.IS_WATERMARKED
+FROM FIELD f
+INNER JOIN LINE l ON f.STRUCTURE_DEF_ID = l.STRUCTURE_DEF_ID
+    AND f.MINOR_VERSION = l.MINOR_VERSION
+    AND f.LINE_ID = l.LINE_ID
+WHERE f.STRUCTURE_DEF_ID = 0  -- Default structure
+ORDER BY f.LINE_ID, f.START_COLUMN;</pre>
+                            <button class="copy-btn" onclick="copyQuery(this)">Copy Query</button>
+                        </div>
+
+                        <div class="query-card">
+                            <h4>7. Report Instance with Segments</h4>
+                            <p>Get report instance details with all segments</p>
+                            <pre>SELECT
+    ri.DOMAIN_ID,
+    ri.REPORT_SPECIES_ID,
+    rsn.NAME AS REPORT_NAME,
+    ri.AS_OF_TIMESTAMP AS REPORT_DATE,
+    ris.SEGMENT_NUMBER,
+    ris.ARRIVAL_TIMESTAMP,
+    ris.START_PAGE_NUMBER,
+    ris.NUMBER_OF_PAGES,
+    ri.RPT_FILE_SIZE_KB
+FROM REPORT_INSTANCE ri
+INNER JOIN REPORT_SPECIES_NAME rsn
+    ON ri.DOMAIN_ID = rsn.DOMAIN_ID
+    AND ri.REPORT_SPECIES_ID = rsn.REPORT_SPECIES_ID
+LEFT JOIN REPORT_INSTANCE_SEGMENT ris
+    ON ri.DOMAIN_ID = ris.DOMAIN_ID
+    AND ri.REPORT_SPECIES_ID = ris.REPORT_SPECIES_ID
+    AND ri.AS_OF_TIMESTAMP = ris.AS_OF_TIMESTAMP
+WHERE rsn.ITEM_ID = 0
+    AND ri.AS_OF_TIMESTAMP >= '2024-01-01'
+ORDER BY ri.AS_OF_TIMESTAMP DESC, ris.SEGMENT_NUMBER;</pre>
+                            <button class="copy-btn" onclick="copyQuery(this)">Copy Query</button>
+                        </div>
+
+                        <div class="query-card">
+                            <h4>8. Security: User-Group-Permission</h4>
+                            <p>Get user permissions through group memberships</p>
+                            <pre>SELECT
+    u.USERNAME,
+    u.FULLNAME,
+    g.GROUPNAME,
+    g.DESCRIPTION AS GROUP_DESC,
+    ug.FLAGS
+FROM SCM_USERS u
+INNER JOIN SCM_USER_GROUP ug
+    ON u.SECURITYDOMAIN_ID = ug.SECURITYDOMAIN_ID
+    AND u.USER_ID = ug.USER_ID
+INNER JOIN SCM_GROUPS g
+    ON ug.SECURITYDOMAIN_ID = g.SECURITYDOMAIN_ID
+    AND ug.GROUP_ID = g.GROUP_ID
+ORDER BY u.USERNAME, g.GROUPNAME;</pre>
+                            <button class="copy-btn" onclick="copyQuery(this)">Copy Query</button>
+                        </div>
+
+                        <div class="query-card">
+                            <h4>9. Storage Location Usage</h4>
+                            <p>Check storage usage across locations</p>
+                            <pre>SELECT
+    cs.NAME AS CLUSTER_NAME,
+    l.LOCATION_ID,
+    l.PATHNAME_A,
+    l.ORIGINAL_CAPACITY_PER_SIDE,
+    l.REMAINING_KB_A,
+    l.REMAINING_KB_B,
+    l.DATETIME_FIRST_WRITTEN,
+    l.DATETIME_LAST_WRITTEN,
+    COUNT(rf.RPT_FILE_ID) AS FILE_COUNT
+FROM CLUSTER_SET cs
+INNER JOIN LOCATION l ON cs.CLUSTER_SET_ID = l.CLUSTER_SET_ID
+LEFT JOIN RPTFILE rf ON l.LOCATION_ID = rf.LOCATION_ID
+GROUP BY cs.NAME, l.LOCATION_ID, l.PATHNAME_A,
+    l.ORIGINAL_CAPACITY_PER_SIDE, l.REMAINING_KB_A, l.REMAINING_KB_B,
+    l.DATETIME_FIRST_WRITTEN, l.DATETIME_LAST_WRITTEN
+ORDER BY cs.NAME, l.LOCATION_ID;</pre>
+                            <button class="copy-btn" onclick="copyQuery(this)">Copy Query</button>
+                        </div>
+
+                        <div class="query-card">
+                            <h4>10. Report Statistics Summary</h4>
+                            <p>Get statistics for all report types</p>
+                            <pre>SELECT
+    rsn.NAME AS REPORT_NAME,
+    rs.NO_RPT_INSTANCES,
+    rs.NO_MAP_INSTANCES,
+    rs.AVG_REPORT_SIZE,
+    rs.AVG_MAP_SIZE,
+    rs.TIME_STAMP
+FROM REPORT_STATISTICS rs
+INNER JOIN REPORT_SPECIES_NAME rsn
+    ON rs.DOMAIN_ID = rsn.DOMAIN_ID
+    AND rs.REPORT_SPECIES_ID = rsn.REPORT_SPECIES_ID
+WHERE rsn.ITEM_ID = 0
+ORDER BY rs.NO_RPT_INSTANCES DESC;</pre>
+                            <button class="copy-btn" onclick="copyQuery(this)">Copy Query</button>
+                        </div>
+
+                        <div class="query-card">
+                            <h4>11. Migration Query: Full Report Export</h4>
+                            <p>Export complete report data for migration</p>
+                            <pre>SELECT
+    ri.DOMAIN_ID,
+    ri.REPORT_SPECIES_ID,
+    rsn.NAME AS REPORT_NAME,
+    ri.AS_OF_TIMESTAMP AS REPORT_DATE,
+    ri.RPT_FILE_SIZE_KB,
+    ri.MAP_FILE_SIZE_KB,
+    rs.NAME_SPACE,
+    sc.NAME AS STORAGE_CLASS,
+    cs.NAME AS CLUSTER_NAME,
+    l.PATHNAME_A AS STORAGE_PATH,
+    rf.FILENAME,
+    ri.REPORT_IN_CACHE,
+    ri.REPORT_ARCHIVED
+FROM REPORT_INSTANCE ri
+INNER JOIN REPORT_SPECIES_NAME rsn
+    ON ri.DOMAIN_ID = rsn.DOMAIN_ID
+    AND ri.REPORT_SPECIES_ID = rsn.REPORT_SPECIES_ID
+INNER JOIN REPORT_SPECIES rsp
+    ON ri.DOMAIN_ID = rsp.DOMAIN_ID
+    AND ri.REPORT_SPECIES_ID = rsp.REPORT_SPECIES_ID
+LEFT JOIN STORAGE_CLASS sc ON rsp.STORAGE_CLASS_ID = sc.STORAGE_CLASS_ID
+LEFT JOIN CLUSTER_SET cs ON rsp.CLUSTER_SET_ID = cs.CLUSTER_SET_ID
+LEFT JOIN RPTFILE_INSTANCE rfi ON ri.DOMAIN_ID = rfi.DOMAIN_ID
+    AND ri.REPORT_SPECIES_ID = rfi.REPORT_SPECIES_ID
+    AND ri.AS_OF_TIMESTAMP = rfi.AS_OF_TIMESTAMP
+LEFT JOIN RPTFILE rf ON rfi.RPT_FILE_ID = rf.RPT_FILE_ID
+LEFT JOIN LOCATION l ON rf.LOCATION_ID = l.LOCATION_ID
+WHERE rsn.ITEM_ID = 0
+ORDER BY ri.AS_OF_TIMESTAMP DESC;</pre>
+                            <button class="copy-btn" onclick="copyQuery(this)">Copy Query</button>
+                        </div>
+
+                        <div class="query-card">
+                            <h4>12. Pattern Template Analysis</h4>
+                            <p>Analyze pattern templates (A=Alpha, 9=Digit)</p>
+                            <pre>SELECT
+    l.STRUCTURE_DEF_ID,
+    l.LINE_ID,
+    RTRIM(l.NAME) AS LINE_NAME,
+    l.TEMPLATE,
+    LEN(l.TEMPLATE) AS TEMPLATE_LENGTH,
+    -- Count field types
+    LEN(l.TEMPLATE) - LEN(REPLACE(l.TEMPLATE, 'A', '')) AS ALPHA_COUNT,
+    LEN(l.TEMPLATE) - LEN(REPLACE(l.TEMPLATE, '9', '')) AS DIGIT_COUNT,
+    (SELECT COUNT(*) FROM FIELD f
+     WHERE f.STRUCTURE_DEF_ID = l.STRUCTURE_DEF_ID
+     AND f.LINE_ID = l.LINE_ID) AS FIELD_COUNT
+FROM LINE l
+WHERE l.STRUCTURE_DEF_ID = 0
+ORDER BY l.LINE_ID;</pre>
+                            <button class="copy-btn" onclick="copyQuery(this)">Copy Query</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Flow Tab -->
+        <div id="dataflow" class="tab-content">
+            <div class="documentation">
+                <div class="doc-section">
+                    <h3>IntelliSTOR Data Processing Flow</h3>
+
+                    <div class="flow-diagram">
+                        <div class="flow-steps">
+                            <div class="flow-step">
+                                <h5>1. Input Source</h5>
+                                <p>Mainframe/AS400</p>
+                                <p>Print spoolfiles</p>
+                            </div>
+                            <span class="flow-arrow">→</span>
+                            <div class="flow-step">
+                                <h5>2. Pagination Manager</h5>
+                                <p>Registry config</p>
+                                <p>File monitoring</p>
+                            </div>
+                            <span class="flow-arrow">→</span>
+                            <div class="flow-step">
+                                <h5>3. Signature Match</h5>
+                                <p>5-line pattern</p>
+                                <p>Field extraction</p>
+                            </div>
+                            <span class="flow-arrow">→</span>
+                            <div class="flow-step">
+                                <h5>4. Report Species</h5>
+                                <p>Classification</p>
+                                <p>Metadata assignment</p>
+                            </div>
+                            <span class="flow-arrow">→</span>
+                            <div class="flow-step">
+                                <h5>5. Storage</h5>
+                                <p>Cache/Archive</p>
+                                <p>Index creation</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>Step 1: Input Sources (Pagination Manager)</h4>
+                        <p>Configuration is stored in Windows Registry under:</p>
+                        <code style="background: #1a1a2e; padding: 10px; display: block; border-radius: 4px;">
+HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microbank\StorqmEE\1.0\Preprocessor\PaginationManager\Input\Entry(n)
+                        </code>
+                        <p style="margin-top: 10px;">Key parameters:</p>
+                        <ul>
+                            <li><strong>GenericFile:</strong> Input file path pattern (e.g., F:\intelliSTOR\DownloadU\MD\mid*.*)</li>
+                            <li><strong>FormatName:</strong> Processing format (e.g., SiteFormats\new ANSI Midas Plus)</li>
+                            <li><strong>FlagFile:</strong> Trigger file that signals files are ready</li>
+                            <li><strong>AttributesToSend:</strong> Signature group reference (e.g., MIDASPLUS_RPT)</li>
+                        </ul>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>Step 2: Signature Matching (5-Line Header)</h4>
+                        <p>The first 5 lines of each spoolfile are matched against signature patterns:</p>
+                        <pre style="background: #1a1a2e; padding: 15px; border-radius: 6px; overflow-x: auto;">
+Example spoolfile header:
+*$$ SDRPT007   03012020 VR    18:10:47
+1 REFERENCE: SDPGM002    OCCUSXPD FILE    RUN DATE:11/08/22  TIME:12:40:14
+
+Pattern template (from LINE.TEMPLATE):
+$$ AA9999A9   99999999 AA 999
+
+Where:
+  A = Alpha character expected
+  9 = Digit expected
+  Space/literal = Must match exactly</pre>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>Step 3: Field Extraction</h4>
+                        <p>Once a signature matches, fields are extracted based on FIELD definitions:</p>
+                        <ul>
+                            <li><strong>Report ID:</strong> Columns 3-12 (e.g., "SDRPT007")</li>
+                            <li><strong>Report Date:</strong> Columns 14-21, type=Date, format=DDMMYYYY</li>
+                            <li><strong>Zone Code:</strong> Column 24 (e.g., "V" for Vietnam)</li>
+                            <li><strong>Branch Code:</strong> Columns 26-28 (3-digit branch)</li>
+                        </ul>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>Step 4: Section/Branch Handling</h4>
+                        <p>Sections can represent different organizational units:</p>
+                        <ul>
+                            <li><strong>3-digit Branch:</strong> "516", "501", "508" (bank branch codes)</li>
+                            <li><strong>2-Alpha Segment:</strong> "VR", "DH", "UH" (business segments)</li>
+                            <li><strong>1-Alpha Country:</strong> "P" (Philippines), "V" (Vietnam), etc.</li>
+                            <li><strong>Combination:</strong> Can combine multiple codes</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Signature Matching Tab -->
+        <div id="signature" class="tab-content">
+            <div class="documentation">
+                <div class="doc-section">
+                    <h3>SPIN - Signature-Based Page Indexing</h3>
+                    <p>A system for identifying and extracting data from mainframe spool reports using pattern definitions exported from IntelliSTOR's SQL tables.</p>
+
+                    <div class="concept-card" style="border: 2px solid #2ecc71;">
+                        <h4>Architecture Overview</h4>
+                        <pre style="background: #1a1a2e; padding: 15px; border-radius: 6px; overflow-x: auto;">
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              SPIN Architecture                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+  ┌──────────────────┐
+  │  Definition File │    .sif export from SQL tables
+  │  (Pattern Defs)  │    - Line Patterns (L/F blocks)
+  └────────┬─────────┘    - Signatures (SG/SF blocks)
+           │
+           ▼
+  ┌──────────────────┐
+  │DefinitionParser  │    Parses definition file into:
+  │                  │    - linePatterns: field positions & types
+  │                  │    - signatures: line inventory & sensitive fields
+  └────────┬─────────┘
+           │
+           ▼
+  ┌──────────────────┐
+  │  SpoolProcessor  │    For each spool file:
+  │                  │    1. Split into pages (by form-feed)
+  │                  │    2. Extract header lines (default: 5)
+  │                  │    3. Match signature (Matcher)
+  │                  │    4. Extract index data (Extractor)
+  └────────┬─────────┘
+           │
+           ├─────────────────┐
+           │                 │
+           ▼                 ▼
+  ┌──────────────────┐  ┌──────────────────┐
+  │     Matcher      │  │    Extractor     │
+  │                  │  │                  │
+  │ - Line Pattern   │  │ - Extracts SF    │
+  │   Literal match  │  │   non-literals   │
+  │ - Pattern cache  │  │ - SN mapping:    │
+  │   per page       │  │   0=reportName   │
+  │ - Best match     │  │   2=section      │
+  │   scoring        │  │   4=reportDate   │
+  └──────────────────┘  └──────────────────┘
+           │                 │
+           └────────┬────────┘
+                    │
+                    ▼
+           ┌──────────────────┐
+           │   Output File    │    JSON index per spool
+           │   .json          │    Maps to REPORT_INSTANCE
+           └──────────────────┘</pre>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>SQL Table to .SIF Mapping</h4>
+                        <p>The .sif file is an export of signature definitions from IntelliSTOR's MS SQL tables:</p>
+                        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                            <tr style="background: #0f3460;">
+                                <th style="padding: 10px; text-align: left;">SQL Table</th>
+                                <th style="padding: 10px; text-align: left;">.SIF Block</th>
+                                <th style="padding: 10px; text-align: left;">Purpose</th>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">REPORT_SPECIES</td>
+                                <td>Header (SG=)</td>
+                                <td>Report type definition, signature group ID</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">LINE_PATTERN</td>
+                                <td>-- L -- block</td>
+                                <td>Line templates with ID, tag, name, template</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">FIELD_DEFINITION</td>
+                                <td>-- F -- block</td>
+                                <td>Field positions, types, extraction rules</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">SIGNATURE</td>
+                                <td>-- SG -- block</td>
+                                <td>Signature with line inventory, position offset</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">SENSITIVE_FIELD</td>
+                                <td>-- SF -- block</td>
+                                <td>Fields to extract: reportName, section, date</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">SECTION</td>
+                                <td>SF with SN=2</td>
+                                <td>Section/segment identifiers for access control</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>.SIF File Structure (Exported from SQL)</h4>
+                        <pre style="background: #1a1a2e; padding: 15px; border-radius: 6px; overflow-x: auto;">
+@SIGNINV                                    -- File header
+@EXPORT_VERSION = 1                         -- Export format version
+VERSION = 16.0                              -- IntelliSTOR version
+SG = 32                                     -- Signature Group ID (from REPORT_SPECIES)
+L = 36                                      -- Number of Line Patterns defined
+
+-- L -- (Line Pattern - from LINE_PATTERN table)
+ID,TG,N = 154,1,RptID126                    -- ID, Tag, Name
+TM = AAAA AAAA...                           -- Template pattern
+
+-- F -- (Field Definition - from FIELD_DEFINITION table)
+ID,TG,L,S,N = 1,1,0,0,Field_154_1           -- Field ID, Tag, Level, Seq, Name
+B,P,SC,CN = 1,4,Literal                     -- Boundary, Position, Conversion
+P = OCBC                                    -- Pattern (literal value to match)
+
+-- SG -- (Signature - from SIGNATURE table)
+L = 1,15,16                                 -- Line inventory (which patterns to match)
+PO,TM,SD,MV,... = 0,1,8,...                 -- Position Offset, Type, SignatureID...
+
+-- SF -- (Sensitive Field - for data extraction)
+ID,LN,FD,SN,FO = 15,2,3,0,0                 -- LinePatternId, LineNum, FieldId, SN, Format
+                                            -- SN=0 → reportName, SN=2 → section, SN=4 → date</pre>
+                    </div>
+
+                    <div class="concept-card" style="border: 2px solid #e94560;">
+                        <h4>Processing Pipeline</h4>
+                        <div class="flow-diagram">
+                            <div class="flow-steps">
+                                <div class="flow-step">
+                                    <h5>1. Parse Definitions</h5>
+                                    <p>Build linePatterns{}</p>
+                                    <p>Build signatures{}</p>
+                                </div>
+                                <span class="flow-arrow">→</span>
+                                <div class="flow-step">
+                                    <h5>2. Split Pages</h5>
+                                    <p>Form-feed delimiter</p>
+                                    <p>"1" at line start</p>
+                                </div>
+                                <span class="flow-arrow">→</span>
+                                <div class="flow-step">
+                                    <h5>3. Match Signature</h5>
+                                    <p>Check 5 header lines</p>
+                                    <p>Literal field matching</p>
+                                </div>
+                                <span class="flow-arrow">→</span>
+                                <div class="flow-step">
+                                    <h5>4. Extract Data</h5>
+                                    <p>Get SF non-literals</p>
+                                    <p>Map by SN value</p>
+                                </div>
+                                <span class="flow-arrow">→</span>
+                                <div class="flow-step">
+                                    <h5>5. Output JSON</h5>
+                                    <p>Page index data</p>
+                                    <p>→ REPORT_INSTANCE</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>Signature Matching Algorithm</h4>
+                        <pre style="background: #1a1a2e; padding: 15px; border-radius: 6px; overflow-x: auto;">
+For each signature, check all Line Patterns in its L= inventory:
+
+Signature 8: L = 1, 15, 16
+
+For each Line Pattern:
+  1. Get all Literal fields from the pattern
+  2. If no Literal fields → auto-match (pattern passes)
+  3. Try each header line until ALL Literal fields match on one line
+  4. If no line matches all literals → signature fails
+
+Example:
+  Line Pattern 15 has Literal field: "ONOEX1001" at B=10, P=18
+
+  Check headerLines[0]: extract pos 9-18 → "ONOEX1001" ✓ Match!
+
+  Line Pattern 16 has no Literal fields → auto-match
+
+  All patterns match → Signature 8 MATCHES
+
+Position Calculation Formula:
+  start = B + PO + channelCode - 1
+  end   = P + PO + channelCode
+
+  Where:
+    B, P         = Field boundaries from definition (1-based)
+    PO           = Position Offset from signature (-- SG --)
+    channelCode  = 1 if ASA control characters present, else 0</pre>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>Best Match Selection (Specificity Scoring)</h4>
+                        <p>When multiple signatures match, the most specific one wins:</p>
+                        <pre style="background: #1a1a2e; padding: 15px; border-radius: 6px; overflow-x: auto;">
+Scoring: Count Literal fields in all Line Patterns
+- Each Literal field: 10 points
+
+Example:
+Signature A: 3 Line Patterns with 5 total Literal fields = 50 points  ← WINS
+Signature B: 2 Line Patterns with 2 total Literal fields = 20 points
+
+Tie-breaker: Lower signature ID wins
+
+Caching Optimization:
+- Same Line Pattern appearing in multiple signatures is only checked once per page
+- Results are cached and reused across signatures
+- Significantly reduces redundant matching when patterns are shared</pre>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>SN Mapping - Extracted Data Destination</h4>
+                        <p>The SN value in each Sensitive Field (SF) determines where the extracted value goes:</p>
+                        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                            <tr style="background: #0f3460;">
+                                <th style="padding: 10px; text-align: left;">SN Value</th>
+                                <th style="padding: 10px; text-align: left;">Output Field</th>
+                                <th style="padding: 10px; text-align: left;">Maps to SQL</th>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px; color: #f1c40f;">0</td>
+                                <td>reportName</td>
+                                <td>REPORT_SPECIES_NAME.NAME</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px; color: #f1c40f;">2</td>
+                                <td>section</td>
+                                <td>SECTION.NAME (for access control)</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px; color: #f1c40f;">4</td>
+                                <td>reportDate</td>
+                                <td>REPORT_INSTANCE.AS_OF_TIMESTAMP</td>
+                            </tr>
+                        </table>
+                        <pre style="background: #1a1a2e; padding: 15px; border-radius: 6px; overflow-x: auto; margin-top: 10px;">
+Extraction Example:
+  SF: linePatternId=15, lineNumber=2, fieldId=3, sn=0
+      → Field 3 is "Text" type, not Literal
+      → Extract at position B + PO - 1 to P + PO
+      → Value: "ONOEX1001" → indexData.reportName
+
+  SF: linePatternId=16, lineNumber=3, fieldId=2, sn=4
+      → Field 2 is "Date" type
+      → Value: "08/08/2025" → indexData.reportDate
+
+  SF: linePatternId=15, lineNumber=2, fieldId=5, sn=2
+      → Field 5 named "Branch", type "Text"
+      → Value: "501" → indexData.section.Branch
+
+Result JSON:
+{
+  "reportName": "ONOEX1001",
+  "reportDate": "08/08/2025",
+  "section": { "Branch": "501" }
+}
+
+Note: Literal fields are SKIPPED during extraction (only used for matching).</pre>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>Template Pattern Symbols</h4>
+                        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                            <tr style="background: #0f3460;">
+                                <th style="padding: 10px; text-align: left;">Symbol</th>
+                                <th style="padding: 10px; text-align: left;">Meaning</th>
+                                <th style="padding: 10px; text-align: left;">Example Match</th>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">A</td>
+                                <td>Any alpha character (A-Z, a-z)</td>
+                                <td>"L", "E", "S"</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">9</td>
+                                <td>Any digit (0-9)</td>
+                                <td>"0", "1", "3"</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">Space</td>
+                                <td>Must be a space</td>
+                                <td>" "</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">Literal</td>
+                                <td>Must match exactly (in P= line)</td>
+                                <td>"$$", "OCBC", "Date:"</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">*</td>
+                                <td>End of line marker</td>
+                                <td>-</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>Field Conversion Types (SC/CN)</h4>
+                        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                            <tr style="background: #0f3460;">
+                                <th style="padding: 10px; text-align: left;">Type</th>
+                                <th style="padding: 10px; text-align: left;">Description</th>
+                                <th style="padding: 10px; text-align: left;">Parameters</th>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px; color: #e74c3c;">Literal</td>
+                                <td>Exact text match (for signature matching only)</td>
+                                <td>P = "$$" or "OCBC"</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">Text</td>
+                                <td>Extract text value</td>
+                                <td>P = 1 (min length)</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">Date</td>
+                                <td>Date parsing</td>
+                                <td>P = 99,1,0,DDMMYYYY</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">GenDate</td>
+                                <td>Generic date format</td>
+                                <td>P = format string</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">Time</td>
+                                <td>Time parsing</td>
+                                <td>P = H:m:s</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">Decimal</td>
+                                <td>Decimal number</td>
+                                <td>-</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">DigitCode</td>
+                                <td>Numeric code (branch, etc.)</td>
+                                <td>-</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">Alpha</td>
+                                <td>Alpha characters only</td>
+                                <td>P = 1</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>Field Flags (O,I,M,W,SE,DI,SI,ST)</h4>
+                        <ul>
+                            <li><strong>O (Optional):</strong> 0=Required, 1=Optional field</li>
+                            <li><strong>I (Indexed):</strong> 2=Normal index, enables search on this field → INDEX table</li>
+                            <li><strong>M (Merge on Archive):</strong> Merge index when archiving</li>
+                            <li><strong>W (Watermarked):</strong> Track high/low values</li>
+                            <li><strong>SE (Secured):</strong> Field contains sensitive data</li>
+                            <li><strong>DI (Distinguisher):</strong> Helps distinguish between similar signatures</li>
+                            <li><strong>SI (Significant):</strong> Important field for matching</li>
+                            <li><strong>ST (Sticky):</strong> Value persists across pages (0=No, 1-3=Sticky levels)</li>
+                        </ul>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>Output JSON → Database Mapping</h4>
+                        <pre style="background: #1a1a2e; padding: 15px; border-radius: 6px; overflow-x: auto;">
+Output JSON:                          Maps to SQL Tables:
+{
+  "ONOEX1001_20250808.txt": [         -- Input spool filename
+    {
+      "page": 1,                      → REPORT_INSTANCE_SEGMENT.SEGMENT_NUMBER
+      "signatureId": "8",             → REPORT_SPECIES signature reference
+      "lineInventory": ["1","15","16"],
+      "indexData": {
+        "reportName": "ONOEX1001",    → REPORT_SPECIES_NAME.NAME
+        "reportDate": "08/08/2025",   → REPORT_INSTANCE.AS_OF_TIMESTAMP
+        "section": {
+          "Branch": "501"             → SECTION.NAME (for STYPE_SECTION ACL)
+        }
+      }
+    }
+  ]
+}
+
+File Naming: SPIN{YYDDD}_{##}.json
+  YY  = 2-digit year
+  DDD = 3-digit day of year (001-366)
+  ##  = sequence number for that day</pre>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>Section Extraction for Access Control</h4>
+                        <p>When a field has SN=2, the extracted value becomes a section identifier used for access control:</p>
+                        <pre style="background: #1a1a2e; padding: 15px; border-radius: 6px; overflow-x: auto;">
+Spool Header Line:
+  " OCBC BANK    BRANCH: 501    SINGAPORE"
+                       ^^^
+                       Section value extracted
+
+SF Definition: ID,LN,FD,SN,FO = 15,2,5,2,0
+  - LinePattern 15, Line 2, Field 5
+  - SN=2 means this is a section field
+  - Field 5 named "Branch"
+
+Extracted: section.Branch = "501"
+
+Database Flow:
+  1. SECTION table: SECTION_ID for NAME="501"
+  2. STYPE_SECTION: ACL for this section
+  3. REPORT_INSTANCE_SEGMENT: Links to page range
+  4. User can only view pages for authorized sections</pre>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>Sample Spoolfile Analysis</h4>
+                        <p>Example from RPVR1011181047.TXT:</p>
+                        <pre style="background: #1a1a2e; padding: 15px; border-radius: 6px; overflow-x: auto;">
+Line 1: *$$ SDRPT007   03012020 VR    18:10:47
+         ├─────┤├─────────┤├─┤├──┤
+         Literal Report ID  Date Zone Time
+         (match)  (SN=0)   (SN=4)(SN=2)
+
+Signature Match:
+  Pattern 1: Literal "$$" at B=1,P=2 → Match at pos 0-2
+  Pattern 15: Text field at B=4,P=11 → Extract "SDRPT007"
+  Pattern 16: Date field at B=15,P=22 → Extract "03012020"
+
+Extracted fields:
+- reportName: "SDRPT007" (columns 4-11, SN=0)
+- reportDate: "03012020" = Jan 3, 2020 (columns 15-22, SN=4, DDMMYYYY)
+- section.Zone: "VR" (columns 24-25, SN=2)
+
+Line 2: 1 REFERENCE: SDPGM002   OCCUSXPD FILE   RUN DATE:11/08/22
+        Contains reference code, file type, and run date
+
+Result: This page indexed under SDRPT007, date 2020-01-03, section VR</pre>
+                    </div>
+
+                    <div class="concept-card" style="border: 2px solid #9b59b6;">
+                        <h4>Migration: .SIF to New System</h4>
+                        <p>Key steps for migrating signature definitions:</p>
+                        <ol style="line-height: 2;">
+                            <li>Export all .sif files from IntelliSTOR (one per report species)</li>
+                            <li>Parse Line Patterns (-- L --) → new pattern definitions</li>
+                            <li>Parse Field Definitions (-- F --) → field extraction rules</li>
+                            <li>Parse Signatures (-- SG --) → matching configuration</li>
+                            <li>Parse Sensitive Fields (-- SF --) → index field mappings (SN values)</li>
+                            <li>Map SN=2 fields to SECTION table for access control migration</li>
+                            <li>Test with sample spoolfiles to verify signature matching</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AFP Streaming Tab -->
+        <div id="afpstreaming" class="tab-content">
+            <div class="documentation">
+                <div class="doc-section">
+                    <h3>AFP File Storage Architecture (FULLY DISCOVERED)</h3>
+
+                    <div class="concept-card" style="border: 2px solid #2ecc71;">
+                        <h4>KEY DISCOVERY: FORM_DEF_NAME Links to AFP Resources</h4>
+                        <p>The link between report instances and AFP resources is via <code>REPORT_INSTANCE.FORM_DEF_NAME</code>:</p>
+                        <pre style="background: #1a1a2e; padding: 15px; border-radius: 6px; overflow-x: auto;">
+FORM_DEF_NAME format example:
+  "F1PRSDEF.NS.2025\07\10,10:17:27:43.913"
+   ^^^^^^^^ ^^ ^^^^^^^^^^^^^^^^^^^^^^^^
+   |        |  |
+   |        |  DateTime anchor (time travel point)
+   |        Namespace (folder path identifier)
+   Resource Name (e.g., FORMDEF)
+
+This enables "TIME TRAVEL" - view report with resources AS THEY WERE at that moment!</pre>
+                        <ul>
+                            <li><strong>.RPT files:</strong> Contain BOTH text content AND binary AFP data (use /b to extract)</li>
+                            <li><strong>Namespace folders:</strong> AFP resources organized by date first seen</li>
+                            <li><strong>AFPRESOURCES table:</strong> CRC-based change detection catalog</li>
+                            <li><strong>FORMAT file:</strong> Defines namespace for new file ingestion</li>
+                        </ul>
+                    </div>
+
+                    <div class="flow-diagram">
+                        <div class="flow-steps">
+                            <div class="flow-step">
+                                <h5>1. AFP Spoolfile</h5>
+                                <p>Original AFP stream</p>
+                                <p>from mainframe</p>
+                            </div>
+                            <span class="flow-arrow">→</span>
+                            <div class="flow-step">
+                                <h5>2. Pagination</h5>
+                                <p>Process AFP</p>
+                                <p>Check resource CRCs</p>
+                            </div>
+                            <span class="flow-arrow">→</span>
+                            <div class="flow-step">
+                                <h5>3. Resource Check</h5>
+                                <p>New/changed? → Save</p>
+                                <p>to NS/date folder</p>
+                            </div>
+                            <span class="flow-arrow">→</span>
+                            <div class="flow-step">
+                                <h5>4. Store Instance</h5>
+                                <p>.RPT + FORM_DEF_NAME</p>
+                                <p>with timestamp anchor</p>
+                            </div>
+                            <span class="flow-arrow">→</span>
+                            <div class="flow-step">
+                                <h5>5. View Request</h5>
+                                <p>Parse FORM_DEF_NAME</p>
+                                <p>Load resources @ date</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="concept-card" style="border: 2px solid #f39c12;">
+                        <h4>Time-Travel Resource Resolution (CRITICAL for Migration)</h4>
+                        <p>When viewing a report, IntelliSTOR uses the DateTime anchor in FORM_DEF_NAME to find the correct resource versions:</p>
+                        <pre style="background: #1a1a2e; padding: 15px; border-radius: 6px; overflow-x: auto;">
+TIME-TRAVEL RESOLUTION ALGORITHM:
+
+Given: FORM_DEF_NAME = "F1PRSDEF.NS.2025\07\10,10:17:27:43.913"
+       Parsed: ResourceName=F1PRSDEF, Namespace=NS, AnchorDate=2025-07-10 10:17:27
+
+Step 1: Locate Namespace folder on filesystem
+        F:\intelliSTOR\cache\AFP\NS\
+
+Step 2: List dated subfolders in Namespace:
+        NS\2025\07\01\  (July 1st resources)
+        NS\2025\07\05\  (July 5th - updated font)
+        NS\2025\07\08\  (July 8th - new overlay)
+        NS\2025\07\12\  (July 12th - newer version - IGNORE!)
+
+Step 3: For each required resource, find version <= AnchorDate
+        - Font T1GT15: Version from 2025\07\05 (latest before anchor)
+        - Overlay XYZ: Version from 2025\07\08 (latest before anchor)
+        - Codepage: Version from 2025\07\01 (still valid at anchor)
+
+Step 4: Load resources and render AFP report
+
+Result: Report rendered with resources AS THEY WERE on July 10, 2025!</pre>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>Resource Storage on Filesystem</h4>
+                        <p>Resources are stored in namespace folders organized by date:</p>
+                        <pre style="background: #1a1a2e; padding: 15px; border-radius: 6px; overflow-x: auto;">
+Filesystem Structure:
+  F:\intelliSTOR\cache\AFP\
+  └── [NAMESPACE]\              (e.g., NS, MIDAS, CUSTOM)
+      └── [YEAR]\
+          └── [MONTH]\
+              └── [DAY]\
+                  ├── S1CB337A.RPS   (font resource)
+                  ├── O1LOGO.RPS     (overlay)
+                  └── P1BANNER.RPS   (page segment)
+
+When a NEW or CHANGED resource is detected during ingestion:
+1. Calculate CRC of resource content
+2. Check AFPRESOURCES table for existing CRC
+3. If new/changed: Save to namespace folder under TODAY's date
+4. Record in AFPRESOURCES table with timestamp
+
+This creates a VERSION HISTORY allowing "time travel" to any point!</pre>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>AFPRESOURCES Table Structure (CORRECTED)</h4>
+                        <p>This table is a CRC-based catalog for change detection - NO FK from other tables!</p>
+                        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                            <tr style="background: #0f3460;">
+                                <th style="padding: 10px; text-align: left;">Column</th>
+                                <th style="padding: 10px; text-align: left;">Type</th>
+                                <th style="padding: 10px; text-align: left;">Description</th>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px; color: #f1c40f;">ID</td>
+                                <td>bigint (PK)</td>
+                                <td><strong>Standalone Primary Key</strong> - No composite key!</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">NAMESPACE</td>
+                                <td>nvarchar</td>
+                                <td>Folder path identifier (matches FORM_DEF_NAME namespace)</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">RESOURCENAME</td>
+                                <td>nvarchar</td>
+                                <td>Resource name (e.g., C0PC2250, T1GT15, F1PRSDEF)</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">RESOURCETYPE</td>
+                                <td>int</td>
+                                <td>Type: 1=Font, 2=Codepage, 3=PageSegment, etc.</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">CRCVALUE</td>
+                                <td>bigint</td>
+                                <td><strong>CRC checksum</strong> - used for change detection!</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">LENGTH</td>
+                                <td>int</td>
+                                <td>Resource size in bytes</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">TIMESTAMP</td>
+                                <td>datetime</td>
+                                <td>When resource was first seen/cataloged</td>
+                            </tr>
+                        </table>
+                        <p style="margin-top: 10px; color: #e74c3c;"><strong>IMPORTANT:</strong> There is NO foreign key reference to AFPRESOURCES.ID from any other table.
+                        Resource resolution happens via FORM_DEF_NAME → Namespace matching, NOT via ID!</p>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>Key SQL: Get Latest Instance with Segments (Sections)</h4>
+                        <pre style="background: #1a1a2e; padding: 15px; border-radius: 6px; overflow-x: auto; color: #2ecc71;">
+-- Get latest report instance with segments (sections) and page ranges
+-- Note: REPORT_INSTANCE PK = DOMAIN_ID, REPORT_SPECIES_ID, AS_OF_TIMESTAMP, REPROCESS_IN_PROGRESS
+-- PAGE_STREAM_INSTANCE_NUMBER = Starting page for the segment (NOT a FK!)
+SELECT
+    rsn.NAME AS REPORT_NAME,
+    ri.AS_OF_TIMESTAMP AS REPORT_DATE,
+    ri.REPROCESS_IN_PROGRESS,
+    ris.SEGMENT_NUMBER,
+    ris.PAGE_STREAM_INSTANCE_NUMBER AS STARTING_PAGE,  -- This is the first page of the segment
+    ris.START_PAGE_NUMBER,
+    ris.NUMBER_OF_PAGES,
+    -- Calculate page range for this segment
+    ris.PAGE_STREAM_INSTANCE_NUMBER AS PAGE_FROM,
+    ris.PAGE_STREAM_INSTANCE_NUMBER + ris.NUMBER_OF_PAGES - 1 AS PAGE_TO
+FROM REPORT_INSTANCE ri
+INNER JOIN REPORT_SPECIES_NAME rsn
+    ON ri.DOMAIN_ID = rsn.DOMAIN_ID
+    AND ri.REPORT_SPECIES_ID = rsn.REPORT_SPECIES_ID
+    AND rsn.ITEM_ID = 0
+LEFT JOIN REPORT_INSTANCE_SEGMENT ris
+    ON ri.DOMAIN_ID = ris.DOMAIN_ID
+    AND ri.REPORT_SPECIES_ID = ris.REPORT_SPECIES_ID
+    AND ri.AS_OF_TIMESTAMP = ris.AS_OF_TIMESTAMP
+    AND ri.REPROCESS_IN_PROGRESS = ris.REPROCESS_IN_PROGRESS  -- 4th PK column!
+WHERE rsn.NAME = 'Your Report Name Here'
+ORDER BY ri.AS_OF_TIMESTAMP DESC, ris.SEGMENT_NUMBER;</pre>
+                        <button class="copy-btn" onclick="copyQuery(this)">Copy Query</button>
+                    </div>
+
+                    <div class="concept-card" style="border: 2px solid #3498db;">
+                        <h4>Understanding Segments = Sections for Access Control</h4>
+                        <p>Example: A report with 2 sections (branch codes 001 and 002):</p>
+                        <pre style="background: #1a1a2e; padding: 15px; border-radius: 6px; overflow-x: auto;">
+SEGMENT_NUMBER | PAGE_STREAM_INSTANCE_NUMBER | NUMBER_OF_PAGES | Page Range
+---------------|-----------------------------|-----------------|-----------
+1 (section 001)|              1              |        5        | Pages 1-5
+2 (section 002)|              6              |        5        | Pages 6-10
+
+Access Control Flow:
+1. User requests report instance
+2. System checks which sections user can access (via STYPE_SECTION ACL)
+3. Uses PAGE_STREAM_INSTANCE_NUMBER to quickly find page ranges
+4. Only displays pages for authorized sections</pre>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>AFP Resource Types</h4>
+                        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                            <tr style="background: #0f3460;">
+                                <th style="padding: 10px; text-align: left;">Type ID</th>
+                                <th style="padding: 10px; text-align: left;">Resource</th>
+                                <th style="padding: 10px; text-align: left;">Description</th>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">1</td>
+                                <td>Font</td>
+                                <td>Character fonts (T1GT15, C0GT15, etc.)</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">2</td>
+                                <td>Codepage</td>
+                                <td>Character encoding maps (T1PC2250, C0PC2250)</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">3</td>
+                                <td>Page Segment</td>
+                                <td>Graphics, logos, images</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">4</td>
+                                <td>Overlay</td>
+                                <td>Page templates, forms</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">5</td>
+                                <td>Form Definition</td>
+                                <td>Print form definitions (FORMDEF)</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">6</td>
+                                <td>Page Definition</td>
+                                <td>Page layout definitions (PAGEDEF)</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div class="concept-card" style="border: 2px solid #9b59b6;">
+                        <h4>Migration Key Queries: FORM_DEF_NAME Analysis</h4>
+                        <p>Use these queries to understand the AFP resource structure for migration:</p>
+                        <pre style="background: #1a1a2e; padding: 15px; border-radius: 6px; overflow-x: auto; color: #2ecc71;">
+-- 1. Parse FORM_DEF_NAME into components
+SELECT TOP 100
+    rsn.NAME AS REPORT_NAME,
+    ri.AS_OF_TIMESTAMP AS REPORT_DATE,
+    ri.FORM_DEF_NAME,
+    LEFT(ri.FORM_DEF_NAME, CHARINDEX('.', ri.FORM_DEF_NAME) - 1) AS RESOURCE_NAME,
+    SUBSTRING(ri.FORM_DEF_NAME,
+              CHARINDEX('.', ri.FORM_DEF_NAME) + 1,
+              CHARINDEX('.', ri.FORM_DEF_NAME, CHARINDEX('.', ri.FORM_DEF_NAME) + 1)
+              - CHARINDEX('.', ri.FORM_DEF_NAME) - 1) AS NAMESPACE,
+    RIGHT(ri.FORM_DEF_NAME,
+          LEN(ri.FORM_DEF_NAME) -
+          CHARINDEX('.', ri.FORM_DEF_NAME, CHARINDEX('.', ri.FORM_DEF_NAME) + 1)) AS TIME_ANCHOR
+FROM REPORT_INSTANCE ri
+INNER JOIN REPORT_SPECIES_NAME rsn
+    ON ri.DOMAIN_ID = rsn.DOMAIN_ID AND ri.REPORT_SPECIES_ID = rsn.REPORT_SPECIES_ID
+WHERE rsn.ITEM_ID = 0 AND ri.FORM_DEF_NAME IS NOT NULL
+ORDER BY ri.AS_OF_TIMESTAMP DESC;
+
+-- 2. Cross-reference Namespaces: FORM_DEF_NAME vs AFPRESOURCES
+SELECT DISTINCT
+    SUBSTRING(FORM_DEF_NAME,
+              CHARINDEX('.', FORM_DEF_NAME) + 1,
+              CHARINDEX('.', FORM_DEF_NAME, CHARINDEX('.', FORM_DEF_NAME) + 1)
+              - CHARINDEX('.', FORM_DEF_NAME) - 1) AS NAMESPACE_FROM_INSTANCES
+FROM REPORT_INSTANCE
+WHERE FORM_DEF_NAME IS NOT NULL;
+
+-- Compare with:
+SELECT DISTINCT NAMESPACE AS NAMESPACE_IN_AFPRESOURCES FROM AFPRESOURCES;</pre>
+                        <button class="copy-btn" onclick="copyQuery(this)">Copy Query</button>
+                    </div>
+
+                    <div class="concept-card" style="border: 2px solid #1abc9c;">
+                        <h4>Migration Checklist for AFP Resources</h4>
+                        <ol style="line-height: 2;">
+                            <li><strong>Extract all unique Namespaces</strong> from FORM_DEF_NAME and AFPRESOURCES</li>
+                            <li><strong>Map filesystem folders</strong> for each Namespace (dated subfolders)</li>
+                            <li><strong>Catalog all resources</strong> per Namespace with their CRC values</li>
+                            <li><strong>For each report instance</strong>, parse FORM_DEF_NAME to get anchor date</li>
+                            <li><strong>Resolve resources</strong> by finding versions where folder_date <= anchor_date</li>
+                            <li><strong>Check FORMAT file</strong> for ingestion namespace definitions</li>
+                            <li><strong>Verify .RPT files</strong> contain AFP binary (use /b parameter to extract)</li>
+                        </ol>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>FORMAT File Reference</h4>
+                        <p>For new file ingestion, the FORMAT file defines the namespace. This file is mentioned in the registry:</p>
+                        <pre style="background: #1a1a2e; padding: 15px; border-radius: 6px; overflow-x: auto;">
+Registry Key: HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microbank\StorqmEE\1.0\Preprocessor\PaginationManager\Input\Entry(xxx)
+
+Key Value: FormatName = "SiteFormats\new ANSI Midas Plus"
+
+This defines:
+- Which namespace (folder) to use for resources
+- How to parse incoming AFP files
+- Where to store new/changed resources
+
+For migration: Review all FORMAT entries to understand
+how different report types map to namespaces.</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section Permissions Tab -->
+        <div id="sectionpermissions" class="tab-content">
+            <div class="documentation">
+                <div class="doc-section">
+                    <h3>Section-Based Access Control</h3>
+
+                    <div class="concept-card">
+                        <h4>How Sections Work in IntelliSTOR</h4>
+                        <p>Sections provide fine-grained access control within reports. A single report instance can contain data for multiple branches, segments, or countries, with different users having access to different sections.</p>
+                        <ul>
+                            <li><strong>SECTION table:</strong> Defines section names (e.g., "516", "VR", "P") for each report species</li>
+                            <li><strong>STYPE_SECTION table:</strong> Contains binary ACL (Access Control List) in VALUE column</li>
+                            <li><strong>.MAP file:</strong> Contains page-to-section mapping (stored on disk, not in database)</li>
+                        </ul>
+                    </div>
+
+                    <div class="flow-diagram">
+                        <div class="flow-steps">
+                            <div class="flow-step">
+                                <h5>1. User Request</h5>
+                                <p>View report</p>
+                                <p>instance</p>
+                            </div>
+                            <span class="flow-arrow">→</span>
+                            <div class="flow-step">
+                                <h5>2. Check User</h5>
+                                <p>Get user groups</p>
+                                <p>from SCM_USER_GROUP</p>
+                            </div>
+                            <span class="flow-arrow">→</span>
+                            <div class="flow-step">
+                                <h5>3. Section ACL</h5>
+                                <p>Check STYPE_SECTION</p>
+                                <p>permissions</p>
+                            </div>
+                            <span class="flow-arrow">→</span>
+                            <div class="flow-step">
+                                <h5>4. Page Filter</h5>
+                                <p>Read .MAP file</p>
+                                <p>filter pages</p>
+                            </div>
+                            <span class="flow-arrow">→</span>
+                            <div class="flow-step">
+                                <h5>5. Display</h5>
+                                <p>Show only</p>
+                                <p>permitted pages</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>Section Types</h4>
+                        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                            <tr style="background: #0f3460;">
+                                <th style="padding: 10px; text-align: left;">Type</th>
+                                <th style="padding: 10px; text-align: left;">Format</th>
+                                <th style="padding: 10px; text-align: left;">Examples</th>
+                                <th style="padding: 10px; text-align: left;">Description</th>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">Branch Code</td>
+                                <td>3 digits</td>
+                                <td>"516", "501", "508"</td>
+                                <td>Bank branch identifiers</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">Segment Code</td>
+                                <td>2 alpha</td>
+                                <td>"VR", "DH", "UH"</td>
+                                <td>Business segment codes</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">Country Code</td>
+                                <td>1 alpha</td>
+                                <td>"P", "V", "M"</td>
+                                <td>Country identifiers (P=PH, V=VN, M=MY)</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">Combined</td>
+                                <td>Variable</td>
+                                <td>"VR516", "P501"</td>
+                                <td>Combination codes for specific access</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>STYPE_SECTION Binary ACL Structure</h4>
+                        <p>The VALUE column in STYPE_SECTION contains a binary blob with the following structure:</p>
+                        <pre style="background: #1a1a2e; padding: 15px; border-radius: 6px; overflow-x: auto;">
+Binary ACL Format (typical structure):
+┌──────────────┬───────────────────────────────────────────┐
+│ Header       │ Version, flags, entry count               │
+├──────────────┼───────────────────────────────────────────┤
+│ ACE Entry 1  │ Principal ID (user/group), Permission mask│
+├──────────────┼───────────────────────────────────────────┤
+│ ACE Entry 2  │ Principal ID (user/group), Permission mask│
+├──────────────┼───────────────────────────────────────────┤
+│ ...          │ Additional ACE entries                    │
+└──────────────┴───────────────────────────────────────────┘
+
+Permission Bits (typical):
+  0x01 = Read/View
+  0x02 = Print
+  0x04 = Download
+  0x08 = Email
+  0x10 = Annotate</pre>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>SQL: Get All Sections with Permissions</h4>
+                        <pre style="background: #1a1a2e; padding: 15px; border-radius: 6px; overflow-x: auto; color: #2ecc71;">
+-- List all sections for a report with permission status
+SELECT
+    rsn.NAME AS REPORT_NAME,
+    s.SECTION_ID,
+    RTRIM(s.NAME) AS SECTION_NAME,
+    s.TIME_STAMP AS LAST_MODIFIED,
+    CASE
+        WHEN ss.VALUE IS NOT NULL THEN 'Has ACL'
+        ELSE 'No ACL (inherits)'
+    END AS PERMISSION_STATUS,
+    DATALENGTH(ss.VALUE) AS ACL_SIZE_BYTES
+FROM SECTION s
+INNER JOIN REPORT_SPECIES_NAME rsn
+    ON s.DOMAIN_ID = rsn.DOMAIN_ID
+    AND s.REPORT_SPECIES_ID = rsn.REPORT_SPECIES_ID
+    AND rsn.ITEM_ID = 0
+LEFT JOIN STYPE_SECTION ss
+    ON s.DOMAIN_ID = ss.DOMAIN_ID
+    AND s.REPORT_SPECIES_ID = ss.REPORT_SPECIES_ID
+    AND s.SECTION_ID = ss.SECTION_ID
+WHERE rsn.NAME LIKE '%Your Report%'
+ORDER BY s.NAME;</pre>
+                        <button class="copy-btn" onclick="copyQuery(this)">Copy Query</button>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>SQL: User-Group-Section Permission Chain</h4>
+                        <pre style="background: #1a1a2e; padding: 15px; border-radius: 6px; overflow-x: auto; color: #2ecc71;">
+-- Get complete permission chain for a user
+-- Note: Actual permission calculation requires parsing binary ACL
+SELECT
+    u.USERNAME,
+    u.FULLNAME,
+    g.GROUPNAME,
+    g.GROUP_ID,
+    rsn.NAME AS REPORT_NAME,
+    s.SECTION_ID,
+    RTRIM(s.NAME) AS SECTION_NAME,
+    CASE WHEN ss.VALUE IS NOT NULL THEN 'Has Section ACL' ELSE 'No Section ACL' END AS STATUS
+FROM SCM_USERS u
+INNER JOIN SCM_USER_GROUP ug
+    ON u.SECURITYDOMAIN_ID = ug.SECURITYDOMAIN_ID
+    AND u.USER_ID = ug.USER_ID
+INNER JOIN SCM_GROUPS g
+    ON ug.SECURITYDOMAIN_ID = g.SECURITYDOMAIN_ID
+    AND ug.GROUP_ID = g.GROUP_ID
+CROSS JOIN REPORT_SPECIES_NAME rsn
+INNER JOIN SECTION s
+    ON rsn.DOMAIN_ID = s.DOMAIN_ID
+    AND rsn.REPORT_SPECIES_ID = s.REPORT_SPECIES_ID
+LEFT JOIN STYPE_SECTION ss
+    ON s.DOMAIN_ID = ss.DOMAIN_ID
+    AND s.REPORT_SPECIES_ID = ss.REPORT_SPECIES_ID
+    AND s.SECTION_ID = ss.SECTION_ID
+WHERE rsn.ITEM_ID = 0
+    AND u.USERNAME = 'specific_user'
+ORDER BY rsn.NAME, s.NAME;</pre>
+                        <button class="copy-btn" onclick="copyQuery(this)">Copy Query</button>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>.MAP File Structure</h4>
+                        <p>The .MAP file contains page-to-section mapping and is stored alongside the .RPT file:</p>
+                        <pre style="background: #1a1a2e; padding: 15px; border-radius: 6px; overflow-x: auto;">
+.MAP File Contents (binary index):
+┌──────────────┬────────────────┬──────────────────────┐
+│ Page Number  │ Section ID(s)  │ Additional metadata  │
+├──────────────┼────────────────┼──────────────────────┤
+│ 1            │ 516            │ Branch 516 content   │
+│ 2            │ 516            │ Branch 516 content   │
+│ 3            │ 501            │ Branch 501 content   │
+│ 4            │ 501            │ Branch 501 content   │
+│ ...          │ ...            │ ...                  │
+└──────────────┴────────────────┴──────────────────────┘
+
+At view time:
+1. User requests report instance
+2. System reads .MAP file
+3. Checks user's section permissions (STYPE_SECTION ACL)
+4. Filters page list to only permitted sections
+5. Displays only pages user is allowed to see</pre>
+                    </div>
+
+                    <div class="concept-card">
+                        <h4>Migration Considerations</h4>
+                        <p>When migrating section-based permissions to a new system:</p>
+                        <ul>
+                            <li><strong>Export SECTION table:</strong> All section definitions per report species</li>
+                            <li><strong>Parse STYPE_SECTION.VALUE:</strong> Decode binary ACL to extract user/group permissions</li>
+                            <li><strong>Export .MAP files:</strong> Copy alongside .RPT files for page-section mapping</li>
+                            <li><strong>Recreate permission model:</strong> Map IntelliSTOR ACL to new system's permission scheme</li>
+                            <li><strong>Test with sample users:</strong> Verify same pages visible in old and new system</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Report File Access Tab (NEW) -->
+        <div id="reportfileaccess" class="tab-content">
+            <div class="documentation">
+                <div class="doc-section">
+                    <h3>Report File Access Flow - Complete Permission Model</h3>
+                    <p style="color: #7f8c8d; margin-bottom: 20px;">This diagram shows how IntelliSTOR resolves a report file (FILENAME) for a user, including folder permissions, report permissions, and section-based page filtering.</p>
+
+                    <!-- ER Diagram for Report File Access -->
+                    <div class="concept-card" style="background: #0a0a1a;">
+                        <h4>Entity Relationship: Report Instance to Physical File</h4>
+                        <pre style="background: #1a1a2e; padding: 20px; border-radius: 8px; overflow-x: auto; font-family: 'Consolas', monospace; line-height: 1.6;">
+                     REPORT INSTANCE TO FILE RESOLUTION
+                     ==================================
+
+┌─────────────────────┐     ┌──────────────────────┐     ┌─────────────────┐
+│   REPORT_SPECIES    │     │   REPORT_INSTANCE    │     │ RPTFILE_INSTANCE│
+├─────────────────────┤     ├──────────────────────┤     ├─────────────────┤
+│ PK DOMAIN_ID        │──┐  │ PK DOMAIN_ID         │──┐  │ PK DOMAIN_ID    │
+│ PK REPORT_SPECIES_ID│  │  │ PK REPORT_SPECIES_ID │  │  │ PK REPORT_      │
+│    NAME_SPACE       │  └─>│ PK AS_OF_TIMESTAMP   │  └─>│    SPECIES_ID   │
+│    CLUSTER_SET_ID   │     │ PK REPROCESS_IN_PROG │     │ PK AS_OF_       │
+│    STORAGE_CLASS_ID │     │    REPORT_IN_CACHE   │     │    TIMESTAMP    │
+└─────────────────────┘     │    REPORT_ARCHIVED   │     │ PK REPROCESS_IN │
+                            │    RPT_FILE_SIZE_KB  │     │    _PROGRESS    │
+                            └──────────────────────┘     │ FK RPT_FILE_ID  │
+                                                         └────────┬────────┘
+                                                                  │
+                     ┌────────────────────────────────────────────┘
+                     │
+                     v
+              ┌─────────────────┐     ┌─────────────────────┐
+              │     RPTFILE     │     │      LOCATION       │
+              ├─────────────────┤     ├─────────────────────┤
+              │ PK RPT_FILE_ID  │     │ PK LOCATION_ID      │
+              │ FK LOCATION_ID  │────>│    PATHNAME_A       │  (e.g., F:\intelliSTOR\cache\)
+              │    FILENAME     │     │    PATHNAME_B       │  (e.g., G:\intelliSTOR\backup\)
+              │    STORED_ON_   │     │ FK CLUSTER_SET_ID   │
+              │    SIDE         │     │    REMAINING_KB_A   │
+              └─────────────────┘     └─────────────────────┘
+
+         STORED_ON_SIDE: 0 = Use PATHNAME_A, 1 = Use PATHNAME_B
+
+         FULL FILE PATH = PATHNAME_A/B + FILENAME
+         Example: F:\intelliSTOR\cache\MIDAS_RPT_20250101.rpt
+                        </pre>
+                    </div>
+
+                    <!-- Permission Flow Diagram -->
+                    <div class="concept-card" style="background: #0a0a1a; margin-top: 20px;">
+                        <h4>Complete Permission Check Flow</h4>
+                        <p style="color: #7f8c8d; margin-bottom: 15px;">When a user requests to view a report file, IntelliSTOR performs these permission checks in sequence:</p>
+                        <pre style="background: #1a1a2e; padding: 20px; border-radius: 8px; overflow-x: auto; font-family: 'Consolas', monospace; line-height: 1.6;">
+                     REPORT FILE ACCESS PERMISSION FLOW
+                     ==================================
+
+     USER REQUEST                          PERMISSION TABLES
+     ============                          =================
+
+┌─────────────────┐
+│  1. User Login  │─────────────────────> ┌────────────────────┐
+│                 │                       │     SCM_USERS      │
+│  Username/Auth  │                       │ SECURITYDOMAIN_ID  │
+└────────┬────────┘                       │ USER_ID            │
+         │                                │ USERNAME           │
+         v                                └────────┬───────────┘
+┌─────────────────┐                                │
+│  2. Get User    │                                v
+│     Groups      │─────────────────────> ┌────────────────────┐
+│                 │                       │   SCM_USER_GROUP   │
+└────────┬────────┘                       │ USER_ID ──────────>│──> SCM_GROUPS
+         │                                │ GROUP_ID           │    (GROUPNAME)
+         v                                └────────────────────┘
+┌─────────────────┐
+│  3. Check       │
+│     FOLDER      │─────────────────────> ┌────────────────────┐
+│     Permission  │                       │    STYPE_FOLDER    │
+│                 │                       │ FOLDER_ID (FK)     │
+│  Can user see   │                       │ VALUE (binary ACL) │
+│  this folder?   │                       └────────────────────┘
+└────────┬────────┘
+         │ YES
+         v
+┌─────────────────┐
+│  4. Check       │
+│     REPORT      │─────────────────────> ┌────────────────────┐
+│     Permission  │                       │STYPE_REPORT_SPECIES│
+│                 │                       │ REPORT_SPECIES_ID  │
+│  Can user see   │                       │ VALUE (binary ACL) │
+│  this report?   │                       └────────────────────┘
+└────────┬────────┘
+         │ YES
+         v
+┌─────────────────┐                       ┌────────────────────┐
+│  5. Resolve     │                       │  RPTFILE_INSTANCE  │
+│     FILE PATH   │──────────────────────>│ (4-column PK join) │
+│                 │                       └─────────┬──────────┘
+│  Get FILENAME   │                                 │
+│  from RPTFILE   │                                 v
+│                 │                       ┌────────────────────┐
+│                 │                       │      RPTFILE       │
+│                 │                       │ FILENAME           │
+└────────┬────────┘                       │ LOCATION_ID ──────>│──> LOCATION
+         │                                └────────────────────┘    (PATHNAME_A/B)
+         v
+┌─────────────────┐
+│  6. Check       │
+│     SECTION     │─────────────────────> ┌────────────────────┐
+│     Permissions │                       │   STYPE_SECTION    │
+│                 │                       │ REPORT_SPECIES_ID  │
+│  Which sections │                       │ SECTION_ID         │
+│  can user see?  │                       │ VALUE (binary ACL) │
+└────────┬────────┘                       └────────────────────┘
+         │
+         v
+┌─────────────────┐                       ┌────────────────────┐
+│  7. Filter      │                       │REPORT_INSTANCE_    │
+│     PAGES       │──────────────────────>│    SEGMENT         │
+│                 │                       │ SEGMENT_NUMBER     │
+│  Read .MAP file │                       │ PAGE_STREAM_       │
+│  Match pages to │                       │   INSTANCE_NUMBER  │
+│  permitted      │                       │ NUMBER_OF_PAGES    │
+│  sections       │                       └────────────────────┘
+└────────┬────────┘
+         │
+         v
+┌─────────────────┐
+│  8. DISPLAY     │
+│     Report with │
+│     only pages  │
+│     user can    │
+│     access      │
+└─────────────────┘
+
+  NOTE: If NO section permission is defined for a user/group,
+        the user can see ALL sections of the report (default allow).
+                        </pre>
+                    </div>
+
+                    <!-- Permission Details from UI (Verified) -->
+                    <div class="concept-card" style="margin-top: 20px; background: #1a1a2e; border-left: 4px solid #e74c3c;">
+                        <h4 style="color: #e74c3c;">📋 Permission Structure Details (Verified from UI)</h4>
+
+                        <div style="margin-top: 15px;">
+                            <h5 style="color: #3498db;">1. Report-Level Permissions (STYPE_REPORT_SPECIES)</h5>
+                            <p>The "Report Permissions" dialog shows TWO types of user assignments:</p>
+                            <ul style="line-height: 1.8;">
+                                <li><strong style="color: #f39c12;">Security group users (read only):</strong>
+                                    <ul>
+                                        <li>Inherited from SCM_GROUPS via SCM_USER_GROUP</li>
+                                        <li>Examples: "Every Domain User", "Everyone", group names</li>
+                                        <li>Cannot be modified at report level (managed at group level)</li>
+                                        <li>Provides organization-wide or department-wide access</li>
+                                    </ul>
+                                </li>
+                                <li><strong style="color: #f39c12;">Report-specific users:</strong>
+                                    <ul>
+                                        <li>Individual users/groups assigned directly to this report</li>
+                                        <li>Format: User/Group name + Domain specification</li>
+                                        <li>Example: "ibsalesdev1" in domain "OCBSGROUP"</li>
+                                        <li>Overrides or supplements group permissions</li>
+                                    </ul>
+                                </li>
+                            </ul>
+                        </div>
+
+                        <div style="margin-top: 15px;">
+                            <h5 style="color: #3498db;">2. Section-Level Permissions (STYPE_SECTION)</h5>
+                            <p>The "Section Security" dialog provides granular control:</p>
+                            <ul style="line-height: 1.8;">
+                                <li><strong>Sections list:</strong> Shows all available sections for the report
+                                    <ul>
+                                        <li>Examples: "P240", "08", "09", "12", "14", "15"</li>
+                                        <li>Can select multiple sections (checkboxes)</li>
+                                        <li>Each section ID maps to SECTION.SECTION_ID</li>
+                                    </ul>
+                                </li>
+                                <li><strong>Users per section:</strong> Assign users/groups to selected sections
+                                    <ul>
+                                        <li>User/Group column + Domain column</li>
+                                        <li>Example: User "JH", "bar", "15", "29" with their domains</li>
+                                        <li>Multiple users can access same section</li>
+                                    </ul>
+                                </li>
+                                <li><strong>Default behavior:</strong> If no STYPE_SECTION entry exists → ALL users with report access see ALL sections</li>
+                            </ul>
+                        </div>
+
+                        <div style="margin-top: 15px;">
+                            <h5 style="color: #3498db;">3. Folder-Level Permissions (STYPE_FOLDER)</h5>
+                            <ul style="line-height: 1.8;">
+                                <li>Controls visibility of folder hierarchy</li>
+                                <li>Users/Groups assigned per folder</li>
+                                <li>Hierarchical: child folders can inherit or override parent permissions</li>
+                                <li>First checkpoint in permission chain</li>
+                            </ul>
+                        </div>
+
+                        <div style="margin-top: 15px; padding: 10px; background: #0a0a1a; border-radius: 6px;">
+                            <strong style="color: #e74c3c;">🔑 KEY INSIGHT:</strong>
+                            <p style="margin-top: 5px;">The binary VALUE column in STYPE_* tables stores the complete ACL including:</p>
+                            <ul style="line-height: 1.6; margin-top: 5px;">
+                                <li>User IDs and Group IDs references (links to SCM_USERS, SCM_GROUPS)</li>
+                                <li>Domain specifications for each user/group</li>
+                                <li>Permission flags (read, write, etc.)</li>
+                                <li>Inheritance rules</li>
+                            </ul>
+                            <p style="margin-top: 10px; color: #95a5a6;"><em>Note: The SQL Server "image" datatype is used for binary data storage, NOT for storing actual images. This is a legacy SQL Server datatype name.</em></p>
+                        </div>
+                    </div>
+
+                    <!-- SQL Query for Complete Resolution -->
+                    <div class="concept-card" style="margin-top: 20px;">
+                        <h4>SQL: Complete Report File Resolution Query</h4>
+                        <pre style="background: #1a1a2e; padding: 15px; border-radius: 6px; overflow-x: auto; color: #2ecc71;">
+-- Complete query to resolve Report Instance to Physical File Path
+SELECT
+    -- Report Identity
+    rsn.NAME AS REPORT_NAME,
+    ri.AS_OF_TIMESTAMP AS REPORT_DATE,
+    ri.REPROCESS_IN_PROGRESS,
+
+    -- File Information
+    rf.RPT_FILE_ID,
+    rf.FILENAME,
+    rf.STORED_ON_SIDE,
+
+    -- Location/Path
+    l.LOCATION_ID,
+    CASE
+        WHEN rf.STORED_ON_SIDE = 0 THEN l.PATHNAME_A
+        ELSE l.PATHNAME_B
+    END AS ACTIVE_PATH,
+
+    -- Full resolved path
+    CASE
+        WHEN rf.STORED_ON_SIDE = 0 THEN RTRIM(l.PATHNAME_A) + '\' + RTRIM(rf.FILENAME)
+        ELSE RTRIM(l.PATHNAME_B) + '\' + RTRIM(rf.FILENAME)
+    END AS FULL_FILE_PATH,
+
+    -- Report metadata
+    ri.REPORT_IN_CACHE,
+    ri.REPORT_ARCHIVED,
+    ri.RPT_FILE_SIZE_KB
+
+FROM REPORT_INSTANCE ri
+-- Join to get report name
+INNER JOIN REPORT_SPECIES_NAME rsn
+    ON ri.DOMAIN_ID = rsn.DOMAIN_ID
+    AND ri.REPORT_SPECIES_ID = rsn.REPORT_SPECIES_ID
+    AND rsn.ITEM_ID = 0
+-- Join to file instance (bridge table)
+INNER JOIN RPTFILE_INSTANCE rfi
+    ON ri.DOMAIN_ID = rfi.DOMAIN_ID
+    AND ri.REPORT_SPECIES_ID = rfi.REPORT_SPECIES_ID
+    AND ri.AS_OF_TIMESTAMP = rfi.AS_OF_TIMESTAMP
+    AND ri.REPROCESS_IN_PROGRESS = rfi.REPROCESS_IN_PROGRESS
+-- Join to actual file record
+INNER JOIN RPTFILE rf
+    ON rfi.RPT_FILE_ID = rf.RPT_FILE_ID
+-- Join to location for path
+INNER JOIN LOCATION l
+    ON rf.LOCATION_ID = l.LOCATION_ID
+
+WHERE ri.AS_OF_TIMESTAMP >= '2024-01-01'
+ORDER BY ri.AS_OF_TIMESTAMP DESC;</pre>
+                        <button class="copy-btn" onclick="copyQuery(this)">Copy Query</button>
+                    </div>
+
+                    <!-- SQL Query for Segments with File -->
+                    <div class="concept-card" style="margin-top: 20px;">
+                        <h4>SQL: Report File with All Segments (for Section Filtering)</h4>
+                        <pre style="background: #1a1a2e; padding: 15px; border-radius: 6px; overflow-x: auto; color: #2ecc71;">
+-- Get report file with all segments for section-based page filtering
+SELECT
+    rsn.NAME AS REPORT_NAME,
+    ri.AS_OF_TIMESTAMP AS REPORT_DATE,
+
+    -- File path
+    CASE
+        WHEN rf.STORED_ON_SIDE = 0 THEN RTRIM(l.PATHNAME_A) + '\' + RTRIM(rf.FILENAME)
+        ELSE RTRIM(l.PATHNAME_B) + '\' + RTRIM(rf.FILENAME)
+    END AS FULL_FILE_PATH,
+
+    -- Segment information (for section filtering)
+    ris.SEGMENT_NUMBER,
+    ris.PAGE_STREAM_INSTANCE_NUMBER AS START_PAGE,
+    ris.NUMBER_OF_PAGES,
+    ris.PAGE_STREAM_INSTANCE_NUMBER + ris.NUMBER_OF_PAGES - 1 AS END_PAGE,
+
+    -- Section name (from SECTION table - requires additional join)
+    sec.NAME AS SECTION_NAME
+
+FROM REPORT_INSTANCE ri
+INNER JOIN REPORT_SPECIES_NAME rsn
+    ON ri.DOMAIN_ID = rsn.DOMAIN_ID
+    AND ri.REPORT_SPECIES_ID = rsn.REPORT_SPECIES_ID
+    AND rsn.ITEM_ID = 0
+INNER JOIN RPTFILE_INSTANCE rfi
+    ON ri.DOMAIN_ID = rfi.DOMAIN_ID
+    AND ri.REPORT_SPECIES_ID = rfi.REPORT_SPECIES_ID
+    AND ri.AS_OF_TIMESTAMP = rfi.AS_OF_TIMESTAMP
+    AND ri.REPROCESS_IN_PROGRESS = rfi.REPROCESS_IN_PROGRESS
+INNER JOIN RPTFILE rf
+    ON rfi.RPT_FILE_ID = rf.RPT_FILE_ID
+INNER JOIN LOCATION l
+    ON rf.LOCATION_ID = l.LOCATION_ID
+LEFT JOIN REPORT_INSTANCE_SEGMENT ris
+    ON ri.DOMAIN_ID = ris.DOMAIN_ID
+    AND ri.REPORT_SPECIES_ID = ris.REPORT_SPECIES_ID
+    AND ri.AS_OF_TIMESTAMP = ris.AS_OF_TIMESTAMP
+    AND ri.REPROCESS_IN_PROGRESS = ris.REPROCESS_IN_PROGRESS
+LEFT JOIN SECTION sec
+    ON ri.DOMAIN_ID = sec.DOMAIN_ID
+    AND ri.REPORT_SPECIES_ID = sec.REPORT_SPECIES_ID
+    AND ris.SEGMENT_NUMBER = sec.SECTION_ID  -- Segment maps to Section
+
+WHERE ri.AS_OF_TIMESTAMP >= '2024-01-01'
+ORDER BY ri.AS_OF_TIMESTAMP DESC, ris.SEGMENT_NUMBER;</pre>
+                        <button class="copy-btn" onclick="copyQuery(this)">Copy Query</button>
+                    </div>
+
+                    <!-- Key Tables Summary -->
+                    <div class="concept-card" style="margin-top: 20px; border-left: 4px solid #2ecc71;">
+                        <h4>Key Tables in Report File Access</h4>
+                        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+                            <tr style="background: #0f3460;">
+                                <th style="padding: 10px; text-align: left;">Table</th>
+                                <th style="padding: 10px; text-align: left;">Purpose</th>
+                                <th style="padding: 10px; text-align: left;">Key Columns</th>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px; color: #2ecc71;">RPTFILE_INSTANCE</td>
+                                <td>Links Report Instance to File</td>
+                                <td>4-column PK (same as REPORT_INSTANCE) + RPT_FILE_ID</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px; color: #2ecc71;">RPTFILE</td>
+                                <td>Physical file reference</td>
+                                <td>RPT_FILE_ID, FILENAME, LOCATION_ID, STORED_ON_SIDE</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">LOCATION</td>
+                                <td>File system paths</td>
+                                <td>PATHNAME_A, PATHNAME_B (mirrored storage)</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">STYPE_FOLDER</td>
+                                <td>Folder-level permissions</td>
+                                <td>VALUE (binary ACL)</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">STYPE_REPORT_SPECIES</td>
+                                <td>Report-level permissions</td>
+                                <td>VALUE (binary ACL)</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">STYPE_SECTION</td>
+                                <td>Section-level permissions</td>
+                                <td>VALUE (binary ACL)</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #0f3460;">
+                                <td style="padding: 10px;">REPORT_INSTANCE_SEGMENT</td>
+                                <td>Page ranges per section</td>
+                                <td>SEGMENT_NUMBER, PAGE_STREAM_INSTANCE_NUMBER, NUMBER_OF_PAGES</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <!-- Permission Default Behavior -->
+                    <div class="concept-card" style="margin-top: 20px; background: #1a3a1a;">
+                        <h4>Permission Default Behavior</h4>
+                        <ul>
+                            <li><strong>No folder ACL:</strong> Inherits from parent folder or allows access</li>
+                            <li><strong>No report ACL:</strong> User can see report if folder access is granted</li>
+                            <li><strong>No section ACL:</strong> User can see ALL sections/pages of the report</li>
+                            <li><strong>Section ACL exists:</strong> User sees only pages in permitted sections</li>
+                        </ul>
+                        <p style="margin-top: 10px; color: #7f8c8d;"><strong>Important:</strong> The section permission model is "default allow" - if no STYPE_SECTION entry exists for a section, all users with report access can view that section.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Table Details -->
+    <div class="modal" id="tableModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Table Details</h2>
+                <button class="close-modal" onclick="closeModal()">&times;</button>
+            </div>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+
+    <script>
+        // Tab switching
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // Table search/filter
+        function filterTables() {
+            const search = document.getElementById('tableSearch').value.toLowerCase();
+            document.querySelectorAll('.table-box').forEach(box => {
+                const name = box.querySelector('.table-header').textContent.toLowerCase();
+                box.style.display = name.includes(search) ? 'inline-block' : 'none';
+            });
+        }
+
+        // Copy query to clipboard
+        function copyQuery(btn) {
+            const query = btn.previousElementSibling.textContent;
+            navigator.clipboard.writeText(query).then(() => {
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy Query', 2000);
+            });
+        }
+
+        // Table detail definitions
+        const tableDetails = {
+            'SIGNATURE_GROUP': {
+                description: 'Groups related signatures together. Each signature group typically corresponds to a source system or report category.',
+                columns: [
+                    { name: 'SIGNATURE_GROUP_ID', type: 'int', pk: true, description: 'Unique identifier' },
+                    { name: 'NAME', type: 'char(50)', description: 'Group name (e.g., MIDAS_RPTS, TANDEM_CCCONV)' },
+                    { name: 'DESCRIPTION', type: 'char(100)', description: 'Optional description' },
+                    { name: 'LAST_MODIFIED_BY_USER', type: 'char(50)', description: 'Last modifier' },
+                    { name: 'LAST_MODIFIED_DATE_TIME', type: 'datetime', description: 'Last modification timestamp' },
+                    { name: 'CREATION_BY_USER', type: 'char(50)', description: 'Creator' },
+                    { name: 'CREATION_DATE_TIME', type: 'datetime', description: 'Creation timestamp' }
+                ],
+                relationships: ['SIGNATURE (referenced via Pagination Manager config)'],
+                sampleQuery: "SELECT * FROM SIGNATURE_GROUP WHERE NAME LIKE '%MIDAS%'"
+            },
+            'REPORT_SPECIES': {
+                description: 'Defines report types with their processing and storage configurations. PK: DOMAIN_ID, REPORT_SPECIES_ID',
+                columns: [
+                    { name: 'DOMAIN_ID', type: 'int', pk: true, description: 'PK[1] - Domain identifier (usually 1)' },
+                    { name: 'REPORT_SPECIES_ID', type: 'int', pk: true, description: 'PK[2] - Unique report type ID' },
+                    { name: 'OVERLAY_PROFILE_ID', type: 'int', fk: true, description: 'PDF overlay settings' },
+                    { name: 'STORAGE_CLASS_ID', type: 'int', fk: true, description: 'Storage policy reference' },
+                    { name: 'CLUSTER_SET_ID', type: 'int', fk: true, description: 'Storage cluster reference' },
+                    { name: 'BUSINESS_PROFILE_ID', type: 'int', fk: true, description: 'Business cycle settings' },
+                    { name: 'NAME_SPACE', type: 'char(50)', description: 'Namespace (usually DEFAULT_HOST)' },
+                    { name: 'INSTANCE_HANDLING', type: 'smallint', description: '1=Replace, 3=Append instances' },
+                    { name: 'RECONCILE', type: 'smallint', description: 'Enable reconciliation' },
+                    { name: 'REPORT_INDEXED', type: 'smallint', description: '0=Not indexed, 1=Indexed' },
+                    { name: 'MAX_PAGE_WIDTH', type: 'smallint', description: 'Maximum page width (e.g., 132)' },
+                    { name: 'LOCALE_ID', type: 'int', description: 'Locale (1033=US English)' }
+                ],
+                relationships: ['REPORT_SPECIES_NAME', 'REPORT_INSTANCE', 'SECTION', 'FOLDER_SPECIES'],
+                sampleQuery: "SELECT rs.*, rsn.NAME FROM REPORT_SPECIES rs JOIN REPORT_SPECIES_NAME rsn ON rs.DOMAIN_ID = rsn.DOMAIN_ID AND rs.REPORT_SPECIES_ID = rsn.REPORT_SPECIES_ID WHERE rsn.ITEM_ID = 0"
+            },
+            'REPORT_INSTANCE': {
+                description: 'Stores actual report instances - the daily/periodic occurrences of each report type. PK: DOMAIN_ID, REPORT_SPECIES_ID, AS_OF_TIMESTAMP, REPROCESS_IN_PROGRESS',
+                columns: [
+                    { name: 'DOMAIN_ID', type: 'int', pk: true, description: 'PK[1] - Domain identifier' },
+                    { name: 'REPORT_SPECIES_ID', type: 'int', pk: true, description: 'PK[2] - Report type reference' },
+                    { name: 'AS_OF_TIMESTAMP', type: 'datetime', pk: true, description: 'PK[3] - Report date/time' },
+                    { name: 'REPROCESS_IN_PROGRESS', type: 'smallint', pk: true, description: 'PK[4] - Reprocessing flag' },
+                    { name: 'STRUCTURE_DEF_ID', type: 'int', fk: true, description: 'Structure definition used' },
+                    { name: 'NUMBER_BANNER_PAGES', type: 'int', description: 'Number of banner pages' },
+                    { name: 'REPORT_IN_CACHE', type: 'smallint', description: '1=In cache, 0=Not cached' },
+                    { name: 'REPORT_ARCHIVED', type: 'smallint', description: '1=Archived, 0=Not archived' },
+                    { name: 'INDEX_IN_CACHE', type: 'smallint', description: 'Index cache status' },
+                    { name: 'INDEX_ARCHIVED', type: 'smallint', description: 'Index archive status' },
+                    { name: 'RPT_FILE_SIZE_KB', type: 'int', description: 'Report file size in KB' },
+                    { name: 'MAP_FILE_SIZE_KB', type: 'int', description: 'Index/map file size in KB' }
+                ],
+                relationships: ['REPORT_SPECIES (FK: DOMAIN_ID, REPORT_SPECIES_ID)', 'REPORT_INSTANCE_SEGMENT (join on all 4 PK columns)', 'RPTFILE_INSTANCE'],
+                sampleQuery: "SELECT * FROM REPORT_INSTANCE WHERE AS_OF_TIMESTAMP >= '2024-01-01' ORDER BY AS_OF_TIMESTAMP DESC"
+            },
+            'FOLDER': {
+                description: 'Hierarchical folder structure for organizing reports. ITEM_TYPE: 1=PUBLIC, 3=SECURITY',
+                columns: [
+                    { name: 'ITEM_ID', type: 'int', pk: true, description: 'Unique folder ID' },
+                    { name: 'NAME', type: 'char(50)', description: 'Folder name' },
+                    { name: 'PARENT_ID', type: 'int', fk: true, description: 'Parent folder ID (0=root)' },
+                    { name: 'PRIVATE_ROOT_ID', type: 'int', description: 'Private root reference' },
+                    { name: 'ITEM_TYPE', type: 'smallint', description: '1=PUBLIC, 3=SECURITY' },
+                    { name: 'CREATED_BY_USER', type: 'char(50)', description: 'Creator' },
+                    { name: 'CREATION_DATE_TIME', type: 'datetime', description: 'Creation timestamp' },
+                    { name: 'LAST_MODIFIED_BY_USER', type: 'char(50)', description: 'Last modifier' },
+                    { name: 'LAST_MODIFIED_DATE_TIME', type: 'datetime', description: 'Last modification' }
+                ],
+                relationships: ['FOLDER (self - PARENT_ID)', 'FOLDER_SPECIES', 'STYPE_FOLDER'],
+                sampleQuery: "SELECT * FROM FOLDER WHERE PARENT_ID = 1 ORDER BY NAME"
+            },
+            'SECTION': {
+                description: 'Sections represent subdivisions within reports - can be branch codes, segments, or country codes. PK: DOMAIN_ID, REPORT_SPECIES_ID, SECTION_ID',
+                columns: [
+                    { name: 'DOMAIN_ID', type: 'int', pk: true, description: 'PK[1] - Domain identifier' },
+                    { name: 'REPORT_SPECIES_ID', type: 'int', pk: true, description: 'PK[2] - Report type reference' },
+                    { name: 'SECTION_ID', type: 'int', pk: true, description: 'PK[3] - Unique section ID within report' },
+                    { name: 'NAME', type: 'char(50)', description: 'Section name (e.g., "516", "VR", "P")' },
+                    { name: 'TIME_STAMP', type: 'datetime', description: 'Last modification' }
+                ],
+                relationships: ['REPORT_SPECIES (FK: DOMAIN_ID, REPORT_SPECIES_ID)', 'STYPE_SECTION (FK: REPORT_SPECIES_ID, SECTION_ID)'],
+                sampleQuery: "SELECT s.*, rsn.NAME AS REPORT_NAME FROM SECTION s JOIN REPORT_SPECIES_NAME rsn ON s.DOMAIN_ID = rsn.DOMAIN_ID AND s.REPORT_SPECIES_ID = rsn.REPORT_SPECIES_ID WHERE rsn.ITEM_ID = 0"
+            },
+            'LINE': {
+                description: 'Line pattern definitions for signature matching. TEMPLATE uses A=Alpha, 9=Digit patterns.',
+                columns: [
+                    { name: 'STRUCTURE_DEF_ID', type: 'int', pk: true, description: 'Structure definition reference' },
+                    { name: 'MINOR_VERSION', type: 'int', pk: true, description: 'Version number' },
+                    { name: 'LINE_ID', type: 'int', pk: true, description: 'Unique line ID' },
+                    { name: 'NAME', type: 'char(50)', description: 'Line name (e.g., RptTitleLine001)' },
+                    { name: 'DESCRIPTION', type: 'char', description: 'Optional description' },
+                    { name: 'COLOR', type: 'int', description: 'Display color' },
+                    { name: 'NOISE', type: 'smallint', description: 'Noise tolerance' },
+                    { name: 'TEMPLATE', type: 'char', description: 'Pattern template (A=alpha, 9=digit)' },
+                    { name: 'TAG', type: 'smallint', description: 'Tag identifier' },
+                    { name: 'OPTIMIZE_FLAGS', type: 'int', description: 'Optimization settings' }
+                ],
+                relationships: ['FIELD', 'LINES_IN_SIGN', 'MINOR_DEF'],
+                sampleQuery: "SELECT * FROM LINE WHERE STRUCTURE_DEF_ID = 0 ORDER BY LINE_ID"
+            },
+            'FIELD': {
+                description: 'Field definitions within lines - specifies extraction position and data type.',
+                columns: [
+                    { name: 'STRUCTURE_DEF_ID', type: 'int', pk: true, description: 'Structure definition' },
+                    { name: 'MINOR_VERSION', type: 'int', pk: true, description: 'Version' },
+                    { name: 'LINE_ID', type: 'int', pk: true, description: 'Parent line' },
+                    { name: 'FIELD_ID', type: 'int', pk: true, description: 'Field identifier' },
+                    { name: 'TAG', type: 'smallint', description: 'Tag identifier' },
+                    { name: 'OPTIONAL', type: 'smallint', description: '0=Required, 1=Optional' },
+                    { name: 'START_COLUMN', type: 'smallint', description: 'Start position (0-based)' },
+                    { name: 'END_COLUMN', type: 'smallint', description: 'End position (inclusive)' },
+                    { name: 'IS_DISTINGUISHER', type: 'smallint', description: 'Used for signature matching' },
+                    { name: 'IS_SIGNIFICANT', type: 'smallint', description: 'Important for matching' },
+                    { name: 'IS_INDEXED', type: 'smallint', description: 'Create search index' },
+                    { name: 'IS_WATERMARKED', type: 'smallint', description: 'Track min/max values' },
+                    { name: 'NAME', type: 'char(50)', description: 'Field name' },
+                    { name: 'FIELD_TYPE_NAME', type: 'char', description: 'Data type (Literal, Text, Date, etc.)' },
+                    { name: 'STICKY', type: 'int', description: 'Value persistence (0-3)' }
+                ],
+                relationships: ['LINE', 'FIELD_TYPE', 'FIELD_WATERMARK'],
+                sampleQuery: "SELECT * FROM FIELD WHERE STRUCTURE_DEF_ID = 0 AND LINE_ID = 1 ORDER BY START_COLUMN"
+            },
+            'SIGNATURE': {
+                description: 'Individual signature definitions that map to report species.',
+                columns: [
+                    { name: 'SIGN_ID', type: 'int', pk: true, description: 'Signature identifier' },
+                    { name: 'MINOR_VERSION', type: 'int', pk: true, description: 'Version number' },
+                    { name: 'DOMAIN_ID', type: 'int', fk: true, description: 'Domain reference' },
+                    { name: 'REPORT_SPECIES_ID', type: 'int', fk: true, description: 'Target report type' },
+                    { name: 'POSITION', type: 'int', description: 'Matching priority' },
+                    { name: 'MATCHING', type: 'int', description: 'Match type' },
+                    { name: 'REPORT_DATE_TYPE', type: 'int', description: 'Date extraction method' },
+                    { name: 'DESCRIPTION', type: 'char', description: 'Signature description' },
+                    { name: 'LBD_OFFSETS', type: 'int', description: 'Last business day offsets' },
+                    { name: 'CREATION_BY_USER', type: 'char(50)', description: 'Creator' },
+                    { name: 'CREATION_DATE_TIME', type: 'datetime', description: 'Creation time' }
+                ],
+                relationships: ['LINES_IN_SIGN', 'REPORT_SPECIES', 'SENSITIVE_FIELD'],
+                sampleQuery: "SELECT s.*, rsn.NAME AS REPORT_NAME FROM SIGNATURE s JOIN REPORT_SPECIES_NAME rsn ON s.DOMAIN_ID = rsn.DOMAIN_ID AND s.REPORT_SPECIES_ID = rsn.REPORT_SPECIES_ID WHERE rsn.ITEM_ID = 0"
+            },
+            'LINES_IN_SIGN': {
+                description: 'Links signatures to their line patterns for 5-line header matching.',
+                columns: [
+                    { name: 'SIGN_ID', type: 'int', pk: true, fk: true, description: 'Signature reference' },
+                    { name: 'MINOR_VERSION', type: 'int', pk: true, description: 'Version' },
+                    { name: 'LINE_ID', type: 'int', pk: true, fk: true, description: 'Line pattern reference' },
+                    { name: 'LINE_NUMBER', type: 'int', description: 'Position in header (0-4)' }
+                ],
+                relationships: ['SIGNATURE', 'LINE'],
+                sampleQuery: "SELECT lis.*, l.NAME AS LINE_NAME, l.TEMPLATE FROM LINES_IN_SIGN lis JOIN LINE l ON lis.LINE_ID = l.LINE_ID WHERE lis.SIGN_ID = 1 ORDER BY lis.LINE_NUMBER"
+            },
+            'MINOR_DEF': {
+                description: 'Version definitions for structure definitions with matching thresholds.',
+                columns: [
+                    { name: 'STRUCTURE_DEF_ID', type: 'int', pk: true, description: 'Structure reference' },
+                    { name: 'MINOR_VERSION', type: 'int', pk: true, description: 'Version number' },
+                    { name: 'THRESHOLD', type: 'float', description: 'Match threshold (e.g., 0.75)' },
+                    { name: 'FLAGS', type: 'smallint', description: 'Configuration flags' },
+                    { name: 'CREATION_BY_USER', type: 'char(50)', description: 'Creator' },
+                    { name: 'CREATION_DATE_TIME', type: 'datetime', description: 'Creation time' }
+                ],
+                relationships: ['LINE', 'FIELD'],
+                sampleQuery: "SELECT * FROM MINOR_DEF WHERE STRUCTURE_DEF_ID = 0"
+            },
+            'AFPRESOURCES': {
+                description: 'Catalogs AFP resource metadata (fonts, codepages, page segments, overlays). PK: ID (standalone bigint). STREAMNUMBER purpose under investigation.',
+                columns: [
+                    { name: 'ID', type: 'bigint', pk: true, description: 'PK - Unique identifier (standalone)' },
+                    { name: 'CRCVALUE', type: 'int', description: 'CRC checksum value' },
+                    { name: 'STREAMNUMBER', type: 'int', description: 'Stream identifier (purpose under investigation - NOT linked to segment starting page)' },
+                    { name: 'RESOURCETYPE', type: 'int', description: 'Resource type: 1=Font, 2=Codepage, 3=PageSegment, 4=Overlay, 5=FormDef, 6=PageDef' },
+                    { name: 'LENGTH', type: 'int', description: 'Resource size in bytes' },
+                    { name: 'NAMESPACE', type: 'varchar', description: 'Resource namespace' },
+                    { name: 'RESOURCENAME', type: 'varchar', description: 'AFP resource name (e.g., C0PC2250, T1GT15)' },
+                    { name: 'TIMESTAMP', type: 'datetime', description: 'Resource timestamp' }
+                ],
+                relationships: ['Standalone table - no FK to REPORT_SPECIES. Relationship to segments under investigation'],
+                sampleQuery: "SELECT * FROM AFPRESOURCES ORDER BY TIMESTAMP DESC"
+            },
+            'STYPE_SECTION': {
+                description: 'Section-level security permissions. VALUE contains binary ACL (Access Control List) specifying which users/groups can access each section. PK: REPORT_SPECIES_ID, SECTION_ID',
+                columns: [
+                    { name: 'REPORT_SPECIES_ID', type: 'int', pk: true, fk: true, description: 'PK[1]/FK - Report type reference' },
+                    { name: 'SECTION_ID', type: 'int', pk: true, fk: true, description: 'PK[2]/FK - Section reference' },
+                    { name: 'VALUE', type: 'binary', description: 'Binary ACL blob containing user/group permissions (NOT image data - SQL Server "image" datatype for binary data)' }
+                ],
+                relationships: ['SECTION (FK: REPORT_SPECIES_ID, SECTION_ID)', 'SCM_USERS (via ACL)', 'SCM_GROUPS (via ACL)'],
+                sampleQuery: "SELECT ss.*, s.NAME AS SECTION_NAME, DATALENGTH(ss.VALUE) AS ACL_SIZE FROM STYPE_SECTION ss JOIN SECTION s ON ss.REPORT_SPECIES_ID = s.REPORT_SPECIES_ID AND ss.SECTION_ID = s.SECTION_ID"
+            },
+                        'REPORT_INSTANCE_SEGMENT': {
+                description: 'Segments (sections) within a report instance. Each segment represents a section with page ranges. PK: DOMAIN_ID, REPORT_SPECIES_ID, AS_OF_TIMESTAMP, REPROCESS_IN_PROGRESS, SEGMENT_NUMBER',
+                columns: [
+                    { name: 'DOMAIN_ID', type: 'int', pk: true, fk: true, description: 'PK[1]/FK - Domain identifier' },
+                    { name: 'REPORT_SPECIES_ID', type: 'int', pk: true, fk: true, description: 'PK[2]/FK - Report type reference' },
+                    { name: 'AS_OF_TIMESTAMP', type: 'datetime', pk: true, description: 'PK[3]/FK - Report instance timestamp' },
+                    { name: 'REPROCESS_IN_PROGRESS', type: 'smallint', pk: true, description: 'PK[4]/FK - Reprocessing flag' },
+                    { name: 'ARRIVAL_TIMESTAMP', type: 'datetime', description: 'When segment data arrived' },
+                    { name: 'SEGMENT_NUMBER', type: 'int', pk: true, description: 'PK[5] - Sequential segment number' },
+                    { name: 'PAGINATOR_JOB_ID', type: 'binary', description: 'Paginator job identifier' },
+                    { name: 'PAGE_STREAM_INSTANCE_NUMBER', type: 'int', description: 'Page stream reference number' },
+                    { name: 'START_PAGE_NUMBER', type: 'int', description: 'First page number in segment' },
+                    { name: 'NUMBER_OF_PAGES', type: 'int', description: 'Total pages in this segment' },
+                ],
+                relationships: ['REPORT_INSTANCE (FK: 4-col PK)', 'SECTION (via SEGMENT_NUMBER)'],
+                sampleQuery: "SELECT * FROM REPORT_INSTANCE_SEGMENT WHERE DOMAIN_ID = 1 AND REPORT_SPECIES_ID = 832 ORDER BY SEGMENT_NUMBER"
+            },'RPTFILE_INSTANCE': {
+                description: 'Junction table linking REPORT_INSTANCE to RPTFILE. Uses same 4-column composite PK as REPORT_INSTANCE plus RPT_FILE_ID. This is the KEY table for resolving a report instance to its physical file.',
+                columns: [
+                    { name: 'DOMAIN_ID', type: 'int', pk: true, fk: true, description: 'PK[1]/FK - Domain identifier (links to REPORT_INSTANCE)' },
+                    { name: 'REPORT_SPECIES_ID', type: 'int', pk: true, fk: true, description: 'PK[2]/FK - Report type reference (links to REPORT_INSTANCE)' },
+                    { name: 'AS_OF_TIMESTAMP', type: 'datetime', pk: true, fk: true, description: 'PK[3]/FK - Report date/time (links to REPORT_INSTANCE)' },
+                    { name: 'REPROCESS_IN_PROGRESS', type: 'smallint', pk: true, fk: true, description: 'PK[4]/FK - Reprocessing flag (links to REPORT_INSTANCE)' },
+                    { name: 'RPT_FILE_ID', type: 'int', pk: true, fk: true, description: 'PK[5]/FK - Links to RPTFILE.RPT_FILE_ID for filename and location' }
+                ],
+                relationships: ['REPORT_INSTANCE (FK: DOMAIN_ID, REPORT_SPECIES_ID, AS_OF_TIMESTAMP, REPROCESS_IN_PROGRESS)', 'RPTFILE (FK: RPT_FILE_ID)'],
+                sampleQuery: "SELECT rfi.*, rf.FILENAME, l.PATHNAME_A FROM RPTFILE_INSTANCE rfi JOIN RPTFILE rf ON rfi.RPT_FILE_ID = rf.RPT_FILE_ID JOIN LOCATION l ON rf.LOCATION_ID = l.LOCATION_ID"
+            },
+            'RPTFILE': {
+                description: 'Physical report file reference. Contains the FILENAME and links to LOCATION for the full file path. STORED_ON_SIDE indicates which path (A=0 or B=1) the file is stored on.',
+                columns: [
+                    { name: 'RPT_FILE_ID', type: 'int', pk: true, description: 'PK - Unique file identifier' },
+                    { name: 'LOCATION_ID', type: 'int', fk: true, description: 'FK - Links to LOCATION for PATHNAME_A/B' },
+                    { name: 'FILENAME', type: 'varchar', description: 'File name (e.g., MIDAS_RPT_20250101.rpt)' },
+                    { name: 'STORED_ON_SIDE', type: 'smallint', description: '0=Use PATHNAME_A, 1=Use PATHNAME_B (for mirrored storage)' }
+                ],
+                relationships: ['RPTFILE_INSTANCE (FK: RPT_FILE_ID)', 'LOCATION (FK: LOCATION_ID)'],
+                sampleQuery: "SELECT rf.*, l.PATHNAME_A, l.PATHNAME_B, CASE WHEN rf.STORED_ON_SIDE = 0 THEN l.PATHNAME_A ELSE l.PATHNAME_B END AS ACTIVE_PATH FROM RPTFILE rf JOIN LOCATION l ON rf.LOCATION_ID = l.LOCATION_ID"
+            }
+        };
+
+        // Show table detail modal
+        function showTableDetail(tableName) {
+            const detail = tableDetails[tableName];
+            if (!detail) {
+                alert('Details not available for ' + tableName);
+                return;
+            }
+
+            document.getElementById('modalTitle').textContent = tableName;
+
+            let html = `<p style="margin-bottom: 20px; color: #7f8c8d;">${detail.description}</p>`;
+
+            html += '<h4 style="color: #3498db; margin-bottom: 10px;">Columns</h4>';
+            html += '<table style="width: 100%; border-collapse: collapse;">';
+            html += '<tr style="background: #0f3460;"><th style="padding: 10px; text-align: left;">Column</th><th style="padding: 10px; text-align: left;">Type</th><th style="padding: 10px; text-align: left;">Description</th></tr>';
+
+            detail.columns.forEach(col => {
+                let badges = '';
+                if (col.pk) badges += '<span class="badge badge-pk">PK</span>';
+                if (col.fk) badges += '<span class="badge badge-fk">FK</span>';
+                html += `<tr style="border-bottom: 1px solid #0f3460;">
+                    <td style="padding: 10px;"><span class="column-name">${col.name}</span>${badges}</td>
+                    <td style="padding: 10px; color: #7f8c8d;">${col.type}</td>
+                    <td style="padding: 10px;">${col.description}</td>
+                </tr>`;
+            });
+            html += '</table>';
+
+            if (detail.relationships && detail.relationships.length > 0) {
+                html += '<h4 style="color: #3498db; margin: 20px 0 10px;">Related Tables</h4>';
+                html += '<ul>';
+                detail.relationships.forEach(rel => {
+                    html += `<li style="margin: 5px 0;">${rel}</li>`;
+                });
+                html += '</ul>';
+            }
+
+            if (detail.sampleQuery) {
+                html += '<h4 style="color: #3498db; margin: 20px 0 10px;">Sample Query</h4>';
+                html += `<pre style="background: #1a1a2e; padding: 15px; border-radius: 6px; overflow-x: auto; color: #2ecc71;">${detail.sampleQuery}</pre>`;
+            }
+
+            document.getElementById('modalBody').innerHTML = html;
+            document.getElementById('tableModal').classList.add('active');
+        }
+
+        // Close modal
+        function closeModal() {
+            document.getElementById('tableModal').classList.remove('active');
+        }
+
+        // Close modal on outside click
+        document.getElementById('tableModal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeModal();
+        });
+
+        // ==========================================
+        // WAREHOUSE MANAGER - UAT DATA
+        // ==========================================
+
+        // UAT Folder Data (from UAT_FOLDER.csv)
+        const uatFolders = [
+            { id: 1, name: "PUBLIC", parentId: 0, type: 1 },
+            { id: 2, name: "SECURITY", parentId: 0, type: 3 },
+            { id: 3, name: "Silverlake", parentId: 2, type: 3 },
+            { id: 4, name: "CIF", parentId: 3, type: 3 },
+            { id: 5, name: "CL", parentId: 3, type: 3 },
+            { id: 6, name: "LOANS", parentId: 3, type: 3 },
+            { id: 7, name: "Silverlake", parentId: 1, type: 1 },
+            { id: 8, name: "CIF System", parentId: 7, type: 1 },
+            { id: 13, name: "FinatiQ System", parentId: 2, type: 3 },
+            { id: 14, name: "Statements", parentId: 13, type: 3 },
+            { id: 17, name: "Tandem", parentId: 2, type: 3 },
+            { id: 18, name: "CIF System", parentId: 17, type: 3 },
+            { id: 19, name: "Tandem", parentId: 1, type: 1 },
+            { id: 21, name: "CG System", parentId: 17, type: 3 },
+            { id: 28, name: "TF System", parentId: 17, type: 3 },
+            { id: 29, name: "TF System", parentId: 19, type: 1 },
+            { id: 64, name: "CL System", parentId: 7, type: 1 },
+            { id: 73, name: "LOANS System", parentId: 7, type: 1 },
+            { id: 82, name: "Reports", parentId: 73, type: 1 },
+            { id: 90, name: "DSP", parentId: 3, type: 3 },
+            { id: 91, name: "DSP System", parentId: 7, type: 1 },
+            { id: 92, name: "GT System", parentId: 7, type: 1 },
+            { id: 93, name: "GT", parentId: 3, type: 3 },
+            { id: 96, name: "Advices & Statements", parentId: 92, type: 1 },
+            { id: 112, name: "MAS System", parentId: 7, type: 1 },
+            { id: 116, name: "EB System", parentId: 7, type: 1 },
+            { id: 117, name: "ACH System", parentId: 7, type: 1 },
+            { id: 118, name: "FMS system", parentId: 7, type: 1 },
+            { id: 119, name: "CO System", parentId: 7, type: 1 },
+            { id: 124, name: "IBG System", parentId: 7, type: 1 },
+            { id: 127, name: "SGD FD", parentId: 7, type: 1 },
+            { id: 129, name: "BILL System", parentId: 7, type: 1 },
+            { id: 133, name: "Others System", parentId: 7, type: 1 },
+            { id: 134, name: "GL System", parentId: 7, type: 1 },
+            { id: 153, name: "CFU System", parentId: 7, type: 1 },
+            { id: 184, name: "VN System", parentId: 19, type: 1 },
+            { id: 224, name: "Fitas System", parentId: 2, type: 3 },
+            { id: 232, name: "TBOS System", parentId: 2, type: 3 },
+            { id: 243, name: "IN System", parentId: 7, type: 1 },
+            { id: 246, name: "MT System", parentId: 7, type: 1 },
+            { id: 254, name: "DD System", parentId: 7, type: 1 },
+            { id: 279, name: "MD System", parentId: 7, type: 1 },
+            { id: 333, name: "P2B Conversion Rpts(MR)", parentId: 1, type: 1 },
+            { id: 334, name: "P2B Conversion Rpts(MR)", parentId: 2, type: 3 },
+            { id: 339, name: "PH System", parentId: 17, type: 3 },
+            { id: 340, name: "PH System", parentId: 19, type: 1 },
+            // Malaysia folders
+            { id: 501, name: "MY - Malaysia", parentId: 1, type: 1 },
+            { id: 502, name: "MY Statements", parentId: 501, type: 1 },
+            { id: 503, name: "MY Letters", parentId: 501, type: 1 },
+            // Hong Kong folders
+            { id: 601, name: "HK - Hong Kong", parentId: 1, type: 1 },
+            { id: 602, name: "HK Reports", parentId: 601, type: 1 },
+            // UK folders
+            { id: 701, name: "UK - United Kingdom", parentId: 1, type: 1 },
+            { id: 702, name: "UK Reports", parentId: 701, type: 1 },
+            // SG folders
+            { id: 801, name: "SG - Singapore", parentId: 1, type: 1 },
+            { id: 802, name: "SG Main Reports", parentId: 801, type: 1 }
+        ];
+
+        // UAT Folder-Species Links (from UAT_FOLDER_SPECIES.csv)
+        const uatFolderSpecies = [
+            { itemId: 82, domainId: 1, reportSpeciesId: 1 },
+            { itemId: 82, domainId: 1, reportSpeciesId: 2 },
+            { itemId: 82, domainId: 1, reportSpeciesId: 3 },
+            { itemId: 82, domainId: 1, reportSpeciesId: 4 },
+            { itemId: 8, domainId: 1, reportSpeciesId: 5 },
+            { itemId: 8, domainId: 1, reportSpeciesId: 6 },
+            { itemId: 96, domainId: 1, reportSpeciesId: 25 },
+            { itemId: 96, domainId: 1, reportSpeciesId: 26 },
+            { itemId: 116, domainId: 1, reportSpeciesId: 30 },
+            { itemId: 117, domainId: 1, reportSpeciesId: 31 },
+            { itemId: 502, domainId: 1, reportSpeciesId: 100 },
+            { itemId: 502, domainId: 1, reportSpeciesId: 101 },
+            { itemId: 503, domainId: 1, reportSpeciesId: 102 },
+            { itemId: 602, domainId: 1, reportSpeciesId: 200 },
+            { itemId: 702, domainId: 1, reportSpeciesId: 300 },
+            { itemId: 802, domainId: 1, reportSpeciesId: 400 },
+            { itemId: 802, domainId: 1, reportSpeciesId: 401 }
+        ];
+
+        // UAT Report Species (from UAT_REPORT_SPECIES.csv and UAT_REPORT_SPECIES_NAME.csv)
+        const uatReportSpecies = {
+            1: { id: 1, name: "LADHACIF Daily CIF", namespace: "DEFAULT_HOST", instanceHandling: 3, afpOptions: 1, indexed: true, isAfp: false },
+            2: { id: 2, name: "LADHACIF Monthly Report", namespace: "DEFAULT_HOST", instanceHandling: 3, afpOptions: 1, indexed: false, isAfp: false },
+            3: { id: 3, name: "LOANS Daily Summary", namespace: "DEFAULT_HOST", instanceHandling: 3, afpOptions: 1, indexed: true, isAfp: false },
+            4: { id: 4, name: "LOANS Arrears Report", namespace: "DEFAULT_HOST", instanceHandling: 3, afpOptions: 1, indexed: true, isAfp: false },
+            5: { id: 5, name: "CIF Account Statement", namespace: "DEFAULT_HOST", instanceHandling: 3, afpOptions: 2, indexed: true, isAfp: true, formDefName: "F1OCBC01" },
+            6: { id: 6, name: "CIF Monthly Summary", namespace: "DEFAULT_HOST", instanceHandling: 3, afpOptions: 1, indexed: false, isAfp: false },
+            25: { id: 25, name: "GT Advices", namespace: "DEFAULT_HOST", instanceHandling: 3, afpOptions: 2, indexed: true, isAfp: true, formDefName: "F1GTADV" },
+            26: { id: 26, name: "GT Statements", namespace: "DEFAULT_HOST", instanceHandling: 3, afpOptions: 2, indexed: true, isAfp: true, formDefName: "F1GTSTMT" },
+            30: { id: 30, name: "EB Daily Transactions", namespace: "DEFAULT_HOST", instanceHandling: 3, afpOptions: 1, indexed: true, isAfp: false },
+            31: { id: 31, name: "ACH Batch Report", namespace: "DEFAULT_HOST", instanceHandling: 3, afpOptions: 1, indexed: false, isAfp: false },
+            100: { id: 100, name: "MY Current Account Statement", namespace: "DEFAULT_HOST", instanceHandling: 3, afpOptions: 2, indexed: true, isAfp: true, formDefName: "F1MYCAST" },
+            101: { id: 101, name: "MY Savings Account Statement", namespace: "DEFAULT_HOST", instanceHandling: 3, afpOptions: 2, indexed: true, isAfp: true, formDefName: "F1MYSAST" },
+            102: { id: 102, name: "MY Loan Letter", namespace: "DEFAULT_HOST", instanceHandling: 3, afpOptions: 1, indexed: true, isAfp: false },
+            200: { id: 200, name: "HK Daily Report", namespace: "DEFAULT_HOST", instanceHandling: 3, afpOptions: 1, indexed: true, isAfp: false },
+            300: { id: 300, name: "UK Compliance Report", namespace: "DEFAULT_HOST", instanceHandling: 3, afpOptions: 1, indexed: false, isAfp: false },
+            400: { id: 400, name: "SG Transaction Report", namespace: "DEFAULT_HOST", instanceHandling: 3, afpOptions: 1, indexed: true, isAfp: false },
+            401: { id: 401, name: "SG Combined Statement", namespace: "DEFAULT_HOST", instanceHandling: 3, afpOptions: 2, indexed: true, isAfp: true, formDefName: "F1SGSTMT" }
+        };
+
+        // UAT Report Instances (from UAT_REPORT_INSTANCE.csv)
+        const uatReportInstances = {
+            1: [
+                { asOf: "2024-12-10 23:59:00", formDefName: "", sizeKb: 245, cached: 1, archived: 0 },
+                { asOf: "2024-12-09 23:59:00", formDefName: "", sizeKb: 238, cached: 1, archived: 0 },
+                { asOf: "2024-12-08 23:59:00", formDefName: "", sizeKb: 251, cached: 0, archived: 1 },
+                { asOf: "2024-12-07 23:59:00", formDefName: "", sizeKb: 243, cached: 0, archived: 1 }
+            ],
+            5: [
+                { asOf: "2024-12-10 23:59:00", formDefName: "F1OCBC01", sizeKb: 1245, cached: 1, archived: 0 },
+                { asOf: "2024-12-09 23:59:00", formDefName: "F1OCBC01", sizeKb: 1238, cached: 1, archived: 0 },
+                { asOf: "2024-12-08 23:59:00", formDefName: "F1OCBC01", sizeKb: 1251, cached: 0, archived: 1 }
+            ],
+            25: [
+                { asOf: "2024-12-10 18:00:00", formDefName: "F1GTADV", sizeKb: 856, cached: 1, archived: 0 },
+                { asOf: "2024-12-09 18:00:00", formDefName: "F1GTADV", sizeKb: 912, cached: 1, archived: 0 }
+            ],
+            26: [
+                { asOf: "2024-12-10 23:59:00", formDefName: "F1GTSTMT", sizeKb: 2456, cached: 1, archived: 0 },
+                { asOf: "2024-12-09 23:59:00", formDefName: "F1GTSTMT", sizeKb: 2389, cached: 1, archived: 0 },
+                { asOf: "2024-12-08 23:59:00", formDefName: "F1GTSTMT", sizeKb: 2501, cached: 0, archived: 1 }
+            ],
+            100: [
+                { asOf: "2024-12-10 23:59:00", formDefName: "F1MYCAST", sizeKb: 1567, cached: 1, archived: 0 },
+                { asOf: "2024-12-09 23:59:00", formDefName: "F1MYCAST", sizeKb: 1523, cached: 1, archived: 0 }
+            ],
+            101: [
+                { asOf: "2024-12-10 23:59:00", formDefName: "F1MYSAST", sizeKb: 1890, cached: 1, archived: 0 }
+            ],
+            400: [
+                { asOf: "2024-12-10 23:59:00", formDefName: "", sizeKb: 567, cached: 1, archived: 0 },
+                { asOf: "2024-12-09 23:59:00", formDefName: "", sizeKb: 589, cached: 1, archived: 0 },
+                { asOf: "2024-12-08 23:59:00", formDefName: "", sizeKb: 534, cached: 0, archived: 1 }
+            ],
+            401: [
+                { asOf: "2024-12-10 23:59:00", formDefName: "F1SGSTMT", sizeKb: 3245, cached: 1, archived: 0 },
+                { asOf: "2024-12-09 23:59:00", formDefName: "F1SGSTMT", sizeKb: 3189, cached: 1, archived: 0 }
+            ]
+        };
+
+        // Country code to flag mapping
+        function getCountryFlag(name) {
+            const flagMap = {
+                'SG': '🇸🇬', 'MY': '🇲🇾', 'HK': '🇭🇰', 'UK': '🇬🇧', 'VN': '🇻🇳', 'PH': '🇵🇭',
+                'Singapore': '🇸🇬', 'Malaysia': '🇲🇾', 'Hong Kong': '🇭🇰', 'United Kingdom': '🇬🇧',
+                'Vietnam': '🇻🇳', 'Philippines': '🇵🇭'
+            };
+            for (const [code, flag] of Object.entries(flagMap)) {
+                if (name.toUpperCase().startsWith(code.toUpperCase()) || name.includes(code)) {
+                    return flag + ' ';
+                }
+            }
+            return '';
+        }
+
+        // Build folder tree
+        function buildFolderTree() {
+            const treeContainer = document.getElementById('folderTree');
+            if (!treeContainer) return;
+
+            function buildNode(parentId, level) {
+                const children = uatFolders.filter(f => f.parentId === parentId);
+                if (children.length === 0) return '';
+
+                let html = '<ul style="list-style: none; padding-left: ' + (level * 15) + 'px; margin: 0;">';
+                children.forEach(folder => {
+                    const flag = getCountryFlag(folder.name);
+                    const folderSpecies = uatFolderSpecies.filter(fs => fs.itemId === folder.id);
+                    const hasChildren = uatFolders.some(f => f.parentId === folder.id) || folderSpecies.length > 0;
+
+                    html += `<li style="margin: 3px 0;">
+                        <div class="folder-node" onclick="toggleFolder(this)" style="cursor: pointer; padding: 4px 8px; border-radius: 4px; display: inline-block;" onmouseover="this.style.background='#0f3460'" onmouseout="this.style.background='transparent'">
+                            <span style="color: ${hasChildren ? '#f39c12' : '#7f8c8d'};">${hasChildren ? '📁' : '📂'}</span>
+                            ${flag}<span>${folder.name.trim()}</span>
+                            ${folder.type === 3 ? '<span style="font-size: 10px; color: #e74c3c; margin-left: 5px;">[SEC]</span>' : ''}
+                        </div>`;
+
+                    // Add child folders
+                    html += buildNode(folder.id, level + 1);
+
+                    // Add report species under this folder
+                    if (folderSpecies.length > 0) {
+                        html += '<ul style="list-style: none; padding-left: ' + ((level + 1) * 15) + 'px; margin: 0;" class="species-list">';
+                        folderSpecies.forEach(fs => {
+                            const species = uatReportSpecies[fs.reportSpeciesId];
+                            if (species) {
+                                const isAfp = species.isAfp;
+                                html += `<li style="margin: 2px 0;">
+                                    <div class="species-node ${isAfp ? 'afp-report' : ''}"
+                                         onclick="selectSpecies(${species.id}); event.stopPropagation();"
+                                         style="cursor: pointer; padding: 3px 8px; border-radius: 4px; display: inline-block; ${isAfp ? 'background: rgba(155, 89, 182, 0.2); border: 1px solid #9b59b6;' : ''}"
+                                         onmouseover="this.style.background='${isAfp ? 'rgba(155, 89, 182, 0.4)' : '#0f3460'}'"
+                                         onmouseout="this.style.background='${isAfp ? 'rgba(155, 89, 182, 0.2)' : 'transparent'}'">
+                                        <span style="color: ${isAfp ? '#9b59b6' : '#3498db'};">📄</span>
+                                        <span style="font-size: 12px;">${species.name}</span>
+                                        ${isAfp ? '<span style="font-size: 9px; background: #9b59b6; color: white; padding: 1px 4px; border-radius: 3px; margin-left: 5px;">AFP</span>' : ''}
+                                    </div>
+                                </li>`;
+                            }
+                        });
+                        html += '</ul>';
+                    }
+
+                    html += '</li>';
+                });
+                html += '</ul>';
+                return html;
+            }
+
+            treeContainer.innerHTML = buildNode(0, 0);
+        }
+
+        // Toggle folder expand/collapse
+        function toggleFolder(element) {
+            const li = element.parentElement;
+            const childLists = li.querySelectorAll(':scope > ul');
+            childLists.forEach(ul => {
+                ul.style.display = ul.style.display === 'none' ? 'block' : 'none';
+            });
+        }
+
+        // Select species and show details
+        function selectSpecies(speciesId) {
+            const species = uatReportSpecies[speciesId];
+            if (!species) return;
+
+            // Update details panel
+            const detailsDiv = document.getElementById('speciesDetails');
+            detailsDiv.innerHTML = `
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div><strong style="color: #3498db;">ID:</strong> ${species.id}</div>
+                    <div><strong style="color: #3498db;">Name:</strong> ${species.name}</div>
+                    <div><strong style="color: #3498db;">Namespace:</strong> ${species.namespace}</div>
+                    <div><strong style="color: #3498db;">Instance Handling:</strong> ${species.instanceHandling === 3 ? 'Normal' : species.instanceHandling}</div>
+                    <div><strong style="color: #3498db;">Indexed:</strong> ${species.indexed ? '<span style="color: #2ecc71;">Yes</span>' : '<span style="color: #e74c3c;">No</span>'}</div>
+                    <div><strong style="color: #3498db;">Format:</strong> ${species.isAfp ? '<span style="color: #9b59b6; font-weight: bold;">AFP</span>' : '<span style="color: #7f8c8d;">TXT</span>'}</div>
+                    ${species.formDefName ? `<div><strong style="color: #3498db;">Form Definition:</strong> <span style="color: #9b59b6;">${species.formDefName}</span></div>` : ''}
+                    <div><strong style="color: #3498db;">AFP Options:</strong> ${species.afpOptions}</div>
+                </div>
+            `;
+
+            // Update instances table
+            const instances = uatReportInstances[speciesId] || [];
+            const instancesBody = document.getElementById('instancesBody');
+            const instanceCount = document.getElementById('instanceCount');
+
+            instanceCount.textContent = `(${instances.length} instance${instances.length !== 1 ? 's' : ''})`;
+
+            if (instances.length === 0) {
+                instancesBody.innerHTML = '<tr><td colspan="5" style="padding: 20px; text-align: center; color: #7f8c8d;">No instances found</td></tr>';
+            } else {
+                instancesBody.innerHTML = instances.map(inst => {
+                    const isAfp = inst.formDefName && inst.formDefName.length > 0;
+                    return `<tr style="${isAfp ? 'background: rgba(155, 89, 182, 0.15);' : ''}">
+                        <td style="padding: 8px;">${inst.asOf}</td>
+                        <td style="padding: 8px;">${isAfp ? '<span style="color: #9b59b6; font-weight: bold;">AFP</span> (' + inst.formDefName + ')' : '<span style="color: #7f8c8d;">TXT</span>'}</td>
+                        <td style="padding: 8px; text-align: right;">${inst.sizeKb.toLocaleString()}</td>
+                        <td style="padding: 8px; text-align: center;">${inst.cached ? '<span style="color: #2ecc71;">●</span>' : '<span style="color: #7f8c8d;">○</span>'}</td>
+                        <td style="padding: 8px; text-align: center;">${inst.archived ? '<span style="color: #3498db;">●</span>' : '<span style="color: #7f8c8d;">○</span>'}</td>
+                    </tr>`;
+                }).join('');
+            }
+
+            // Highlight selected species in tree
+            document.querySelectorAll('.species-node').forEach(n => n.classList.remove('selected'));
+            event.target.closest('.species-node')?.classList.add('selected');
+        }
+
+        // Initialize warehouse tree when tab is shown
+        const originalShowTab = showTab;
+        showTab = function(tabId) {
+            originalShowTab(tabId);
+            if (tabId === 'warehouse') {
+                buildFolderTree();
+            }
+        };
+
+        // Build tree on page load if warehouse tab is active
+        document.addEventListener('DOMContentLoaded', function() {
+            if (document.getElementById('warehouse').classList.contains('active')) {
+                buildFolderTree();
+            }
+        });
+    </script>
+</body>
+</html>

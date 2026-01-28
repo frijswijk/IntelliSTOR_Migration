@@ -1,0 +1,202 @@
+================================================================================
+                    LDAPS FIX - QUICK INSTRUCTIONS
+================================================================================
+
+PROBLEM: Your AD server doesn't have LDAPS (SSL on port 636) configured.
+         This is why you're getting WinError 10054.
+
+SOLUTION: Configure LDAPS on the AD server (172.16.103.2)
+
+================================================================================
+                    STEP-BY-STEP FIX
+================================================================================
+
+STEP 1: Copy Files to AD Server
+--------------------------------
+Copy these 2 PowerShell scripts to the AD server (172.16.103.2):
+  - Check-LDAPS.ps1
+  - Fix-LDAPS.ps1
+
+You can copy them via:
+  - Network share
+  - USB drive
+  - Remote Desktop copy/paste
+
+
+STEP 2: Run Diagnostic on AD Server
+------------------------------------
+On the AD server, open PowerShell as Administrator:
+
+  Right-click PowerShell -> Run as Administrator
+
+Then run:
+
+  cd C:\path\to\scripts
+  .\Check-LDAPS.ps1
+
+This will show you what's wrong (likely: no certificate).
+
+
+STEP 3: Fix LDAPS on AD Server
+-------------------------------
+Still in PowerShell as Administrator, run:
+
+  .\Fix-LDAPS.ps1
+
+This will:
+  1. Create a self-signed certificate for LDAPS
+  2. Ask if you want to restart AD service (say YES)
+  3. Test LDAPS locally
+  4. Export certificate files:
+     - C:\ldap-ca-cert.cer
+     - C:\ldap-ca-cert.pem
+
+Expected output:
+  "✓✓✓ LDAPS IS WORKING! ✓✓✓"
+
+
+STEP 4: Test from Client Machine
+---------------------------------
+Copy the certificate file (C:\ldap-ca-cert.pem) from the AD server to your
+client machine (where you're running ldap_integration.py).
+
+Then test:
+
+  # Option 1: Skip verification (quick test)
+  python ldap_integration.py test-connection \
+    --server 172.16.103.2 \
+    --port 636 \
+    --use-ssl \
+    --ssl-no-verify \
+    --bind-dn "cn=administrator,cn=Users,dc=ldap1test,dc=loc" \
+    --password "Linked3-Shorten-Crestless" \
+    --base-dn "dc=ldap1test,dc=loc"
+
+  # Option 2: With certificate (secure)
+  python ldap_integration.py test-connection \
+    --server 172.16.103.2 \
+    --port 636 \
+    --use-ssl \
+    --ssl-ca-cert ldap-ca-cert.pem \
+    --bind-dn "cn=administrator,cn=Users,dc=ldap1test,dc=loc" \
+    --password "Linked3-Shorten-Crestless" \
+    --base-dn "dc=ldap1test,dc=loc"
+
+Expected output:
+  "INFO - Connection successful"
+
+
+================================================================================
+                    TROUBLESHOOTING
+================================================================================
+
+Issue: "Script cannot be loaded because running scripts is disabled"
+Solution: Enable script execution in PowerShell:
+  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+Issue: "NTDS service failed to restart"
+Solution: Wait 1 minute and try restarting manually:
+  Restart-Service NTDS -Force
+
+Issue: "LDAPS still doesn't work after fix"
+Solution:
+  1. Wait 2-3 minutes for service to fully start
+  2. Check Event Viewer for errors:
+     Get-EventLog -LogName System -Source NTDS -Newest 10
+  3. Test locally on AD server:
+     [ADSI]"LDAPS://localhost:636"
+
+Issue: "Client still can't connect with --ssl-no-verify"
+Solution: The certificate might not be properly installed
+  1. Check if certificate exists:
+     Get-ChildItem Cert:\LocalMachine\My
+  2. Re-run Fix-LDAPS.ps1
+  3. Check Windows Firewall (port 636 must be open)
+
+
+================================================================================
+                    FILES CREATED FOR YOU
+================================================================================
+
+On Client Machine:
+  - Check-LDAPS.ps1           → Diagnostic script (copy to AD server)
+  - Fix-LDAPS.ps1             → Auto-fix script (copy to AD server)
+  - AD_SERVER_LDAPS_SETUP_GUIDE.md  → Detailed manual instructions
+  - LDAPS_FIX_INSTRUCTIONS.txt → This file
+
+After Running Fix on AD Server:
+  - C:\ldap-ca-cert.cer       → Certificate (binary format)
+  - C:\ldap-ca-cert.pem       → Certificate (PEM format) - COPY THIS TO CLIENT
+
+
+================================================================================
+                    WHAT THE SCRIPTS DO
+================================================================================
+
+Check-LDAPS.ps1:
+  ✓ Checks if this is a Domain Controller
+  ✓ Checks if NTDS service is running
+  ✓ Checks if port 636 is listening
+  ✓ Checks for valid LDAPS certificate
+  ✓ Tests LDAPS locally
+  ✓ Checks Event Log for errors
+  ✓ Provides recommendations
+
+Fix-LDAPS.ps1:
+  ✓ Checks if running as Administrator
+  ✓ Creates self-signed certificate for LDAPS
+  ✓ Exports certificate for client use
+  ✓ Restarts NTDS service (with confirmation)
+  ✓ Tests LDAPS locally
+  ✓ Provides next steps
+
+
+================================================================================
+                    EXPECTED TIMELINE
+================================================================================
+
+Total time: 10-15 minutes
+
+  Step 1 (Copy files):      2 minutes
+  Step 2 (Run diagnostic):  1 minute
+  Step 3 (Fix LDAPS):       5 minutes (includes AD service restart)
+  Step 4 (Test from client): 2 minutes
+
+
+================================================================================
+                    SECURITY NOTES
+================================================================================
+
+Self-Signed Certificate:
+  - Works fine for internal/lab environments
+  - Not suitable for production (use Enterprise CA instead)
+  - Valid for 5 years
+  - Should be rotated/replaced before expiration
+
+Using --ssl-no-verify:
+  - Only for testing/troubleshooting
+  - Vulnerable to man-in-the-middle attacks
+  - Don't use in production
+
+Using --ssl-ca-cert:
+  - Secure option for self-signed certificates
+  - Validates certificate is correct
+  - Safe for production use with internal certificates
+
+
+================================================================================
+                    NEED MORE HELP?
+================================================================================
+
+See detailed manual instructions:
+  - AD_SERVER_LDAPS_SETUP_GUIDE.md
+
+Common PowerShell commands for AD:
+  - Get-Service NTDS                    → Check AD service status
+  - Restart-Service NTDS -Force         → Restart AD service
+  - Get-ChildItem Cert:\LocalMachine\My → List certificates
+  - [ADSI]"LDAPS://localhost:636"       → Test LDAPS locally
+  - Get-EventLog -LogName System -Source NTDS → Check for errors
+
+
+================================================================================

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir /B \"C:\\\\Users\\\\freddievr\\\\Downloads\\\\afp\\\\afp\")",
+      "Bash(dir:*)",
+      "Bash(findstr:*)",
+      "Bash(python:*)",
+      "Bash(Analyze_AFP_Resources_SG.bat)",
+      "Bash(cmd.exe /c \"cd /d C:\\\\Users\\\\freddievr\\\\claude-projects\\\\IntelliSTOR_Migration\\\\AFP_Resources && Analyze_AFP_Resources_SG.bat\")",
+      "Bash(cmd /c \"call ..\\\\Migration_Environment.bat && echo AFP_VersionCompare is set to: %AFP_VersionCompare%\")"
+    ]
+  }
+}
