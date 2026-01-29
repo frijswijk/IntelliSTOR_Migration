@@ -25,7 +25,7 @@ import logging
 import sys
 import os
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 
 
@@ -514,6 +514,39 @@ def calculate_year(row, year_from_filename):
         return ''
 
 
+def convert_julian_date(filename):
+    """
+    Convert julian date from filename to regular date format.
+
+    Filename format: YYDDDXXX where YY=year, DDD=day of year
+    Example: "24013001" -> "2024-01-13"
+
+    Args:
+        filename: Filename containing julian date (e.g., "24013001")
+
+    Returns:
+        str: Date in YYYY-MM-DD format, or empty string on error
+    """
+    if not filename or len(filename) < 5:
+        return ''
+
+    try:
+        # Extract YY (first 2 chars) and DDD (next 3 chars)
+        year_prefix = filename[:2]
+        day_of_year = filename[2:5]
+
+        # Convert to full year
+        year = int(f'20{year_prefix}')
+        day = int(day_of_year)
+
+        # Create date from year and day of year
+        date_obj = datetime(year, 1, 1) + timedelta(days=day - 1)
+        return date_obj.strftime('%Y-%m-%d')
+    except (ValueError, IndexError) as e:
+        logging.warning(f'Failed to convert julian date from filename: {filename}, error: {e}')
+        return ''
+
+
 def convert_to_utc(timestamp, source_timezone):
     """
     Convert timestamp from source timezone to UTC.
@@ -580,6 +613,7 @@ def write_output_csv(output_path, results, report_species_name, country, year_fr
         'FILENAME',
         'Country',
         'YEAR',
+        'Report Date',
         'AS_OF_TIMESTAMP',
         'UTC',
         'Segments',
@@ -598,12 +632,21 @@ def write_output_csv(output_path, results, report_species_name, country, year_fr
                 # Convert AS_OF_TIMESTAMP to UTC
                 utc_timestamp = convert_to_utc(row.get('AS_OF_TIMESTAMP'), source_timezone)
 
+                # Get filename and add leading backslash for relative path
+                filename = row.get('FILENAME', '')
+                if filename and not filename.startswith('\\'):
+                    filename = '\\' + filename
+
+                # Convert julian date from filename to Report Date
+                report_date = convert_julian_date(row.get('FILENAME', ''))
+
                 # Map database columns to simplified output format
                 output_row = [
                     report_species_name,  # From Report_Species.csv
-                    row.get('FILENAME', ''),
+                    filename,  # With leading backslash
                     country,  # From Report_Species.csv
                     year,  # Calculated YEAR column
+                    report_date,  # Report Date from julian date
                     row.get('AS_OF_TIMESTAMP', ''),
                     utc_timestamp,  # UTC converted timestamp
                     row.get('segments', ''),  # Segments column from STRING_AGG
