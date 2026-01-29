@@ -1,0 +1,1114 @@
+# Extract Instances Sections - Complete Documentation
+
+## Overview
+
+`extract_instances_sections.py` is a Python script that extracts report instance data from a SQL Server IntelliSTOR database and exports it to CSV files. The script processes report species from a master CSV file, queries the database for report instances, and generates separate CSV files per report with comprehensive segment information.
+
+**Version**: 2.0 (with .MAP file integration)
+**Database**: SQL Server 2017+ (requires STRING_AGG function)
+**Python Version**: 3.7+
+
+---
+
+## Table of Contents
+
+1. [Features](#features)
+2. [Installation](#installation)
+3. [Command-Line Arguments](#command-line-arguments)
+4. [Database Schema Requirements](#database-schema-requirements)
+5. [Input/Output Format](#inputoutput-format)
+6. [Map File Integration](#map-file-integration)
+7. [Usage Examples](#usage-examples)
+8. [Processing Workflow](#processing-workflow)
+9. [Troubleshooting](#troubleshooting)
+10. [Architecture](#architecture)
+11. [Logging](#logging)
+
+---
+
+## Features
+
+### Core Functionality
+- **Batch Processing**: Processes multiple report species from a master CSV file
+- **Resume Capability**: Tracks progress and can resume from last processed report
+- **Year Filtering**: Filters report instances by year range (start/end year)
+- **Timezone Conversion**: Converts AS_OF_TIMESTAMP from source timezone to UTC
+- **Segment Aggregation**: Aggregates report segments with comprehensive metadata
+- **Map File Fallback**: Uses .MAP files to fill missing segment names from database
+
+### Data Quality Features
+- **Missing Segment Name Resolution**: Automatically looks up segment names from .MAP files when database records are missing
+- **Unknown Placeholder**: Marks segments as "Unknown" when not found in either source
+- **Automatic In_Use Updates**: Sets In_Use=0 for reports with no instances in specified year range
+
+### Performance & Reliability
+- **Progress Tracking**: Saves progress after each report for safe interruption
+- **Connection Pooling**: Efficient database connection management
+- **Caching**: .MAP files cached in memory to avoid repeated disk reads
+- **Error Recovery**: Continues processing remaining reports after errors
+
+### Output Modes
+- **Normal Mode**: Detailed logging with INFO level messages
+- **Quiet Mode**: Single-line progress counter for minimal output
+
+---
+
+## Installation
+
+### Prerequisites
+
+```bash
+# Python 3.7 or higher
+python --version
+
+# Install required packages
+pip install pymssql pytz
+```
+
+### Package Requirements
+
+- **pymssql**: SQL Server database connectivity
+- **pytz**: IANA timezone database for timezone conversions
+- **csv, argparse, logging, sys, os, pathlib, datetime, re**: Standard library (included)
+
+### Database Requirements
+
+- SQL Server 2017 or higher (requires STRING_AGG function)
+- Read access to tables: REPORT_INSTANCE, RPTFILE_INSTANCE, RPTFILE, REPORT_INSTANCE_SEGMENT, SECTION, SST_STORAGE, MAPFILE
+- Network connectivity to SQL Server instance
+
+---
+
+## Command-Line Arguments
+
+### Required Arguments
+
+| Argument | Description | Example |
+|----------|-------------|---------|
+| `--server` | SQL Server hostname or IP address | `localhost`, `192.168.1.100` |
+| `--database` | Database name | `IntelliSTOR` |
+| `--start-year` | Start year for filtering (inclusive) | `2023` |
+
+### Authentication (Choose One)
+
+| Argument | Description | Example |
+|----------|-------------|---------|
+| `--windows-auth` | Use Windows Authentication | Flag only |
+| `--user` + `--password` | SQL Server authentication credentials | `--user sa --password MyP@ss` |
+
+### Optional Arguments
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--port` | `1433` | SQL Server port number |
+| `--end-year` | None | End year for filtering (exclusive) |
+| `--year-from-filename` | False | Calculate YEAR column from filename (first 2 chars) instead of AS_OF_TIMESTAMP |
+| `--timezone` | `Asia/Singapore` | Source timezone for AS_OF_TIMESTAMP values (IANA format) |
+| `--map-dir` | `.` (current) | Directory containing .MAP files for segment name lookups |
+| `--input` / `-i` | `Report_Species.csv` | Path to input CSV file containing report species |
+| `--output-dir` / `-o` | `.` (current) | Output directory for CSV files and logs |
+| `--quiet` | False | Quiet mode - single-line progress counter only |
+
+### Timezone Values
+
+Common IANA timezone values:
+- `Asia/Singapore` (UTC+8)
+- `America/New_York` (Eastern Time)
+- `Europe/London` (GMT/BST)
+- `Asia/Tokyo` (JST)
+- `UTC` (Coordinated Universal Time)
+
+Full list: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+
+---
+
+## Database Schema Requirements
+
+### Required Tables and Columns
+
+#### 1. REPORT_INSTANCE
+Primary table for report instances.
+
+**Required Columns:**
+- `DOMAIN_ID` (int)
+- `REPORT_SPECIES_ID` (int)
+- `AS_OF_TIMESTAMP` (datetime)
+- `REPROCESS_IN_PROGRESS` (bit/tinyint)
+
+#### 2. RPTFILE_INSTANCE
+Links report instances to report files.
+
+**Required Columns:**
+- `DOMAIN_ID` (int)
+- `REPORT_SPECIES_ID` (int)
+- `AS_OF_TIMESTAMP` (datetime)
+- `REPROCESS_IN_PROGRESS` (bit/tinyint)
+- `RPT_FILE_ID` (int)
+
+#### 3. RPTFILE
+Contains report file metadata.
+
+**Required Columns:**
+- `RPT_FILE_ID` (int, PRIMARY KEY)
+- `FILENAME` (varchar)
+
+#### 4. REPORT_INSTANCE_SEGMENT
+Contains segment information for report instances.
+
+**Required Columns:**
+- `DOMAIN_ID` (int)
+- `REPORT_SPECIES_ID` (int)
+- `AS_OF_TIMESTAMP` (datetime)
+- `REPROCESS_IN_PROGRESS` (bit/tinyint)
+- `SEGMENT_NUMBER` (int)
+- `START_PAGE_NUMBER` (int, nullable)
+- `NUMBER_OF_PAGES` (int)
+
+#### 5. SECTION
+Contains segment name definitions.
+
+**Required Columns:**
+- `DOMAIN_ID` (int)
+- `REPORT_SPECIES_ID` (int)
+- `SECTION_ID` (int)
+- `NAME` (varchar, nullable)
+
+#### 6. SST_STORAGE
+Links report instances to map files.
+
+**Required Columns:**
+- `DOMAIN_ID` (int)
+- `REPORT_SPECIES_ID` (int)
+- `AS_OF_TIMESTAMP` (datetime)
+- `REPROCESS_IN_PROGRESS` (bit/tinyint)
+- `MAP_FILE_ID` (int)
+
+#### 7. MAPFILE
+Contains map file metadata.
+
+**Required Columns:**
+- `MAP_FILE_ID` (int, PRIMARY KEY)
+- `FILENAME` (varchar)
+
+### Join Relationships
+
+```
+REPORT_INSTANCE (ri)
+├─ LEFT JOIN RPTFILE_INSTANCE (rfi)
+│  └─ LEFT JOIN RPTFILE (rf)
+├─ LEFT JOIN REPORT_INSTANCE_SEGMENT (ris)
+│  └─ LEFT JOIN SECTION (sec)
+└─ LEFT JOIN SST_STORAGE (sst)
+   └─ LEFT JOIN MAPFILE (mf)
+```
+
+---
+
+## Input/Output Format
+
+### Input: Report_Species.csv
+
+**Required Columns:**
+- `Report_Species_Id` (int) - Unique identifier
+- `Report_Species_Name` (varchar) - Report name (used for output filename)
+- `Country_Code` (varchar) - Country code
+- `In_Use` (int) - Flag indicating if report is active (script updates to 0 if no instances found)
+
+**Example:**
+```csv
+Report_Species_Id,Report_Species_Name,Country_Code,In_Use
+1,Daily_Sales_Report,SG,1
+2,Monthly_Inventory,MY,1
+3,Annual_Summary,TH,1
+```
+
+### Output CSV Files
+
+**Naming Convention:**
+- With end year: `{Report_Species_Name}_{start_year}_{end_year}.csv`
+- Without end year: `{Report_Species_Name}_{start_year}.csv`
+
+**Example:** `Daily_Sales_Report_2023_2024.csv`
+
+**Output Columns:**
+
+| Column | Description | Example |
+|--------|-------------|---------|
+| RPT_SPECIES_NAME | Report species name from input CSV | Daily_Sales_Report |
+| FILENAME | Report file name from RPTFILE.FILENAME | 24013001.rpt |
+| Country | Country code from input CSV | SG |
+| YEAR | Calculated year (from filename or timestamp) | 2024 |
+| AS_OF_TIMESTAMP | Original timestamp from database | 2024-01-30 14:23:15.000 |
+| UTC | Converted UTC timestamp | 2024-01-30 06:23:15 |
+| Segments | Pipe-delimited segment information | See below |
+| REPORT_FILE_ID | Report file ID from RPTFILE.RPT_FILE_ID | 12345 |
+
+**Segments Column Format:**
+
+Format: `Name#SegmentID#StartPage#NumPages|Name#SegmentID#StartPage#NumPages|...`
+
+**Example:**
+```
+Finance Summary#1#0#5|Sales Detail#2#5#10|Operations Report#3#15#8
+```
+
+**Segment Field Breakdown:**
+- **Name**: Segment name (from SECTION.NAME or .MAP file or "Unknown")
+- **SegmentID**: Segment number (from REPORT_INSTANCE_SEGMENT.SEGMENT_NUMBER)
+- **StartPage**: Starting page number (from REPORT_INSTANCE_SEGMENT.START_PAGE_NUMBER, 0 if NULL)
+- **NumPages**: Number of pages in segment (from REPORT_INSTANCE_SEGMENT.NUMBER_OF_PAGES)
+
+---
+
+## Map File Integration
+
+### Purpose
+
+.MAP files serve as a fallback source for segment names when the database SECTION table is missing records. This ensures segment names are available even when database metadata is incomplete.
+
+### Map File Format
+
+.MAP files contain binary-formatted segment definitions with the following structure:
+
+```
+( 01-Executive Summary
+( 02-Financial Overview
+( 03-Detailed Analysis
+( 04-Appendices
+```
+
+**Pattern:** `( {ID}-{Name}` followed by padding spaces
+
+**Key Characteristics:**
+- Parenthesis `(` followed by spaces
+- Zero-padded segment ID (e.g., `01`, `02`, `03`)
+- Hyphen separator `-`
+- Segment name
+- Multiple trailing spaces (at least 2) for padding
+
+### MapFileCache Class
+
+The script uses an intelligent caching system for .MAP files:
+
+**Features:**
+1. **Lazy Loading**: Files loaded only when first needed
+2. **ID Format Flexibility**: Stores both normalized ('4') and padded ('04') formats
+3. **Missing File Tracking**: Remembers which files don't exist to avoid repeated checks
+4. **Error Tolerance**: Gracefully handles binary content and parse errors
+
+**Example Usage Flow:**
+```
+1. Query returns segment with ID=4, NAME=NULL, MAP_FILENAME='260270DF.MAP'
+2. Script checks MapFileCache for '260270DF.MAP'
+3. If not cached, loads and parses file
+4. Looks up ID '4' in cache
+5. If found, replaces NULL with map file name
+6. If not found, uses 'Unknown' placeholder
+```
+
+### Map File Lookup Algorithm
+
+```python
+# Pseudocode
+for each segment in result:
+    if segment.name is empty:
+        map_name = map_cache.get_segment_name(
+            map_filename=row.MAP_FILENAME,
+            segment_id=segment.id
+        )
+        if map_name:
+            segment.name = map_name
+        else:
+            segment.name = 'Unknown'
+```
+
+### Regex Pattern
+
+**Pattern:** `r'\(\s+(\d+)-(.+?)\s{2,}'`
+
+**Breakdown:**
+- `\(` - Literal parenthesis
+- `\s+` - One or more whitespace characters
+- `(\d+)` - Capture group 1: One or more digits (segment ID)
+- `-` - Literal hyphen
+- `(.+?)` - Capture group 2: One or more characters, non-greedy (segment name)
+- `\s{2,}` - Two or more whitespace characters (padding marker)
+
+**Example Match:**
+```
+Input:  "( 04-Chayanon Wannathepsakul     "
+Group 1: "04"
+Group 2: "Chayanon Wannathepsakul"
+```
+
+---
+
+## Usage Examples
+
+### Example 1: Basic Windows Authentication
+
+```bash
+python extract_instances_sections.py \
+  --server localhost \
+  --database IntelliSTOR \
+  --windows-auth \
+  --start-year 2023
+```
+
+**Output:** Processes all reports from 2023 onwards, outputs to current directory
+
+---
+
+### Example 2: SQL Server Authentication with Year Range
+
+```bash
+python extract_instances_sections.py \
+  --server 192.168.1.100 \
+  --database IntelliSTOR \
+  --user sa \
+  --password MyP@ssw0rd \
+  --start-year 2023 \
+  --end-year 2024
+```
+
+**Output:** Processes reports from 2023 only (end year is exclusive)
+
+---
+
+### Example 3: Custom Timezone and Map Directory
+
+```bash
+python extract_instances_sections.py \
+  --server localhost \
+  --database IntelliSTOR \
+  --windows-auth \
+  --start-year 2024 \
+  --timezone "America/New_York" \
+  --map-dir "C:\Users\freddievr\Downloads\RPTnMAP_Files" \
+  --output-dir "C:\output"
+```
+
+**Output:**
+- Uses New York timezone for UTC conversion
+- Looks for .MAP files in specified directory
+- Saves results to C:\output
+
+---
+
+### Example 4: Year from Filename Mode
+
+```bash
+python extract_instances_sections.py \
+  --server localhost \
+  --database IntelliSTOR \
+  --windows-auth \
+  --start-year 2023 \
+  --year-from-filename
+```
+
+**Behavior:**
+- Filename: `24013001.rpt` → YEAR column = `2024`
+- Extracts first 2 characters and prepends "20"
+
+---
+
+### Example 5: Quiet Mode for Automation
+
+```bash
+python extract_instances_sections.py \
+  --server localhost \
+  --database IntelliSTOR \
+  --windows-auth \
+  --start-year 2023 \
+  --quiet
+```
+
+**Output:**
+```
+Processing 150 report species | Year filter: 2023+ | Timezone: Asia/Singapore
+Progress: 75/150 reports processed | 68 exported | 7 skipped
+```
+
+---
+
+### Example 6: Custom Input CSV and Output Directory
+
+```bash
+python extract_instances_sections.py \
+  --server localhost \
+  --database IntelliSTOR \
+  --windows-auth \
+  --start-year 2023 \
+  --input "C:\data\My_Reports.csv" \
+  --output-dir "C:\exports\2023_data"
+```
+
+---
+
+## Processing Workflow
+
+### Step-by-Step Process
+
+```
+┌─────────────────────────────────────────┐
+│ 1. Parse Command-Line Arguments         │
+│    - Validate authentication parameters  │
+│    - Validate year range                 │
+│    - Validate timezone                   │
+└──────────────────┬──────────────────────┘
+                   │
+┌──────────────────▼──────────────────────┐
+│ 2. Setup Logging                         │
+│    - Create Extract_Instances.log        │
+│    - Configure console output            │
+└──────────────────┬──────────────────────┘
+                   │
+┌──────────────────▼──────────────────────┐
+│ 3. Load Report_Species.csv               │
+│    - Read all report species             │
+│    - Store in memory                     │
+└──────────────────┬──────────────────────┘
+                   │
+┌──────────────────▼──────────────────────┐
+│ 4. Read Progress File                    │
+│    - Check progress.txt                  │
+│    - Get last processed Report_Species_Id│
+└──────────────────┬──────────────────────┘
+                   │
+┌──────────────────▼──────────────────────┐
+│ 5. Connect to Database                   │
+│    - Establish SQL Server connection     │
+└──────────────────┬──────────────────────┘
+                   │
+┌──────────────────▼──────────────────────┐
+│ 6. Initialize MapFileCache               │
+│    - Set map directory                   │
+│    - Prepare cache structures            │
+└──────────────────┬──────────────────────┘
+                   │
+┌──────────────────▼──────────────────────┐
+│ 7. Process Each Report Species           │
+│    ┌────────────────────────────────┐   │
+│    │ 7a. Execute SQL Query           │   │
+│    │     - Apply year filters        │   │
+│    │     - Join all tables           │   │
+│    │     - Aggregate segments        │   │
+│    └────────────┬───────────────────┘   │
+│                 │                        │
+│    ┌────────────▼───────────────────┐   │
+│    │ 7b. Process Results             │   │
+│    │     - Calculate YEAR column     │   │
+│    │     - Convert timezone to UTC   │   │
+│    │     - Process segments          │   │
+│    │       ├─ Check segment name     │   │
+│    │       ├─ If empty, lookup .MAP  │   │
+│    │       └─ Use 'Unknown' if missing│  │
+│    └────────────┬───────────────────┘   │
+│                 │                        │
+│    ┌────────────▼───────────────────┐   │
+│    │ 7c. Write Output CSV            │   │
+│    │     - Create output file        │   │
+│    │     - Write header              │   │
+│    │     - Write all rows            │   │
+│    └────────────┬───────────────────┘   │
+│                 │                        │
+│    ┌────────────▼───────────────────┐   │
+│    │ 7d. Update Progress             │   │
+│    │     - Write current ID          │   │
+│    │     - Update statistics         │   │
+│    └────────────┬───────────────────┘   │
+│                 │                        │
+│    ┌────────────▼───────────────────┐   │
+│    │ 7e. Handle Empty Results        │   │
+│    │     - Update In_Use=0 in CSV    │   │
+│    └────────────────────────────────┘   │
+└──────────────────┬──────────────────────┘
+                   │
+┌──────────────────▼──────────────────────┐
+│ 8. Close Database Connection             │
+└──────────────────┬──────────────────────┘
+                   │
+┌──────────────────▼──────────────────────┐
+│ 9. Print Summary Statistics              │
+│    - Total reports processed             │
+│    - Reports with instances              │
+│    - Reports without instances           │
+│    - Errors encountered                  │
+└──────────────────────────────────────────┘
+```
+
+### Segment Processing Detail
+
+```python
+# For each report instance result:
+for row in results:
+    segments_string = row['segments']
+    # Example: "#1#0#5|Marketing Report#2#5#10"
+
+    map_filename = row['MAP_FILENAME']
+    # Example: "260270DF.MAP"
+
+    # Split by pipe to get individual segments
+    for segment in segments_string.split('|'):
+        parts = segment.split('#')
+        # parts = ['', '1', '0', '5']
+
+        name = parts[0]
+        segment_id = parts[1]
+
+        # If name is empty, try map file
+        if not name:
+            name = map_cache.get_segment_name(map_filename, segment_id)
+
+            # If still not found, use placeholder
+            if not name:
+                name = 'Unknown'
+                log.debug(f'Segment {segment_id} not found')
+
+        # Reconstruct segment with name
+        output_segment = f'{name}#{segment_id}#{parts[2]}#{parts[3]}'
+```
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+#### 1. Connection Errors
+
+**Symptom:** `Failed to connect to SQL Server`
+
+**Solutions:**
+- Verify server hostname/IP is correct
+- Check port number (default: 1433)
+- Ensure SQL Server is running and accepting connections
+- Verify firewall allows connections on SQL Server port
+- For Windows Authentication, ensure account has database access
+
+**Test Connection:**
+```bash
+# Using sqlcmd (SQL Server command-line tool)
+sqlcmd -S localhost -d IntelliSTOR -E
+```
+
+---
+
+#### 2. Authentication Failures
+
+**Symptom:** `Login failed for user`
+
+**Solutions:**
+- For SQL Auth: Verify username and password
+- For Windows Auth: Ensure current user has database permissions
+- Check SQL Server authentication mode (mixed mode required for SQL auth)
+
+---
+
+#### 3. Missing Columns
+
+**Symptom:** `Invalid column name` or query execution errors
+
+**Solutions:**
+- Verify all required tables exist in database
+- Check column names match schema requirements
+- Ensure SQL Server version is 2017+ (for STRING_AGG function)
+
+**Version Check:**
+```sql
+SELECT @@VERSION
+```
+
+---
+
+#### 4. Map Files Not Found
+
+**Symptom:** Log shows `Map file not found: [path]`
+
+**Behavior:**
+- Script continues processing
+- Missing segment names show as "Unknown"
+
+**Solutions:**
+- Verify --map-dir path is correct
+- Check .MAP files exist in specified directory
+- Verify file permissions allow read access
+- Check MAP_FILENAME values in database match actual filenames
+
+**Debug:**
+```bash
+# List files in map directory
+dir "C:\path\to\map\files\*.MAP"
+
+# Check specific file
+type "C:\path\to\map\files\260270DF.MAP"
+```
+
+---
+
+#### 5. Timezone Errors
+
+**Symptom:** `Invalid timezone: [timezone_name]`
+
+**Solutions:**
+- Use IANA timezone format (e.g., "Asia/Singapore", not "SGT")
+- Verify timezone name spelling
+- See full list: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+
+**Test Timezone:**
+```python
+import pytz
+print(pytz.timezone('Asia/Singapore'))  # Should not raise exception
+```
+
+---
+
+#### 6. Progress File Issues
+
+**Symptom:** Processing restarts from beginning despite previous progress
+
+**Solutions:**
+- Check progress.txt exists in output directory
+- Verify file contains valid integer (last Report_Species_Id)
+- Ensure write permissions on output directory
+
+**Manual Reset:**
+```bash
+# Delete progress file to restart from beginning
+del progress.txt
+```
+
+---
+
+#### 7. Empty Segments Column
+
+**Symptom:** Segments column is empty in output CSV
+
+**Possible Causes:**
+- No records in REPORT_INSTANCE_SEGMENT table for this report instance
+- All segments filtered out by query conditions
+
+**Investigation:**
+```sql
+-- Check if segments exist
+SELECT COUNT(*)
+FROM REPORT_INSTANCE_SEGMENT
+WHERE REPORT_SPECIES_ID = [id]
+  AND AS_OF_TIMESTAMP >= '2023-01-01';
+```
+
+---
+
+#### 8. Year Filtering Not Working
+
+**Symptom:** Too many or too few records returned
+
+**Solutions:**
+- Verify --start-year is correct (inclusive)
+- Remember --end-year is EXCLUSIVE (use 2025 to include 2024)
+- Check AS_OF_TIMESTAMP values in database
+
+**Test Query:**
+```sql
+-- Check timestamp distribution
+SELECT YEAR(AS_OF_TIMESTAMP) as Year, COUNT(*) as Count
+FROM REPORT_INSTANCE
+WHERE REPORT_SPECIES_ID = 1
+GROUP BY YEAR(AS_OF_TIMESTAMP)
+ORDER BY Year;
+```
+
+---
+
+## Architecture
+
+### Module Structure
+
+```
+extract_instances_sections.py
+│
+├─ Imports
+│  ├─ pymssql (SQL Server connectivity)
+│  ├─ csv (CSV file handling)
+│  ├─ argparse (Command-line parsing)
+│  ├─ logging (Logging framework)
+│  ├─ pytz (Timezone conversion)
+│  └─ re (Regex for .MAP file parsing)
+│
+├─ MapFileCache Class
+│  ├─ __init__(map_dir)
+│  ├─ get_segment_name(map_filename, segment_id)
+│  └─ _load_map_file(filename)
+│
+├─ Configuration and Setup
+│  ├─ setup_logging(output_dir, quiet)
+│  └─ parse_arguments()
+│
+├─ Progress Tracking
+│  ├─ read_progress(progress_file)
+│  └─ write_progress(progress_file, report_species_id)
+│
+├─ Database Connection
+│  └─ create_connection(server, port, database, user, password, windows_auth)
+│
+├─ Report Species CSV Management
+│  ├─ load_report_species(csv_path)
+│  └─ update_in_use(csv_path, report_species_id, new_in_use_value)
+│
+├─ SQL Query Execution
+│  ├─ get_sql_query(start_year, end_year)
+│  └─ execute_query(cursor, report_species_id, start_year, end_year)
+│
+├─ CSV Output
+│  ├─ calculate_year(row, year_from_filename)
+│  ├─ convert_to_utc(timestamp, source_timezone)
+│  └─ write_output_csv(output_path, results, report_species_name,
+│                        country, year_from_filename, source_timezone, map_cache)
+│
+├─ Main Processing Loop
+│  └─ process_reports(conn, report_species_list, csv_path, output_dir,
+│                      last_processed_id, start_year, end_year,
+│                      year_from_filename, source_timezone, map_dir, quiet)
+│
+└─ Main Function
+   └─ main()
+```
+
+### Data Flow
+
+```
+Report_Species.csv ──┐
+                     │
+                     ├─→ load_report_species()
+                     │
+SQL Server DB ───────┼─→ create_connection()
+                     │
+.MAP Files ──────────┼─→ MapFileCache
+                     │
+                     ├─→ process_reports()
+                     │   │
+                     │   ├─→ execute_query()
+                     │   │   │
+                     │   │   └─→ SQL Query with JOINs
+                     │   │       ├─ REPORT_INSTANCE
+                     │   │       ├─ RPTFILE_INSTANCE
+                     │   │       ├─ RPTFILE
+                     │   │       ├─ REPORT_INSTANCE_SEGMENT
+                     │   │       ├─ SECTION
+                     │   │       ├─ SST_STORAGE
+                     │   │       └─ MAPFILE
+                     │   │
+                     │   ├─→ write_output_csv()
+                     │   │   │
+                     │   │   ├─→ calculate_year()
+                     │   │   ├─→ convert_to_utc()
+                     │   │   └─→ MapFileCache.get_segment_name()
+                     │   │
+                     │   └─→ update_in_use() [if no results]
+                     │
+                     └─→ Output CSV Files
+                         progress.txt
+                         Extract_Instances.log
+```
+
+### Key Design Patterns
+
+#### 1. Lazy Loading (MapFileCache)
+```python
+# Files loaded only when first accessed
+if map_filename not in self.cache:
+    self._load_map_file(map_filename)
+```
+
+#### 2. Caching Strategy
+```python
+# Store both ID formats for flexible lookup
+segment_map[str(int(seg_id))] = name  # '04' → '4'
+segment_map[seg_id] = name             # Keep '04'
+```
+
+#### 3. Progress Checkpoint Pattern
+```python
+# After each report, save progress
+for report in reports:
+    process(report)
+    write_progress(report_id)  # Safe interruption point
+```
+
+#### 4. Graceful Error Handling
+```python
+try:
+    process_report()
+except Exception as e:
+    log.error(f'Error: {e}')
+    continue  # Process next report
+```
+
+---
+
+## Logging
+
+### Log Files
+
+**Location:** `{output_dir}/Extract_Instances.log`
+
+**Format:**
+```
+2024-01-30 14:23:15 - INFO - Processing Report_Species_Id: 1, Name: Daily_Sales
+2024-01-30 14:23:16 - DEBUG - Executing query for Report_Species_Id: 1
+2024-01-30 14:23:17 - DEBUG - Query returned 145 rows
+2024-01-30 14:23:18 - INFO - Wrote 145 rows to Daily_Sales_2023.csv
+```
+
+### Log Levels
+
+#### DEBUG
+- SQL query execution details
+- Row counts from queries
+- Map file loading details
+- Progress file updates
+
+#### INFO
+- Processing start/completion
+- Report processing status
+- File write operations
+- Connection status
+
+#### WARNING
+- Map files not found
+- Progress file read/write failures
+- Timestamp conversion errors
+- Reports with no instances
+
+#### ERROR
+- Query execution failures
+- CSV write failures
+- Connection errors
+- Map file parse errors
+
+### Example Log Entries
+
+**Normal Processing:**
+```
+2024-01-30 14:20:00 - INFO - Connecting to SQL Server using Windows Authentication: localhost:1433, database: IntelliSTOR
+2024-01-30 14:20:01 - INFO - Database connection established successfully
+2024-01-30 14:20:01 - INFO - Loaded 150 report species from Report_Species.csv
+2024-01-30 14:20:01 - INFO - Resuming from Report_Species_Id: 0
+2024-01-30 14:20:01 - INFO - Map file directory: C:\Users\freddievr\Downloads\RPTnMAP_Files
+2024-01-30 14:20:01 - INFO - Processing 150 report species (starting after ID 0)
+2024-01-30 14:20:01 - INFO - Year filter: 2023+, YEAR column from: AS_OF_TIMESTAMP
+2024-01-30 14:20:01 - INFO - Timezone: Asia/Singapore (converting to UTC)
+2024-01-30 14:20:02 - INFO - Processing Report_Species_Id: 1, Name: Daily_Sales (1/150)
+2024-01-30 14:20:02 - DEBUG - Executing query for Report_Species_Id: 1, years: 2023-present
+2024-01-30 14:20:03 - DEBUG - Query returned 145 rows
+2024-01-30 14:20:03 - DEBUG - Loaded 12 unique segments from 260270DF.MAP
+2024-01-30 14:20:04 - DEBUG - Wrote 145 rows to Daily_Sales_2023.csv
+2024-01-30 14:20:04 - INFO - Query returned 145 instances for Daily_Sales
+2024-01-30 14:20:04 - INFO - Wrote 145 rows to Daily_Sales_2023.csv
+```
+
+**Map File Lookup:**
+```
+2024-01-30 14:25:12 - DEBUG - Loaded 8 unique segments from 260271NL.MAP
+2024-01-30 14:25:13 - DEBUG - Segment 4 not found in DB or map file 260271NL.MAP
+```
+
+**Missing Map File:**
+```
+2024-01-30 14:30:45 - WARNING - Map file not found: C:\Users\freddievr\Downloads\RPTnMAP_Files\MISSING.MAP
+```
+
+**Empty Results:**
+```
+2024-01-30 14:35:22 - WARNING - Query returned 0 instances for Old_Report (year range: 2023+), updating In_Use=0
+2024-01-30 14:35:22 - INFO - Updated In_Use=0 for Report_Species_Id 45
+```
+
+**Error Handling:**
+```
+2024-01-30 14:40:10 - ERROR - Query failed for Report_Species_Id 67: Invalid column name 'SEGMENT_NUMBER'
+2024-01-30 14:40:10 - ERROR - Error processing Report_Species_Id 67: Invalid column name 'SEGMENT_NUMBER'
+```
+
+**Final Summary:**
+```
+2024-01-30 15:45:30 - INFO - Database connection closed
+2024-01-30 15:45:30 - INFO - ========================================
+2024-01-30 15:45:30 - INFO - PROCESSING COMPLETE
+2024-01-30 15:45:30 - INFO - Total reports processed: 150
+2024-01-30 15:45:30 - INFO - Reports with instances: 142
+2024-01-30 15:45:30 - INFO - Reports with no instances (In_Use set to 0): 7
+2024-01-30 15:45:30 - INFO - Errors encountered: 1
+2024-01-30 15:45:30 - INFO - ========================================
+```
+
+---
+
+## Performance Considerations
+
+### Optimization Tips
+
+1. **Use --quiet Mode for Large Batches**
+   - Reduces console I/O overhead
+   - Better for automated scripts
+
+2. **Place .MAP Files on Fast Storage**
+   - SSD preferred for map directory
+   - Reduces disk I/O during segment lookup
+
+3. **Network Latency**
+   - Run script close to SQL Server (same network)
+   - Consider batch size for progress checkpoints
+
+4. **Database Indexes**
+   - Ensure indexes on join columns (DOMAIN_ID, REPORT_SPECIES_ID, AS_OF_TIMESTAMP)
+   - Index on REPORT_INSTANCE.AS_OF_TIMESTAMP for year filtering
+
+### Memory Usage
+
+- **Report_Species.csv**: Loaded entirely into memory
+- **.MAP Files**: Cached in memory after first access
+- **Query Results**: Processed per report (not all at once)
+
+**Estimated Memory:**
+- Base: ~50 MB
+- Per .MAP file: ~1-5 MB (depending on segment count)
+- Per report result set: ~10-50 MB (temporary)
+
+---
+
+## Security Considerations
+
+### Credentials
+
+**Best Practices:**
+1. **Use Windows Authentication when possible**
+   - Avoids storing passwords
+   - Leverages OS security
+
+2. **For SQL Server Authentication:**
+   - Use environment variables:
+     ```bash
+     set DB_USER=sa
+     set DB_PASSWORD=MyP@ssw0rd
+     python extract_instances_sections.py --server localhost --database IntelliSTOR --user %DB_USER% --password %DB_PASSWORD% --start-year 2023
+     ```
+   - Use configuration files with restricted permissions
+   - Never commit passwords to version control
+
+### File Permissions
+
+- **Output Directory**: Ensure appropriate write permissions
+- **.MAP Files**: Read-only access sufficient
+- **Report_Species.csv**: Script requires read/write (for In_Use updates)
+
+### SQL Injection Protection
+
+- Script uses parameterized queries (pymssql `%s` placeholders)
+- No user input concatenated into SQL strings
+- Safe from SQL injection attacks
+
+---
+
+## Version History
+
+### Version 2.0 (Current)
+- Added .MAP file integration for segment name lookups
+- Added MapFileCache class with intelligent caching
+- Added --map-dir command-line argument
+- Enhanced segment processing with fallback logic
+- Added "Unknown" placeholder for missing segment names
+- Updated SQL query to join SST_STORAGE and MAPFILE tables
+
+### Version 1.0
+- Initial release
+- Basic report instance extraction
+- Year filtering
+- Timezone conversion
+- Progress tracking
+- Resume capability
+
+---
+
+## Appendix
+
+### SQL Query Reference
+
+**Complete Query (Generated by get_sql_query()):**
+
+```sql
+SELECT
+    ri.REPORT_SPECIES_ID,
+    rfi.RPT_FILE_ID,
+    RTRIM(rf.FILENAME) AS FILENAME,
+    RTRIM(mf.FILENAME) AS MAP_FILENAME,
+    ri.AS_OF_TIMESTAMP,
+    STRING_AGG(
+        CONCAT(
+            CAST(ISNULL(sec.NAME, '') AS VARCHAR), '#',
+            CAST(ris.SEGMENT_NUMBER AS VARCHAR), '#',
+            CAST(ISNULL(ris.START_PAGE_NUMBER, 0) AS VARCHAR), '#',
+            CAST(ris.NUMBER_OF_PAGES AS VARCHAR)
+        ),
+        '|'
+    ) WITHIN GROUP (ORDER BY ris.SEGMENT_NUMBER ASC) AS segments
+FROM REPORT_INSTANCE ri
+LEFT JOIN RPTFILE_INSTANCE rfi
+    ON ri.DOMAIN_ID = rfi.DOMAIN_ID
+    AND ri.REPORT_SPECIES_ID = rfi.REPORT_SPECIES_ID
+    AND ri.AS_OF_TIMESTAMP = rfi.AS_OF_TIMESTAMP
+    AND ri.REPROCESS_IN_PROGRESS = rfi.REPROCESS_IN_PROGRESS
+LEFT JOIN RPTFILE rf
+    ON rfi.RPT_FILE_ID = rf.RPT_FILE_ID
+LEFT JOIN REPORT_INSTANCE_SEGMENT ris
+    ON ri.DOMAIN_ID = ris.DOMAIN_ID
+    AND ri.REPORT_SPECIES_ID = ris.REPORT_SPECIES_ID
+    AND ri.AS_OF_TIMESTAMP = ris.AS_OF_TIMESTAMP
+    AND ri.REPROCESS_IN_PROGRESS = ris.REPROCESS_IN_PROGRESS
+LEFT JOIN SECTION sec
+    ON ris.DOMAIN_ID = sec.DOMAIN_ID
+    AND ris.REPORT_SPECIES_ID = sec.REPORT_SPECIES_ID
+    AND ris.SEGMENT_NUMBER = sec.SECTION_ID
+LEFT JOIN SST_STORAGE sst
+    ON ri.DOMAIN_ID = sst.DOMAIN_ID
+    AND ri.REPORT_SPECIES_ID = sst.REPORT_SPECIES_ID
+    AND ri.AS_OF_TIMESTAMP = sst.AS_OF_TIMESTAMP
+    AND ri.REPROCESS_IN_PROGRESS = sst.REPROCESS_IN_PROGRESS
+LEFT JOIN MAPFILE mf
+    ON sst.MAP_FILE_ID = mf.MAP_FILE_ID
+WHERE ri.REPORT_SPECIES_ID = %s
+    AND ri.AS_OF_TIMESTAMP >= %s
+    AND ri.AS_OF_TIMESTAMP < %s  -- Only if --end-year specified
+GROUP BY
+    ri.REPORT_SPECIES_ID,
+    ri.AS_OF_TIMESTAMP,
+    rfi.RPT_FILE_ID,
+    rf.FILENAME,
+    mf.FILENAME
+ORDER BY ri.AS_OF_TIMESTAMP ASC
+```
+
+### Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success - no errors encountered |
+| 1 | Failure - one or more errors occurred |
+| 130 | User interrupt (Ctrl+C) |
+
+---
+
+## Support and Contact
+
+For issues, questions, or contributions related to this script:
+
+1. Check the [Troubleshooting](#troubleshooting) section
+2. Review log file (`Extract_Instances.log`) for detailed error messages
+3. Verify database schema matches requirements
+4. Ensure all prerequisites are installed
+
+---
+
+**Document Version**: 2.0
+**Last Updated**: 2024-01-30
+**Script Version**: 2.0 (with .MAP file integration)
