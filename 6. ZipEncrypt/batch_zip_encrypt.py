@@ -659,11 +659,11 @@ def process_species(
 
         # Compressed filename for CSV column (Task 2)
         if simulate_zip:
-            # In simulate mode, prefix with "SIMULATE\YYYY\name.zip"
-            compressed_filename = f"SIMULATE\\{year}\\{base_filename}.zip"
+            # In simulate mode, prefix with "\SIMULATE\YYYY\name.zip"
+            compressed_filename = f"\\SIMULATE\\{year}{base_filename}.zip"
         else:
             # Normal mode: just "\YYYY\name.zip"
-            compressed_filename = f"\\{year}\\{base_filename}.zip"
+            compressed_filename = f"\\{year}{base_filename}.zip"
         # Check if archive already exists (skip in simulate mode)
         if not simulate_zip and os.path.exists(output_7z):
             # Log to compress log (SKIPPED - already exists) - written in real-time
