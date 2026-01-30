@@ -70,6 +70,33 @@ The report loads with these defaults:
 | **Zoom** | +/- buttons | 100% | Text size (50-200%) |
 | **Report Width** | Dropdown | Auto | Column width (80/132/198/255) |
 | **Page Mode** | Dropdown | Dynamic | How to detect pages |
+| **Column Highlight** | \| button (ruler bar) | ON | Visual column indicator on hover |
+
+### Enhanced Ruler & Column Features
+
+**Column Highlighting**
+- Toggle the **\|** button in the ruler bar to enable/disable column highlighting
+- When enabled, a red translucent column appears under your mouse cursor
+- Helps align data across rows and identify exact column positions
+- Works at all zoom levels (50% - 200%)
+
+**Real-Time Position Tracking**
+- Move your mouse over the report to see live position updates
+- Top-right indicator shows: `Ln X Col Y`
+- Updates as you hover (not just on click)
+- Accurate at all zoom levels and report widths
+
+**File Type Detection**
+- **CH** badge = Channel Code format (ASA carriage control)
+- **FF** badge = Form Feed format (ASCII form feed characters)
+- Appears next to filename when file type is detected
+- Channel Code files automatically strip control characters for proper column alignment
+
+**Zoom-Aware Alignment**
+- Ruler and line numbers scale correctly at all zoom levels
+- Position 1 always aligns with first character of text
+- No misalignment at 150%, 200%, or Fit Width zoom
+- Line numbers stay fully visible (no truncation)
 
 ### Search
 

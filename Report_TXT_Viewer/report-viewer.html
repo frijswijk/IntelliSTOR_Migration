@@ -8,18 +8,98 @@
         /* ===========================
            CSS VARIABLES (THEMING)
            =========================== */
+        /* Dark theme (default) */
         :root {
             --bg-primary: #1a1a2e;
             --bg-secondary: #16213e;
             --bg-tertiary: #0f3460;
             --accent-primary: #e94560;
             --text-primary: #e0e0e0;
-            --text-secondary: #7f8c8d;
+            --text-secondary: #b8b8b8;
             --report-bg: #0a0a0a;
+            --report-text: #e0e0e0;
             --border-color: #0f3460;
             --highlight-color: #f1c40f;
+            --highlight-bg: #ffff00;
+            --highlight-text: #000;
             --zebra-color1: #1a1a2e;
             --zebra-color2: #0f3460;
+            --ruler-text: #888;
+        }
+
+        /* Light theme */
+        body.light-mode {
+            --bg-primary: #f5f5f5;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #e0e0e0;
+            --accent-primary: #d63447;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --report-bg: #ffffff;
+            --report-text: #333333;
+            --border-color: #cccccc;
+            --highlight-color: #f39c12;
+            --highlight-bg: #ffff00;
+            --highlight-text: #000;
+            --ruler-text: #666;
+        }
+
+        /* High Contrast theme - "Green Screen" terminal style */
+        body.high-contrast {
+            --bg-primary: #000000;
+            --bg-secondary: #000000;
+            --bg-tertiary: #001100;
+            --accent-primary: #00ff00;
+            --text-primary: #00ff00;
+            --text-secondary: #00ff00;
+            --report-bg: #000000;
+            --report-text: #00ff00;
+            --border-color: #00ff00;
+            --highlight-color: #00ff00;
+            --highlight-bg: #ffffff;
+            --highlight-text: #000000;
+            --ruler-text: #00ff00;
+        }
+
+        body.high-contrast .report-display {
+            font-family: 'Courier New', monospace;
+            text-shadow: 0 0 2px var(--report-text);
+        }
+
+        body.high-contrast .ruler .decade-marker {
+            color: #00ffff;
+            font-weight: bold;
+        }
+
+        body.high-contrast .search-highlight {
+            background: #ffff00;
+            color: #000000;
+            outline: 2px solid #ffffff;
+        }
+
+        /* High contrast button styling - green outline with black background */
+        body.high-contrast .upload-btn,
+        body.high-contrast .settings-btn,
+        body.high-contrast .case-sensitive-btn,
+        body.high-contrast .line-toggle,
+        body.high-contrast .line-toggle-ruler {
+            background: #000000;
+            color: #00ff00;
+            border: 2px solid #00ff00;
+        }
+
+        body.high-contrast .upload-btn:hover,
+        body.high-contrast .settings-btn:hover,
+        body.high-contrast .case-sensitive-btn:hover,
+        body.high-contrast .line-toggle:hover,
+        body.high-contrast .line-toggle-ruler:hover {
+            background: #001100;
+        }
+
+        body.high-contrast .case-sensitive-btn.active,
+        body.high-contrast .line-toggle.active,
+        body.high-contrast .line-toggle-ruler.active {
+            background: #003300;
         }
 
         /* ===========================
@@ -49,116 +129,537 @@
         }
 
         /* ===========================
-           HEADER SECTION
+           HEADER / MAIN TOOLBAR
            =========================== */
         header {
             background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
-            padding: 20px 30px;
+            padding: 12px 20px;
             border-bottom: 3px solid var(--accent-primary);
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            position: sticky;
+            top: 0;
+            z-index: 200;
         }
 
-        .header-content {
+        .toolbar {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            flex-wrap: wrap;
             gap: 15px;
         }
 
-        h1 {
-            font-size: 28px;
-            font-weight: 700;
+        .toolbar-title {
+            font-size: 18px;
+            font-weight: 600;
             color: var(--text-primary);
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            margin: 0;
+            white-space: nowrap;
         }
 
-        .file-info {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            flex-wrap: wrap;
+        .file-type-indicator {
+            font-size: 10px;
+            color: var(--bg-primary);
+            background: var(--accent-primary);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: 700;
+            margin-left: auto;
+            margin-right: 8px;
+            white-space: nowrap;
+            display: none;
+        }
+
+        .file-type-indicator.visible {
+            display: inline-block;
         }
 
         .file-name {
-            font-size: 14px;
+            font-size: 13px;
             color: var(--text-secondary);
             background: var(--bg-primary);
-            padding: 8px 15px;
-            border-radius: 6px;
+            padding: 6px 12px;
+            border-radius: 4px;
             font-weight: 500;
+            margin-left: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 200px;
         }
 
         .file-name.loaded {
-            color: var(--accent-primary);
+            color: var(--text-primary);
             font-weight: 600;
+        }
+
+        /* Light mode: ensure filename is visible */
+        body.light-mode .file-name.loaded {
+            color: #333333;
+            background: #e0e0e0;
         }
 
         .upload-btn {
             background: var(--accent-primary);
             color: white;
             border: none;
-            padding: 10px 20px;
-            border-radius: 6px;
+            padding: 8px 16px;
+            border-radius: 4px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
         }
 
         .upload-btn:hover {
             background: #d63851;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+            transform: translateY(-1px);
+            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4);
         }
 
         .upload-btn:active {
             transform: translateY(0);
         }
 
-        /* ===========================
-           CONTROL PANEL (STICKY)
-           =========================== */
-        .control-panel {
-            background: var(--bg-secondary);
-            padding: 15px 30px;
-            border-bottom: 2px solid var(--border-color);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        /* Search Container */
+        .search-container {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            background: var(--bg-primary);
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            flex: 1;
+            max-width: 400px;
         }
 
-        .control-sections {
+        .search-icon {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .search-container input {
+            background: transparent;
+            border: none;
+            color: var(--text-primary);
+            font-size: 13px;
+            padding: 4px 6px;
+            outline: none;
+            flex: 1;
+            min-width: 100px;
+        }
+
+        .match-info {
+            font-size: 11px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            display: none;
+        }
+
+        .match-info.visible {
+            display: block;
+        }
+
+        .search-nav-btn,
+        .clear-search-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 2px 6px;
+            font-size: 14px;
+            transition: color 0.2s ease;
+        }
+
+        .search-nav-btn:hover,
+        .clear-search-btn:hover {
+            color: var(--accent-primary);
+        }
+
+        .clear-search-btn {
+            font-size: 18px;
+            font-weight: bold;
+            display: none;
+        }
+
+        .clear-search-btn.visible {
+            display: block;
+        }
+
+        /* Case Sensitive Button */
+        .case-sensitive-btn {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 600;
+            font-family: monospace;
+            padding: 6px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .case-sensitive-btn:hover {
+            border-color: var(--accent-primary);
+            color: var(--text-primary);
+        }
+
+        .case-sensitive-btn.active {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+            color: white;
+        }
+
+        /* Zoom Dropdown in Toolbar */
+        .zoom-dropdown-toolbar {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+            min-width: 70px;
+        }
+
+        .zoom-dropdown-toolbar:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+
+        /* Settings Button */
+        .settings-btn {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            font-size: 18px;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .settings-btn:hover {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+        }
+
+        /* Settings Panel */
+        .settings-panel {
+            position: fixed;
+            top: 60px;
+            right: 20px;
+            width: 320px;
+            background: var(--bg-secondary);
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+            z-index: 190;
+            display: none;
+            animation: slideDown 0.2s ease;
+        }
+
+        .settings-panel.active {
+            display: block;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .settings-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            gap: 20px;
-            flex-wrap: wrap;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
         }
 
-        .control-section {
+        .settings-header h3 {
+            margin: 0;
+            font-size: 16px;
+            color: var(--text-primary);
+        }
+
+        .settings-header .close-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 20px;
+            cursor: pointer;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            line-height: 24px;
+            transition: color 0.2s ease;
+        }
+
+        .settings-header .close-btn:hover {
+            color: var(--accent-primary);
+        }
+
+        .settings-content {
+            padding: 16px;
+            max-height: calc(100vh - 140px);
+            overflow-y: auto;
+        }
+
+        .settings-section {
+            margin-bottom: 20px;
+        }
+
+        .settings-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .settings-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .settings-select {
+            width: 100%;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .theme-options,
+        .radio-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .radio-option,
+        .checkbox-option {
             display: flex;
             align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text-primary);
+            cursor: pointer;
         }
 
-        .control-label {
-            font-size: 13px;
+        .radio-option input,
+        .checkbox-option input {
+            cursor: pointer;
+        }
+
+        .zebra-colors {
+            display: flex;
+            gap: 12px;
+            margin-top: 8px;
+            padding-left: 24px;
+            align-items: center;
+        }
+
+        .zebra-colors label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
             color: var(--text-secondary);
-            font-weight: 500;
+        }
+
+        .reset-colors-btn {
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .reset-colors-btn:hover {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+            color: white;
+        }
+
+        .tool-btn {
+            display: block;
+            width: 100%;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            padding: 10px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            text-align: left;
+            margin-bottom: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .tool-btn:last-child {
+            margin-bottom: 0;
+        }
+
+        .tool-btn:hover {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+            color: white;
+        }
+
+        /* ===========================
+           ENHANCED RULER BAR
+           =========================== */
+        .ruler-bar {
+            background: var(--bg-secondary);
+            padding: 0;
+            border-bottom: 1px solid var(--border-color);
+            position: fixed;
+            top: 60px;
+            left: 0;
+            right: 0;
+            z-index: 150;
+            display: flex;
+            align-items: flex-end;
+            min-height: 50px;
+        }
+
+        body.maximized header,
+        body.maximized footer {
+            display: none;
+        }
+
+        body.maximized .ruler-bar {
+            top: 0;
+        }
+
+        body.maximized .report-container {
+            padding-top: 80px;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        body.maximized .report-display {
+            border-radius: 0;
+            border: none;
+        }
+
+        body.maximized .ruler {
+            top: 42px;
+        }
+
+        .ruler-content {
+            position: relative;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: var(--report-font-size, 11px);
+            padding: 4px 20px 0 30px;
+            white-space: nowrap;
+            transform-origin: left top;
+            flex: 1;
+            line-height: 1.4;
+        }
+
+        .ruler-numbers {
+            color: var(--accent-primary);
+            font-weight: bold;
+            white-space: pre;
+        }
+
+        .ruler-ticks {
+            color: var(--text-secondary);
+            white-space: pre;
+        }
+
+        /* Column highlight toggle button - positioned left of line toggle */
+        .column-toggle-ruler {
+            margin: 0 4px 4px 10px;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+            padding: 2px 6px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+            align-self: flex-end;
+        }
+
+        .column-toggle-ruler:hover,
+        .column-toggle-ruler.active {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+            color: white;
+        }
+
+        /* Line toggle button - positioned left of ruler ticks */
+        .line-toggle-ruler {
+            margin: 0 8px 4px 0;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+            padding: 2px 6px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+            align-self: flex-end;
+        }
+
+        /* Cursor position indicator - positioned on right side of ruler */
+        .ruler-cursor-position {
+            margin: 0 20px 4px 8px;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            padding: 2px 10px;
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: bold;
+            white-space: nowrap;
+            border: 1px solid var(--border-color);
+            flex-shrink: 0;
+            align-self: flex-end;
+        }
+
+        .line-toggle-ruler:hover,
+        .line-toggle-ruler.active {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+            color: white;
+        }
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .width-dropdown:focus {
+            outline: none;
+            border-color: var(--accent-primary);
         }
 
         .btn {
             background: var(--bg-tertiary);
             color: var(--text-primary);
             border: 1px solid var(--border-color);
-            padding: 8px 16px;
+            padding: 6px 12px;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 13px;
+            font-size: 12px;
             transition: all 0.2s ease;
         }
 
@@ -200,9 +701,9 @@
             background: var(--bg-primary);
             color: var(--text-primary);
             border: 1px solid var(--border-color);
-            padding: 8px 12px;
+            padding: 6px 10px;
             border-radius: 4px;
-            font-size: 13px;
+            font-size: 12px;
             outline: none;
         }
 
@@ -214,8 +715,8 @@
         }
 
         input[type="color"] {
-            width: 40px;
-            height: 32px;
+            width: 36px;
+            height: 28px;
             border: 1px solid var(--border-color);
             border-radius: 4px;
             cursor: pointer;
@@ -223,14 +724,14 @@
         }
 
         .search-box {
-            width: 300px;
+            width: 250px;
         }
 
         .toggle-switch {
             position: relative;
             display: inline-block;
-            width: 50px;
-            height: 24px;
+            width: 44px;
+            height: 22px;
         }
 
         .toggle-switch input {
@@ -275,8 +776,8 @@
            REPORT DISPLAY AREA
            =========================== */
         .report-container {
-            padding: 20px 30px;
-            min-height: calc(100vh - 300px);
+            padding: 68px 30px 20px;
+            min-height: calc(100vh - 250px);
         }
 
         .report-display {
@@ -285,86 +786,90 @@
             white-space: pre;
             overflow-x: auto;
             background: var(--report-bg);
+            color: var(--report-text);
             padding: 0;
             border-radius: 8px;
             border: 1px solid var(--border-color);
+            border-left: 35px solid var(--bg-secondary);
             position: relative;
+            user-select: text;
+            cursor: text;
         }
 
-        .report-display.light-mode {
-            background: #ffffff;
-            color: #000000;
-        }
-
-        .report-display.light-mode .report-line {
-            color: #000000;
-        }
-
-        .report-display.light-mode .ruler {
-            background: #f0f0f0;
-            color: #333333;
-        }
-
-        .report-display.light-mode .ruler-numbers {
-            color: #e94560;
-        }
-
-        .report-display.light-mode .ruler-ticks {
-            color: #666666;
-        }
-
-        .report-display.light-mode .cursor-position {
-            background: #e94560;
+        /* Custom text selection colors */
+        .report-display ::selection {
+            background: #4a9eff;
             color: #ffffff;
         }
 
+        .report-display ::-moz-selection {
+            background: #4a9eff;
+            color: #ffffff;
+        }
+
+        /* Light mode selection */
+        body.light-mode .report-display ::selection {
+            background: #0066cc;
+            color: #ffffff;
+        }
+
+        body.light-mode .report-display ::-moz-selection {
+            background: #0066cc;
+            color: #ffffff;
+        }
+
+        /* High contrast selection */
+        body.high-contrast .report-display ::selection {
+            background: #00ff00;
+            color: #000000;
+        }
+
+        body.high-contrast .report-display ::-moz-selection {
+            background: #00ff00;
+            color: #000000;
+        }
+
+        /* Light mode styles moved to theme variables
+           Old .report-display.light-mode styles removed */
+
         .report-content {
-            padding-left: 0;
-            transition: padding-left 0.2s ease;
+            padding: 20px 20px 20px 7px;
+            position: relative;
+            user-select: text;
+            overflow: visible;
         }
 
-        .report-display.light-mode .page-label {
-            background: #f0f0f0;
-            color: #e94560;
-            border: 1px solid #cccccc;
-        }
-
-        .report-display.light-mode .separator-line {
-            border-top-color: #e94560;
-            opacity: 0.3;
-        }
-
-        .report-display.light-mode .zebra-even {
+        /* Light mode zebra defaults */
+        body.light-mode .zebra-even {
             background-color: #f5f5f5;
         }
 
-        .report-display.light-mode .zebra-odd {
+        body.light-mode .zebra-odd {
             background-color: #ffffff;
         }
 
-        .report-display.light-mode .line-number {
-            color: #666666;
-            border-right-color: #cccccc;
-        }
-
         .ruler {
+            position: fixed;
+            top: 105px;
+            left: 0;
+            right: 0;
+            width: 100%;
+            z-index: 10;
             font-family: 'Courier New', Courier, monospace;
             font-size: var(--report-font-size, 11px);
             background: var(--bg-tertiary);
-            color: var(--text-secondary);
-            padding: 5px 20px;
+            color: var(--ruler-text);
+            padding: 14px 56px 3px;
             white-space: pre;
             overflow-x: hidden;
             border-bottom: 2px solid var(--accent-primary);
-            position: sticky;
-            top: 0;
-            z-index: 10;
             user-select: none;
             pointer-events: none;
             transition: padding-left 0.2s ease;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        }
+
+        .ruler > * {
+            position: relative;
         }
 
         .ruler-content {
@@ -372,16 +877,20 @@
         }
 
         .cursor-position {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
             background: var(--accent-primary);
             color: #ffffff;
             padding: 2px 10px;
             border-radius: 4px;
             font-size: 10px;
             font-weight: bold;
-            margin-left: 20px;
             white-space: nowrap;
             opacity: 0;
             transition: opacity 0.3s ease;
+            pointer-events: auto;
         }
 
         .cursor-position.visible {
@@ -389,16 +898,7 @@
         }
 
         .ruler.with-line-numbers {
-            padding-left: 101px;  /* 60px width + 10px padding + 1px border + 10px margin + 20px base padding */
-        }
-
-        .ruler-numbers {
-            color: var(--accent-primary);
-            font-weight: bold;
-        }
-
-        .ruler-ticks {
-            color: var(--text-secondary);
+            padding-left: 124px;  /* 60px width + 10px padding + 1px border + 10px margin + 20px base padding + 23px alignment adjustment */
         }
 
         .report-content {
@@ -408,34 +908,85 @@
 
         .report-page {
             white-space: pre;
+            position: relative;
+            user-select: text;
+        }
+
+        /* Watermark overlay using pseudo-element */
+        .report-page::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             background-image: var(--watermark-image, none);
             background-repeat: no-repeat;
-            background-position: var(--watermark-position, center);
+            background-position: var(--watermark-position, left top);
             background-size: var(--watermark-size, auto);
+            pointer-events: none;
+            z-index: 2;
         }
 
         .report-line {
             padding: 2px 5px;
             transition: background-color 0.2s ease;
             position: relative;
+            z-index: 0;
+            cursor: text;
+            min-height: 1.2em;
+            line-height: 1.2;
         }
 
         .line-number {
-            display: inline-block;
-            min-width: 60px;
+            position: absolute;
+            left: -4.2em;
+            width: 3.8em;
             color: var(--text-secondary);
             text-align: right;
-            padding-right: 10px;
-            border-right: 1px solid var(--border-color);
-            margin-right: 10px;
+            padding-right: 0.2em;
             user-select: none;
             font-size: 0.9em;
-            vertical-align: top;
+            cursor: default;
+            overflow: visible;
         }
 
         .line-content {
             display: inline;
             white-space: pre;
+            user-select: text;
+            cursor: text;
+        }
+
+        /* Column highlight indicator */
+        .column-highlight {
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            width: 1ch;
+            background-color: rgba(255, 0, 0, 0.1);
+            pointer-events: none;
+            z-index: 100;
+            display: none;
+        }
+
+        .column-highlight.visible {
+            display: block;
+        }
+
+        /* Cursor indicator */
+        .cursor-indicator {
+            position: absolute;
+            width: 2px;
+            height: 1.2em;
+            background-color: red;
+            pointer-events: none;
+            z-index: 5;
+            display: none;
+        }
+
+        .cursor-indicator.visible {
+            display: block;
         }
 
         .report-line.zebra-even {
@@ -451,6 +1002,8 @@
             text-align: left;
             position: relative;
             padding-left: 20px;
+            user-select: none;
+            cursor: default;
         }
 
         .page-label {
@@ -896,22 +1449,78 @@
         /* ===========================
            RESPONSIVE DESIGN
            =========================== */
+        @media (max-width: 1024px) {
+            .toolbar-title {
+                font-size: 16px;
+            }
+
+            .search-container {
+                max-width: 300px;
+            }
+        }
+
         @media (max-width: 768px) {
-            .control-sections {
-                flex-direction: column;
-                align-items: stretch;
+            .toolbar {
+                flex-wrap: wrap;
+                gap: 10px;
             }
 
-            .control-section {
-                justify-content: space-between;
+            .toolbar-title {
+                display: none;
             }
 
-            .search-box {
+            .search-container {
+                order: 3;
                 width: 100%;
+                max-width: none;
+            }
+
+            .file-name {
+                order: 2;
+                max-width: 150px;
+            }
+
+            .settings-panel {
+                right: 10px;
+                left: 10px;
+                width: auto;
+            }
+
+            .ruler-bar {
+                top: 85px;
+            }
+
+            .ruler {
+                top: 125px;
+            }
+
+            .position-indicator {
+                font-size: 11px;
+                min-width: 70px;
             }
 
             .watermark-config {
                 grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 480px) {
+            header {
+                padding: 8px 12px;
+            }
+
+            .upload-btn {
+                font-size: 12px;
+                padding: 6px 12px;
+            }
+
+            .ruler-bar {
+                padding: 6px 12px;
+                gap: 8px;
+            }
+
+            .position-indicator {
+                display: none;
             }
         }
 
@@ -981,98 +1590,131 @@
     </style>
 </head>
 <body>
-    <!-- Header -->
+    <!-- Main Toolbar (Single Row) -->
     <header>
-        <div class="header-content">
-            <h1>📄 Report/Spoolfile Viewer</h1>
-            <div class="file-info">
-                <span class="file-name" id="fileName">No file loaded</span>
-                <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
-                    📁 Open File
-                </button>
-                <input type="file" id="fileInput" accept=".txt,.TXT" style="display: none;" onchange="handleFileSelect(event)">
+        <div class="toolbar">
+            <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                📁 Open File
+            </button>
+            <input type="file" id="fileInput" accept=".txt,.TXT" style="display: none;" onchange="handleFileSelect(event)">
+
+            <h1 class="toolbar-title">📄 Report/Spoolfile Viewer</h1>
+
+            <div class="search-container">
+                <span class="search-icon">🔍</span>
+                <input type="text" id="searchBox" placeholder="Search..." onkeyup="handleSearchInput(event)">
+                <span class="match-info" id="matchInfo"></span>
+                <button class="search-nav-btn" onclick="previousSearchResult()" title="Previous match">◄</button>
+                <button class="search-nav-btn" onclick="nextSearchResult()" title="Next match">►</button>
+                <button class="clear-search-btn" id="clearSearchBtn" onclick="clearSearch()" title="Clear search">×</button>
             </div>
+
+            <button class="case-sensitive-btn" id="caseSensitiveBtn" onclick="toggleCaseSensitive()" title="Case sensitive search">Aa</button>
+
+            <select id="zoomDropdown" class="zoom-dropdown-toolbar" onchange="setZoomLevel(this.value)">
+                <option value="50">50%</option>
+                <option value="75">75%</option>
+                <option value="100">100%</option>
+                <option value="125">125%</option>
+                <option value="150">150%</option>
+                <option value="200">200%</option>
+                <option value="fit" selected>Fit Width</option>
+            </select>
+
+            <select id="widthSelect" class="zoom-dropdown-toolbar" onchange="changeWidth()">
+                <option value="auto" selected>Auto 132</option>
+                <option value="80">80</option>
+                <option value="132">132</option>
+                <option value="160">160</option>
+                <option value="198">198</option>
+                <option value="255">255</option>
+            </select>
+
+            <button class="settings-btn" onclick="toggleSettingsPanel()" title="Settings">⚙️</button>
+
+            <span class="file-type-indicator" id="fileTypeIndicator" title="File format type"></span>
+            <span class="file-name" id="fileName">No file loaded</span>
         </div>
     </header>
 
-    <!-- Control Panel -->
-    <div class="control-panel">
-        <div class="control-sections">
-            <!-- Left Section: Zebra & Page Mode -->
-            <div class="control-section">
-                <span class="control-label">Zebra:</span>
-                <label class="toggle-switch">
+    <!-- Settings Panel -->
+    <div id="settingsPanel" class="settings-panel">
+        <div class="settings-header">
+            <h3>⚙️ Settings</h3>
+            <button class="close-btn" onclick="toggleSettingsPanel()">✕</button>
+        </div>
+
+        <div class="settings-content">
+            <!-- Theme Section -->
+            <div class="settings-section">
+                <label class="settings-label">Theme</label>
+                <div class="theme-options">
+                    <label class="radio-option">
+                        <input type="radio" name="theme" value="light" onchange="setTheme('light')">
+                        <span>Light</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="theme" value="dark" checked onchange="setTheme('dark')">
+                        <span>Dark</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="theme" value="high-contrast" onchange="setTheme('high-contrast')">
+                        <span>High Contrast</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Display Section -->
+            <div class="settings-section">
+                <label class="settings-label">Display</label>
+                <label class="checkbox-option">
                     <input type="checkbox" id="zebraToggle" onchange="toggleZebra()">
-                    <span class="slider"></span>
+                    <span>Zebra striping</span>
                 </label>
-                <input type="color" id="zebraColor1" value="#1a1a2e" title="Zebra Color 1" onchange="updateZebraColors()">
-                <input type="color" id="zebraColor2" value="#0f3460" title="Zebra Color 2" onchange="updateZebraColors()">
-
-                <span class="control-label" style="margin-left: 15px;">Ruler:</span>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="rulerToggle" checked onchange="toggleRuler()">
-                    <span class="slider"></span>
-                </label>
-
-                <span class="control-label" style="margin-left: 15px;">Line #:</span>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="lineNumToggle" checked onchange="toggleLineNumbers()">
-                    <span class="slider"></span>
-                </label>
-
-                <span class="control-label" style="margin-left: 15px;">Light:</span>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="lightModeToggle" onchange="toggleLightMode()">
-                    <span class="slider"></span>
-                </label>
-
-                <span class="control-label" style="margin-left: 15px;">Page Mode:</span>
-                <select id="pageModeSelect" onchange="changePageMode()">
-                    <option value="dynamic">Dynamic</option>
-                    <option value="66">Fixed 66 Lines</option>
-                    <option value="88">Fixed 88 Lines</option>
-                </select>
-
-                <span class="control-label" style="margin-left: 15px;">Width:</span>
-                <select id="widthSelect" onchange="changeWidth()">
-                    <option value="auto" selected>Auto</option>
-                    <option value="80">80 Col</option>
-                    <option value="132">132 Col</option>
-                    <option value="198">198 Col</option>
-                    <option value="255">255 Col</option>
-                </select>
-                <span id="widthIndicator" style="font-size: 11px; color: var(--text-secondary); margin-left: 5px;"></span>
+                <div class="zebra-colors" id="zebraColorControls" style="display: none;">
+                    <label>Even <input type="color" id="zebraColor1" value="#1a1a2e" onchange="updateZebraColors()"></label>
+                    <label>Odd <input type="color" id="zebraColor2" value="#0f3460" onchange="updateZebraColors()"></label>
+                    <button class="reset-colors-btn" onclick="resetZebraColors()" title="Reset to default colors">Reset</button>
+                </div>
             </div>
 
-            <!-- Center Section: Search -->
-            <div class="control-section">
-                <input type="text" id="searchBox" class="search-box" placeholder="🔍 Search..." onkeyup="handleSearchKeyup(event)">
-                <label style="font-size: 12px;">
-                    <input type="checkbox" id="caseSensitive"> Case Sensitive
-                </label>
-                <button class="btn btn-small" onclick="performSearch()">Search</button>
-                <button class="btn btn-small" onclick="clearSearch()">Clear</button>
-                <span id="searchResults" style="font-size: 12px; color: var(--text-secondary);"></span>
-                <button class="btn btn-small" onclick="previousSearchResult()">◀</button>
-                <button class="btn btn-small" onclick="nextSearchResult()">▶</button>
+            <!-- Page Mode Section -->
+            <div class="settings-section">
+                <label class="settings-label">Page Mode</label>
+                <div class="radio-group">
+                    <label class="radio-option">
+                        <input type="radio" name="pageMode" value="dynamic" checked onchange="changePageMode()">
+                        <span>Dynamic</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="pageMode" value="66" onchange="changePageMode()">
+                        <span>Fixed 66</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="pageMode" value="88" onchange="changePageMode()">
+                        <span>Fixed 88</span>
+                    </label>
+                </div>
             </div>
 
-            <!-- Right Section: Navigation & Actions -->
-            <div class="control-section">
-                <span class="control-label">Zoom:</span>
-                <button class="btn btn-small" onclick="zoomOut()">-</button>
-                <span id="zoomLevel" style="min-width: 50px; text-align: center; font-size: 12px;">100%</span>
-                <button class="btn btn-small" onclick="zoomIn()">+</button>
-                <button class="btn btn-small" onclick="resetZoom()">Reset</button>
-
-                <span class="control-label" style="margin-left: 20px;">Jump to Page:</span>
-                <input type="number" id="pageJump" min="1" style="width: 80px;" onkeyup="handlePageJumpKeyup(event)">
-                <button class="btn btn-small" onclick="jumpToPage()">Go</button>
-                <button class="btn" onclick="openWatermarkModal()">💧 Watermark</button>
-                <button class="btn" onclick="openRangesModal()" id="rangesBtn">📑 Ranges</button>
-                <button class="btn" onclick="exportToPDF()">📥 Export PDF</button>
+            <!-- Tools Section -->
+            <div class="settings-section">
+                <label class="settings-label">Tools</label>
+                <button class="tool-btn" onclick="openWatermarkModal(); toggleSettingsPanel();">🎨 Watermark...</button>
+                <button class="tool-btn" onclick="openRangesModal(); toggleSettingsPanel();" id="rangesBtn">📊 Ranges...</button>
+                <button class="tool-btn" onclick="exportToPDF(); toggleSettingsPanel();">📄 Export PDF</button>
             </div>
         </div>
+    </div>
+
+    <!-- Enhanced Ruler Bar -->
+    <div class="ruler-bar">
+        <button class="column-toggle-ruler active" id="columnToggleBtn" onclick="toggleColumnHighlight()" title="Toggle column highlight">|</button>
+        <button class="line-toggle-ruler" id="lineToggleBtn" onclick="toggleLineNumbers()" title="Toggle line numbers">#</button>
+        <div class="ruler-content" id="stickyRulerContent">
+            <!-- Ruler content will be generated here -->
+        </div>
+        <div class="ruler-cursor-position" id="rulerCursorPosition">Ln 1 Col 1</div>
     </div>
 
     <!-- Report Display -->
@@ -1086,6 +1728,9 @@
         </div>
     </div>
 
+    <!-- Column highlight indicator -->
+    <div id="columnHighlight" class="column-highlight"></div>
+
     <!-- Footer -->
     <footer>
         <div class="footer-info">
@@ -1094,7 +1739,7 @@
             <span><strong>File Size:</strong> <span id="fileSize">-</span></span>
         </div>
         <div class="footer-info">
-            <span>Keyboard: Ctrl+O (Open) | Ctrl+F (Search) | Ctrl+G (Jump) | Ctrl+E (Export) | Ctrl+/- (Zoom) | F3 (Next)</span>
+            <span>Keyboard: Ctrl+O (Open) | Ctrl+F (Search) | Ctrl+G (Jump) | Ctrl+E (Export) | Ctrl+/- (Zoom) | F3 (Next) | Ctrl+M/F11 (Maximize)</span>
         </div>
     </footer>
 
@@ -1242,15 +1887,17 @@
             pages: [],
             fileName: '',
             fileSize: 0,
+            fileType: 'Plain', // 'Channel', 'FormFeed', or 'Plain'
 
             // View settings
             zebraEnabled: false,
             zebraColor1: '#1a1a2e',
             zebraColor2: '#0f3460',
-            zoomLevel: 100,
-            showRuler: true,
+            zoomLevel: 'fit',
             showLineNumbers: true,
-            lightMode: false,
+            showRuler: true, // Always true in new design
+            columnHighlightEnabled: true, // Column highlight on hover
+            theme: 'dark',
 
             // Page settings
             pageLengthMode: 'dynamic',
@@ -1265,6 +1912,7 @@
             searchTerm: '',
             searchResults: [],
             currentSearchIndex: -1,
+            searchDebounceTimer: null,
 
             // Watermark
             watermark: {
@@ -1278,7 +1926,8 @@
             },
 
             // UI state
-            currentPage: 1
+            currentPage: 1,
+            settingsPanelOpen: false
         };
 
         // ===========================
@@ -1293,14 +1942,8 @@
         });
 
         function setupRulerSync() {
-            // Sync ruler horizontal scroll with report display
-            const reportDisplay = document.getElementById('reportDisplay');
-            reportDisplay.addEventListener('scroll', function() {
-                const ruler = reportDisplay.querySelector('.ruler');
-                if (ruler) {
-                    ruler.scrollLeft = reportDisplay.scrollLeft;
-                }
-            });
+            // Ruler stays fixed at top - content scrolls underneath
+            // No scroll sync needed
         }
 
         // Load saved settings from localStorage
@@ -1312,10 +1955,19 @@
                     if (settings.zebraColor1) AppState.zebraColor1 = settings.zebraColor1;
                     if (settings.zebraColor2) AppState.zebraColor2 = settings.zebraColor2;
                     if (settings.zebraEnabled !== undefined) AppState.zebraEnabled = settings.zebraEnabled;
+                    if (settings.theme) AppState.theme = settings.theme;
 
                     document.getElementById('zebraColor1').value = AppState.zebraColor1;
                     document.getElementById('zebraColor2').value = AppState.zebraColor2;
                     document.getElementById('zebraToggle').checked = AppState.zebraEnabled;
+
+                    // Apply theme
+                    setTheme(AppState.theme);
+
+                    // Show/hide zebra colors
+                    if (AppState.zebraEnabled) {
+                        document.getElementById('zebraColorControls').style.display = 'flex';
+                    }
 
                     applyZebraColors();
                 } catch (e) {
@@ -1329,9 +1981,248 @@
             const settings = {
                 zebraColor1: AppState.zebraColor1,
                 zebraColor2: AppState.zebraColor2,
-                zebraEnabled: AppState.zebraEnabled
+                zebraEnabled: AppState.zebraEnabled,
+                theme: AppState.theme
             };
             localStorage.setItem('reportViewerSettings', JSON.stringify(settings));
+        }
+
+        // ===========================
+        // UI CONTROLS
+        // ===========================
+
+        // Toggle Settings Panel
+        function toggleSettingsPanel() {
+            const panel = document.getElementById('settingsPanel');
+            AppState.settingsPanelOpen = !AppState.settingsPanelOpen;
+
+            if (AppState.settingsPanelOpen) {
+                panel.classList.add('active');
+            } else {
+                panel.classList.remove('active');
+            }
+        }
+
+        // Close settings panel when clicking outside
+        document.addEventListener('click', function(event) {
+            const panel = document.getElementById('settingsPanel');
+            const settingsBtn = document.querySelector('.settings-btn');
+
+            if (AppState.settingsPanelOpen &&
+                !panel.contains(event.target) &&
+                !settingsBtn.contains(event.target)) {
+                toggleSettingsPanel();
+            }
+        });
+
+        // Set Theme
+        function setTheme(theme) {
+            AppState.theme = theme;
+
+            // Remove all theme classes
+            document.body.classList.remove('light-mode', 'high-contrast');
+
+            // Apply theme
+            if (theme === 'light') {
+                document.body.classList.add('light-mode');
+            } else if (theme === 'high-contrast') {
+                document.body.classList.add('high-contrast');
+            }
+
+            // Update radio buttons
+            document.querySelectorAll('input[name="theme"]').forEach(radio => {
+                radio.checked = (radio.value === theme);
+            });
+
+            saveSettings();
+        }
+
+        // Set Zoom Level
+        function setZoomLevel(value) {
+            if (value === 'fit') {
+                // Fit to width logic - calculate zoom to fit report width to viewport
+                const reportDisplay = document.getElementById('reportDisplay');
+                if (reportDisplay && AppState.detectedWidth > 0) {
+                    const viewportWidth = reportDisplay.clientWidth;
+                    const charWidth = 6.6; // Approximate width of a character at 11px (100% zoom)
+                    const contentPadding = 40; // Left + right padding
+                    const lineNumberWidth = AppState.showLineNumbers ? 81 : 0;
+
+                    // Calculate required width for the report
+                    const requiredWidth = (AppState.detectedWidth * charWidth) + contentPadding + lineNumberWidth;
+
+                    // Calculate zoom percentage
+                    let fitZoom = Math.floor((viewportWidth / requiredWidth) * 100);
+
+                    // Clamp between 50% and 200%
+                    fitZoom = Math.max(50, Math.min(200, fitZoom));
+
+                    AppState.zoomLevel = fitZoom;
+
+                    // Calculate font size
+                    const fontSize = Math.round(11 * (fitZoom / 100)) + 'px';
+                    document.documentElement.style.setProperty('--report-font-size', fontSize);
+
+                    showToast(`Zoom set to ${fitZoom}% (Fit Width)`, 'success');
+                } else {
+                    AppState.zoomLevel = 100;
+                    document.documentElement.style.setProperty('--report-font-size', '11px');
+                }
+            } else {
+                AppState.zoomLevel = parseInt(value);
+
+                const fontSizeMap = {
+                    50: '5.5px',
+                    75: '8px',
+                    100: '11px',
+                    125: '14px',
+                    150: '16px',
+                    200: '22px'
+                };
+
+                const fontSize = fontSizeMap[AppState.zoomLevel] || '11px';
+                document.documentElement.style.setProperty('--report-font-size', fontSize);
+            }
+
+            // Ruler now uses variable font-size, so no scaleX needed
+            // Just ensure padding stays consistent (CSS handles it)
+
+            // Update dropdown
+            document.getElementById('zoomDropdown').value = value;
+        }
+
+        // Handle Search Input with Debouncing
+        function handleSearchInput(event) {
+            const searchBox = document.getElementById('searchBox');
+            const clearBtn = document.getElementById('clearSearchBtn');
+
+            // Handle Escape key
+            if (event.key === 'Escape') {
+                clearSearch();
+                return;
+            }
+
+            // Show/hide clear button
+            if (searchBox.value.length > 0) {
+                clearBtn.classList.add('visible');
+            } else {
+                clearBtn.classList.remove('visible');
+            }
+
+            // Debounce search
+            if (AppState.searchDebounceTimer) {
+                clearTimeout(AppState.searchDebounceTimer);
+            }
+
+            AppState.searchDebounceTimer = setTimeout(() => {
+                if (event.key === 'Enter') {
+                    performSearch();
+                } else if (searchBox.value.length >= 2) {
+                    performSearch();
+                }
+            }, 300);
+        }
+
+        // Update search results display
+        function updateSearchDisplay() {
+            const matchInfo = document.getElementById('matchInfo');
+
+            if (AppState.searchResults.length > 0) {
+                const currentIndex = AppState.currentSearchIndex + 1;
+                matchInfo.textContent = `${currentIndex}/${AppState.searchResults.length}`;
+                matchInfo.classList.add('visible');
+            } else if (AppState.searchTerm && AppState.searchResults.length === 0) {
+                matchInfo.textContent = '0/0';
+                matchInfo.classList.add('visible');
+            } else {
+                matchInfo.classList.remove('visible');
+            }
+        }
+
+        // Updated Toggle Zebra to show/hide color controls
+        function toggleZebra() {
+            AppState.zebraEnabled = document.getElementById('zebraToggle').checked;
+            const colorControls = document.getElementById('zebraColorControls');
+
+            if (AppState.zebraEnabled) {
+                colorControls.style.display = 'flex';
+            } else {
+                colorControls.style.display = 'none';
+            }
+
+            applyZebraColors();
+            saveSettings();
+        }
+
+        // Updated Change Page Mode for radio buttons
+        function changePageMode() {
+            const selectedMode = document.querySelector('input[name="pageMode"]:checked').value;
+
+            if (selectedMode === 'dynamic') {
+                AppState.pageLengthMode = 'dynamic';
+            } else {
+                AppState.pageLengthMode = parseInt(selectedMode);
+                AppState.fixedPageLength = parseInt(selectedMode);
+            }
+
+            if (AppState.lines.length > 0) {
+                detectPages();
+                renderReport();
+            }
+        }
+
+        // Updated Toggle Line Numbers
+        function toggleLineNumbers() {
+            AppState.showLineNumbers = !AppState.showLineNumbers;
+            const toggleBtn = document.getElementById('lineToggleBtn');
+
+            if (AppState.showLineNumbers) {
+                toggleBtn.classList.add('active');
+            } else {
+                toggleBtn.classList.remove('active');
+            }
+
+            renderReport();
+        }
+
+        // Toggle Column Highlight
+        function toggleColumnHighlight() {
+            AppState.columnHighlightEnabled = !AppState.columnHighlightEnabled;
+            const toggleBtn = document.getElementById('columnToggleBtn');
+
+            if (AppState.columnHighlightEnabled) {
+                toggleBtn.classList.add('active');
+            } else {
+                toggleBtn.classList.remove('active');
+                // Hide the highlight when disabled
+                const columnHighlight = document.getElementById('columnHighlight');
+                if (columnHighlight) {
+                    columnHighlight.classList.remove('visible');
+                }
+            }
+        }
+
+        // Update Position Indicator
+        function updatePositionIndicator(line, col) {
+            const indicator = document.getElementById('positionIndicator');
+            indicator.textContent = `Ln ${line} Col ${col}`;
+        }
+
+        // Toggle Case Sensitive Search
+        function toggleCaseSensitive() {
+            const btn = document.getElementById('caseSensitiveBtn');
+            const isActive = btn.classList.toggle('active');
+
+            // If search is already active, re-run it with new case sensitivity
+            if (AppState.searchTerm && AppState.lines.length > 0) {
+                performSearch();
+            }
+        }
+
+        // Check if case sensitive is active
+        function isCaseSensitive() {
+            const btn = document.getElementById('caseSensitiveBtn');
+            return btn && btn.classList.contains('active');
         }
 
         // ===========================
@@ -1380,6 +2271,11 @@
                             setTimeout(() => {
                                 renderReport();
                                 updateFileInfo();
+
+                                // Apply Fit Width zoom by default
+                                setZoomLevel('fit');
+                                document.getElementById('zoomDropdown').value = 'fit';
+
                                 updateProgress(100, 'Complete!');
 
                                 setTimeout(() => {
@@ -1412,19 +2308,37 @@
             AppState.lines = [];
             let currentPage = 1;
 
+            // First check if file contains FormFeed characters (ASCII 12 or \f)
+            // If it does, it's an ASCII report with FormFeeds, not ASA carriage control
+            const hasFormFeeds = AppState.rawContent.includes('\f') ||
+                                 /\x0C/.test(AppState.rawContent);
+
             // Detect if file uses ASA carriage control (first char of every line is control)
-            // Check first non-empty line
+            // Only check for ASA format if there are NO FormFeed characters
             let usesASACarriageControl = false;
-            for (let i = 0; i < Math.min(5, lines.length); i++) {
-                const firstChar = lines[i].charAt(0);
-                if (lines[i].length > 0 && (firstChar === '1' || firstChar === '0' || firstChar === '-' || firstChar === ' ')) {
-                    // Check if second character is space (typical of ASA format)
-                    if (lines[i].charAt(1) === ' ' || firstChar === '1') {
-                        usesASACarriageControl = true;
-                        break;
+            if (!hasFormFeeds) {
+                // Check first non-comment, non-empty lines
+                let asaIndicatorCount = 0;
+                let checkedLines = 0;
+                for (let i = 0; i < Math.min(20, lines.length) && checkedLines < 10; i++) {
+                    // Skip JES2 comments and empty lines
+                    if (lines[i].startsWith('*$') || lines[i].length === 0) continue;
+
+                    checkedLines++;
+                    const firstChar = lines[i].charAt(0);
+                    // ASA control characters: 1 (new page), 0 (double space), - (single space), space (normal), + (overprint)
+                    if (firstChar === '1' || firstChar === '0' || firstChar === '-' || firstChar === ' ' || firstChar === '+') {
+                        asaIndicatorCount++;
                     }
                 }
+                // If more than 70% of checked lines have ASA control characters, assume ASA format
+                if (checkedLines > 0 && asaIndicatorCount / checkedLines > 0.7) {
+                    usesASACarriageControl = true;
+                }
             }
+
+            // Store file type in AppState
+            AppState.fileType = hasFormFeeds ? 'FormFeed' : (usesASACarriageControl ? 'Channel' : 'Plain');
 
             lines.forEach((rawLine, index) => {
                 // Skip JES2 spool commands (lines starting with *$)
@@ -1460,12 +2374,21 @@
                     isPageBreak = true;
                 } else if (usesASACarriageControl) {
                     // ASA carriage control format - first char is always control
+                    // Strip control char and the space that typically follows it
                     if (controlChar === '1') {
+                        // Strip control char, and also strip following space if present
                         displayText = rawLine.substring(1);
+                        if (displayText.charAt(0) === ' ') {
+                            displayText = displayText.substring(1);
+                        }
                         isPageBreak = true;
                     } else if (controlChar === '0' || controlChar === '-' || controlChar === ' ' || controlChar === '+') {
                         // Other carriage control chars (0=double space, -=single space, +=overprint, space=normal)
+                        // Strip control char, and also strip following space if present
                         displayText = rawLine.substring(1);
+                        if (displayText.charAt(0) === ' ') {
+                            displayText = displayText.substring(1);
+                        }
                     }
                 } else {
                     // No carriage control - keep line as-is unless it's a form feed
@@ -1578,16 +2501,8 @@
                 pagesToDisplay = filterPagesByRanges();
             }
 
-            // Build ruler
-            const ruler = buildRuler();
-
             // Build report content efficiently
-            let html = '';
-            if (AppState.showRuler) {
-                const rulerClass = AppState.showLineNumbers ? 'ruler with-line-numbers' : 'ruler';
-                html += '<div class="' + rulerClass + '">' + ruler + '</div>';
-            }
-            html += '<div class="report-content">';
+            let html = '<div class="report-content">';
 
             pagesToDisplay.forEach((page, pageIndex) => {
                 // Add page separator
@@ -1619,16 +2534,26 @@
             html += '</div>';
             display.innerHTML = html;
 
-            // Apply watermark if enabled
+            // Apply watermark if enabled (use setTimeout to ensure DOM is ready)
             if (AppState.watermark.enabled && AppState.watermark.imageSrc) {
-                applyWatermarkToDisplay();
+                console.log('Scheduling watermark application in 100ms...');
+                setTimeout(() => {
+                    console.log('Timeout fired - calling applyWatermarkToDisplay');
+                    applyWatermarkToDisplay();
+                }, 100);
+            } else {
+                console.log('Watermark NOT scheduled - enabled:', AppState.watermark.enabled, 'imageSrc:', !!AppState.watermark.imageSrc);
             }
 
-            // Update page jump input
-            document.getElementById('pageJump').max = pagesToDisplay.length;
+            // Update page jump input (disabled in new design)
+            // const pageJumpEl = document.getElementById('pageJump');
+            // if (pageJumpEl) pageJumpEl.max = pagesToDisplay.length;
 
             // Update ranges button indicator
             updateRangesIndicator();
+
+            // Update sticky ruler bar
+            updateStickyRuler();
         }
 
         function buildRuler() {
@@ -1702,13 +2627,32 @@
                 }
             }
 
-            return `<div class="ruler-content"><div class="ruler-numbers">${numberLine}</div><div class="ruler-ticks">${ticks}</div></div><div class="cursor-position" id="cursorPosition">Row 1 Col 1</div>`;
+            return `<div class="ruler-numbers">${numberLine}</div><div class="ruler-ticks">${ticks}</div>`;
         }
 
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        function updateStickyRuler() {
+            const stickyRulerContent = document.getElementById('stickyRulerContent');
+            const lineToggleBtn = document.getElementById('lineToggleBtn');
+
+            if (stickyRulerContent) {
+                const rulerHTML = buildRuler();
+                stickyRulerContent.innerHTML = rulerHTML;
+            }
+
+            // Update line toggle button state
+            if (lineToggleBtn) {
+                if (AppState.showLineNumbers) {
+                    lineToggleBtn.classList.add('active');
+                } else {
+                    lineToggleBtn.classList.remove('active');
+                }
+            }
         }
 
         function updateFileInfo() {
@@ -1718,6 +2662,16 @@
             document.getElementById('totalLines').textContent = AppState.lines.length;
             document.getElementById('fileSize').textContent = formatFileSize(AppState.fileSize);
             document.getElementById('currentPage').textContent = '1';
+
+            // Update file type indicator
+            const fileTypeIndicator = document.getElementById('fileTypeIndicator');
+            if (AppState.fileType && AppState.fileType !== 'Plain') {
+                fileTypeIndicator.textContent = AppState.fileType === 'Channel' ? 'CH' : 'FF';
+                fileTypeIndicator.title = AppState.fileType === 'Channel' ? 'Channel Code Format' : 'Form Feed Format';
+                fileTypeIndicator.classList.add('visible');
+            } else {
+                fileTypeIndicator.classList.remove('visible');
+            }
         }
 
         function formatFileSize(bytes) {
@@ -1731,11 +2685,7 @@
         // ===========================
         // ZEBRA STRIPING
         // ===========================
-        function toggleZebra() {
-            AppState.zebraEnabled = document.getElementById('zebraToggle').checked;
-            applyZebraPattern();
-            saveSettings();
-        }
+        // Old toggleZebra function removed - using updated version that shows/hides color controls
 
         function updateZebraColors() {
             AppState.zebraColor1 = document.getElementById('zebraColor1').value;
@@ -1774,71 +2724,41 @@
         }
 
         // ===========================
-        // PAGE MODE
+        // MAXIMIZE/MINIMIZE VIEW
         // ===========================
-        function changePageMode() {
-            const mode = document.getElementById('pageModeSelect').value;
-            AppState.pageLengthMode = mode;
+        function toggleMaximize() {
+            const body = document.body;
+            const maximizeIcon = document.getElementById('maximizeIcon');
+            const reportDisplay = document.getElementById('reportDisplay');
 
-            if (mode === '66') {
-                AppState.fixedPageLength = 66;
-            } else if (mode === '88') {
-                AppState.fixedPageLength = 88;
-            }
-
-            if (AppState.lines.length > 0) {
-                showProgress('Recalculating pages...', 50);
-                setTimeout(() => {
-                    detectPages();
-                    renderReport();
-                    hideProgress();
-                    showToast('Page mode changed', 'success');
-                }, 100);
+            if (body.classList.contains('maximized')) {
+                body.classList.remove('maximized');
+                maximizeIcon.textContent = '⛶ Maximize';
+            } else {
+                body.classList.add('maximized');
+                maximizeIcon.textContent = '⛶ Minimize';
+                // Scroll to top when maximizing to avoid empty space
+                if (reportDisplay) {
+                    reportDisplay.scrollTop = 0;
+                }
             }
         }
+
+        // ===========================
+        // PAGE MODE
+        // ===========================
+        // Old changePageMode function removed - using updated version with radio buttons
 
         // ===========================
         // VIEW TOGGLES
         // ===========================
-        function toggleRuler() {
-            AppState.showRuler = document.getElementById('rulerToggle').checked;
-            if (AppState.lines.length > 0) {
-                if (AppState.searchTerm) {
-                    renderReportWithSearch();
-                } else {
-                    renderReport();
-                }
-            }
-        }
+        // Ruler is always shown in the new design
+        // toggleRuler function removed
 
-        function toggleLineNumbers() {
-            AppState.showLineNumbers = document.getElementById('lineNumToggle').checked;
-            if (AppState.lines.length > 0) {
-                if (AppState.searchTerm) {
-                    renderReportWithSearch();
-                } else {
-                    renderReport();
-                }
-            }
-        }
+        // Old toggleLineNumbers function removed - using updated version with # button
 
-        function toggleLightMode() {
-            AppState.lightMode = document.getElementById('lightModeToggle').checked;
-            const display = document.getElementById('reportDisplay');
-            if (AppState.lightMode) {
-                display.classList.add('light-mode');
-            } else {
-                display.classList.remove('light-mode');
-            }
-            // Update watermark preview if modal is open
-            if (AppState.watermark.imageData) {
-                updateWatermarkPreview();
-            }
-            // Re-apply watermark to match new background
-            if (AppState.watermark.enabled && AppState.lines.length > 0) {
-                applyWatermarkToDisplay();
-            }
-        }
+        // Light mode replaced with setTheme() function
+        // toggleLightMode function removed
 
         function changeWidth() {
             const widthSelect = document.getElementById('widthSelect');
@@ -1847,9 +2767,13 @@
             if (value === 'auto') {
                 // Auto-detect width
                 detectReportWidth();
+                // Update dropdown text to show detected width
+                const autoOption = widthSelect.querySelector('option[value="auto"]');
+                if (autoOption) {
+                    autoOption.textContent = `Auto ${AppState.detectedWidth}`;
+                }
             } else {
                 AppState.detectedWidth = parseInt(value);
-                document.getElementById('widthIndicator').textContent = '';
             }
 
             if (AppState.lines.length > 0) {
@@ -1887,10 +2811,11 @@
 
             // Update select to show detected width if auto
             const widthSelect = document.getElementById('widthSelect');
-            if (widthSelect.value === 'auto') {
-                document.getElementById('widthIndicator').textContent = `(${AppState.detectedWidth})`;
-            } else {
-                document.getElementById('widthIndicator').textContent = '';
+            if (widthSelect && widthSelect.value === 'auto') {
+                const autoOption = widthSelect.querySelector('option[value="auto"]');
+                if (autoOption) {
+                    autoOption.textContent = `▼ Auto ${AppState.detectedWidth}`;
+                }
             }
         }
 
@@ -1908,19 +2833,17 @@
         // ===========================
         // SEARCH FUNCTIONALITY
         // ===========================
-        function handleSearchKeyup(event) {
-            if (event.key === 'Enter') {
-                performSearch();
-            } else if (event.key === 'Escape') {
-                clearSearch();
-            }
-        }
+        // handleSearchKeyup replaced with handleSearchInput (with debouncing)
+        // Old handleSearchKeyup function removed
 
         function performSearch() {
             const term = document.getElementById('searchBox').value.trim();
-            if (!term || AppState.lines.length === 0) return;
+            if (!term || AppState.lines.length === 0) {
+                updateSearchDisplay();
+                return;
+            }
 
-            const caseSensitive = document.getElementById('caseSensitive').checked;
+            const caseSensitive = isCaseSensitive();
             AppState.searchTerm = term;
             AppState.searchResults = [];
             AppState.currentSearchIndex = -1;
@@ -1949,13 +2872,11 @@
             });
 
             // Update UI
-            const resultsText = document.getElementById('searchResults');
+            updateSearchDisplay();
             if (AppState.searchResults.length > 0) {
-                resultsText.textContent = `Found ${AppState.searchResults.length} match${AppState.searchResults.length > 1 ? 'es' : ''}`;
                 renderReportWithSearch();
                 jumpToSearchResult(0);
             } else {
-                resultsText.textContent = 'No matches found';
                 showToast('No matches found', 'error');
             }
         }
@@ -1974,20 +2895,11 @@
                 pagesToDisplay = filterPagesByRanges();
             }
 
-            const caseSensitive = document.getElementById('caseSensitive').checked;
+            const caseSensitive = isCaseSensitive();
             const escapedTerm = AppState.searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const regex = new RegExp(escapedTerm, caseSensitive ? 'g' : 'gi');
-
-            // Build ruler
-            const ruler = buildRuler();
 
             // Build report content with search highlights
-            let html = '';
-            if (AppState.showRuler) {
-                const rulerClass = AppState.showLineNumbers ? 'ruler with-line-numbers' : 'ruler';
-                html += '<div class="' + rulerClass + '">' + ruler + '</div>';
-            }
-            html += '<div class="report-content">';
+            let html = '<div class="report-content">';
 
             pagesToDisplay.forEach((page, pageIndex) => {
                 // Add page separator
@@ -2008,7 +2920,9 @@
 
                     // Apply search highlighting if this line has a match
                     if (line.hasMatch && AppState.searchTerm) {
-                        lineText = lineText.replace(regex, '<mark class="search-highlight">$&</mark>');
+                        // Create new regex for each line to avoid lastIndex issues
+                        const regex = new RegExp(escapedTerm, caseSensitive ? 'g' : 'gi');
+                        lineText = lineText.replace(regex, '<span class="search-highlight">$&</span>');
                     }
 
                     const zebraClass = AppState.zebraEnabled ? (lineIndex % 2 === 0 ? 'zebra-even' : 'zebra-odd') : '';
@@ -2026,13 +2940,22 @@
             html += '</div>';
             display.innerHTML = html;
 
-            // Apply watermark if enabled
+            // Apply watermark if enabled (use setTimeout to ensure DOM is ready)
             if (AppState.watermark.enabled && AppState.watermark.imageSrc) {
-                applyWatermarkToDisplay();
+                console.log('Scheduling watermark application in 100ms...');
+                setTimeout(() => {
+                    console.log('Timeout fired - calling applyWatermarkToDisplay');
+                    applyWatermarkToDisplay();
+                }, 100);
+            } else {
+                console.log('Watermark NOT scheduled - enabled:', AppState.watermark.enabled, 'imageSrc:', !!AppState.watermark.imageSrc);
             }
 
             // Update ranges button indicator
             updateRangesIndicator();
+
+            // Update sticky ruler bar
+            updateStickyRuler();
         }
 
         function jumpToSearchResult(index) {
@@ -2055,9 +2978,8 @@
                 lineElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
 
-            // Update results text
-            document.getElementById('searchResults').textContent =
-                `Match ${index + 1} of ${AppState.searchResults.length}`;
+            // Update search display
+            updateSearchDisplay();
         }
 
         function nextSearchResult() {
@@ -2074,13 +2996,16 @@
 
         function clearSearch() {
             document.getElementById('searchBox').value = '';
-            document.getElementById('searchResults').textContent = '';
+            document.getElementById('clearSearchBtn').classList.remove('visible');
             AppState.searchTerm = '';
             AppState.searchResults = [];
             AppState.currentSearchIndex = -1;
 
             // Clear hasMatch flags
             AppState.lines.forEach(line => line.hasMatch = false);
+
+            // Update display
+            updateSearchDisplay();
 
             // Re-render without search highlights
             renderReport();
@@ -2372,7 +3297,18 @@
         }
 
         function applyWatermarkToDisplay() {
+            console.log('=== applyWatermarkToDisplay called ===');
+            console.log('Watermark enabled:', AppState.watermark.enabled);
+            console.log('Watermark imageSrc:', AppState.watermark.imageSrc ? 'exists' : 'null');
+            console.log('Watermark imageData:', AppState.watermark.imageData);
+
             if (!AppState.watermark.enabled || !AppState.watermark.imageSrc) {
+                console.log('Watermark not enabled or no image source - exiting');
+                return;
+            }
+
+            if (!AppState.watermark.imageData) {
+                console.error('Watermark imageData not loaded');
                 return;
             }
 
@@ -2380,25 +3316,39 @@
             const scale = AppState.watermark.scale / 100;
             const rotation = AppState.watermark.rotation;
 
+            console.log('Watermark settings:', { opacity, scale, rotation, position: AppState.watermark.position });
+
             // Apply to all page elements
             const pages = document.querySelectorAll('.report-page');
-            pages.forEach(pageEl => {
-                // Calculate content area dimensions
-                // Monospace font: approximate character width
-                const fontSize = parseFloat(getComputedStyle(pageEl).fontSize) || 11;
-                const charWidth = fontSize * 0.6; // Courier New ratio
-                const lineHeight = fontSize * 1.2;
 
-                // Content dimensions based on report width
-                const contentWidth = AppState.detectedWidth * charWidth;
-                const linesInPage = pageEl.querySelectorAll('.report-line').length;
-                const contentHeight = linesInPage * lineHeight;
+            console.log('Found pages:', pages.length);
 
-                // Create watermark canvas sized to content area
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                canvas.width = contentWidth;
-                canvas.height = Math.max(contentHeight, 400); // Minimum height
+            if (pages.length === 0) {
+                console.warn('No report pages found for watermark application');
+                return;
+            }
+
+            pages.forEach((pageEl, index) => {
+                try {
+                    console.log(`Processing page ${index + 1}`);
+
+                    // Use actual page element dimensions for accurate positioning
+                    const pageRect = pageEl.getBoundingClientRect();
+                    const pageWidth = pageEl.offsetWidth;
+                    const pageHeight = pageEl.offsetHeight;
+
+                    console.log(`  Page dimensions: ${pageWidth}x${pageHeight}`);
+
+                    // Count lines and calculate line-based positioning
+                    const lineElements = pageEl.querySelectorAll('.report-line');
+                    const lineCount = lineElements.length;
+                    console.log(`  Line count: ${lineCount}`);
+
+                    // Create watermark canvas sized to actual page
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = Math.max(pageWidth, 100);
+                    canvas.height = Math.max(pageHeight, 400);
 
                 // Calculate position within content area
                 const positions = {
@@ -2414,8 +3364,29 @@
                 };
 
                 const pos = positions[AppState.watermark.position] || positions['center'];
+
+                // For middle/center positions, calculate based on actual line positions
+                let yPos = pos.y;
+                if (lineCount > 0 && (AppState.watermark.position.includes('middle') || AppState.watermark.position === 'center')) {
+                    const firstLine = lineElements[0];
+                    const lastLine = lineElements[lineCount - 1];
+                    if (firstLine && lastLine) {
+                        const firstLineTop = firstLine.offsetTop;
+                        const lastLineTop = lastLine.offsetTop;
+                        const lastLineBottom = lastLineTop + lastLine.offsetHeight;
+
+                        // Middle of content is between first line top and last line bottom
+                        const contentMiddle = (firstLineTop + lastLineBottom) / 2;
+                        yPos = contentMiddle / pageHeight;
+
+                        console.log(`  Line-based center: firstLine=${firstLineTop}px, lastLine=${lastLineBottom}px, middle=${contentMiddle}px, ratio=${yPos.toFixed(3)}`);
+                    }
+                }
+
                 const x = canvas.width * pos.x;
-                const y = canvas.height * pos.y;
+                const y = canvas.height * yPos;
+
+                console.log(`  Position: ${AppState.watermark.position} at (${x}, ${y})`);
 
                 // Draw watermark
                 ctx.save();
@@ -2426,6 +3397,8 @@
                 const imgWidth = AppState.watermark.imageData.width * scale;
                 const imgHeight = AppState.watermark.imageData.height * scale;
 
+                console.log(`  Image size: ${imgWidth}x${imgHeight}`);
+
                 ctx.drawImage(
                     AppState.watermark.imageData,
                     -imgWidth / 2,
@@ -2435,12 +3408,20 @@
                 );
                 ctx.restore();
 
-                // Apply watermark to page
-                pageEl.style.backgroundImage = `url(${canvas.toDataURL()})`;
-                pageEl.style.backgroundRepeat = 'no-repeat';
-                pageEl.style.backgroundPosition = 'left top';
-                pageEl.style.backgroundSize = `${contentWidth}px ${canvas.height}px`;
+                    // Apply watermark to page using CSS custom properties
+                    const dataUrl = canvas.toDataURL();
+                    console.log(`  Data URL length: ${dataUrl.length}`);
+
+                    pageEl.style.setProperty('--watermark-image', `url(${dataUrl})`);
+                    pageEl.style.setProperty('--watermark-position', 'left top');
+                    pageEl.style.setProperty('--watermark-size', `${canvas.width}px ${canvas.height}px`);
+
+                    console.log(`  Applied to page - CSS properties set`);
+                } catch (error) {
+                    console.error('Error applying watermark to page:', error);
+                }
             });
+            console.log('=== Watermark application complete ===');
         }
 
         function updateWatermarkPreview() {
@@ -2469,11 +3450,11 @@
             canvas.height = previewHeight;
 
             // Fill background to simulate report
-            ctx.fillStyle = AppState.lightMode ? '#ffffff' : '#0a0a0a';
+            ctx.fillStyle = AppState.theme === 'light' ? '#ffffff' : (AppState.theme === 'high-contrast' ? '#000000' : '#0a0a0a');
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             // Draw sample text at readable size (don't scale down)
-            ctx.fillStyle = AppState.lightMode ? '#000000' : '#e0e0e0';
+            ctx.fillStyle = AppState.theme === 'light' ? '#000000' : (AppState.theme === 'high-contrast' ? '#00ff00' : '#e0e0e0');
             ctx.font = '9px Courier New';
             const sampleLines = [
                 'REPORT NO - SAMPLE          PREVIEW OF WATERMARK PLACEMENT',
@@ -2578,21 +3559,18 @@
                     const pageContainer = createPageElement(page);
                     document.body.appendChild(pageContainer);
 
-                    // Apply zebra striping if enabled
-                    if (AppState.zebraEnabled) {
-                        applyZebraToElement(pageContainer);
-                    }
-
-                    // Apply watermark if enabled
+                    // PDF always uses white background and black text (no zebra, no theme)
+                    // Only apply watermark if enabled
                     if (AppState.watermark.enabled && AppState.watermark.imageData) {
                         await applyWatermarkToElement(pageContainer);
                     }
 
-                    // Render to canvas
+                    // Render to canvas - always use white background for PDF
                     const canvas = await html2canvas(pageContainer, {
                         scale: 2,
-                        backgroundColor: AppState.zebraEnabled ? AppState.zebraColor1 : '#ffffff',
-                        logging: false
+                        backgroundColor: '#ffffff',
+                        logging: false,
+                        useCORS: true
                     });
 
                     // Remove temporary container
@@ -2655,6 +3633,10 @@
             // 66 lines × 13px per line (11px font + 4px padding) = 858px + 40px padding = 898px
             const fixedHeight = 898;
 
+            // For PDF, always use white background and black text (ignore theme and zebra)
+            const bgColor = '#ffffff';
+            const textColor = '#000000';
+
             container.style.cssText = `
                 position: absolute;
                 left: -9999px;
@@ -2663,19 +3645,22 @@
                 height: ${fixedHeight}px;
                 min-height: ${fixedHeight}px;
                 padding: 20px;
-                background: ${AppState.zebraEnabled ? AppState.zebraColor1 : '#ffffff'};
+                background: ${bgColor};
                 font-family: 'Courier New', Courier, monospace;
                 font-size: 11px;
                 white-space: pre;
-                color: ${AppState.zebraEnabled ? '#e0e0e0' : '#000000'};
+                color: ${textColor};
                 overflow: hidden;
             `;
 
             page.lines.forEach((line, idx) => {
                 const lineDiv = document.createElement('div');
                 lineDiv.textContent = line.displayText;
-                lineDiv.style.padding = '2px 5px';
-                lineDiv.style.lineHeight = '1.2';
+                lineDiv.style.cssText = `
+                    padding: 2px 5px;
+                    line-height: 1.2;
+                    color: ${textColor};
+                `;
                 container.appendChild(lineDiv);
             });
 
@@ -2690,12 +3675,28 @@
         }
 
         async function applyWatermarkToElement(element) {
+            // Create watermark overlay div
+            const watermarkDiv = document.createElement('div');
+            watermarkDiv.style.cssText = `
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                pointer-events: none;
+                z-index: 10;
+            `;
+
             // Create canvas for watermark
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
 
             canvas.width = element.offsetWidth;
             canvas.height = element.offsetHeight;
+
+            // Count lines and calculate line-based positioning
+            const lineElements = element.querySelectorAll('div');
+            const lineCount = lineElements.length;
 
             // Calculate position (same as display)
             const positions = {
@@ -2711,8 +3712,25 @@
             };
 
             const pos = positions[AppState.watermark.position] || positions['center'];
+
+            // For middle/center positions, calculate based on actual line positions
+            let yPos = pos.y;
+            if (lineCount > 0 && (AppState.watermark.position.includes('middle') || AppState.watermark.position === 'center')) {
+                const firstLine = lineElements[0];
+                const lastLine = lineElements[lineCount - 1];
+                if (firstLine && lastLine) {
+                    const firstLineTop = firstLine.offsetTop;
+                    const lastLineTop = lastLine.offsetTop;
+                    const lastLineBottom = lastLineTop + lastLine.offsetHeight;
+
+                    // Middle of content is between first line top and last line bottom
+                    const contentMiddle = (firstLineTop + lastLineBottom) / 2;
+                    yPos = contentMiddle / canvas.height;
+                }
+            }
+
             const x = canvas.width * pos.x;
-            const y = canvas.height * pos.y;
+            const y = canvas.height * yPos;
 
             // Draw watermark
             ctx.save();
@@ -2733,11 +3751,15 @@
             );
             ctx.restore();
 
-            // Apply as background
-            element.style.backgroundImage = `url(${canvas.toDataURL()})`;
-            element.style.backgroundRepeat = 'no-repeat';
-            element.style.backgroundPosition = 'left top';
-            element.style.backgroundSize = '100% 100%';
+            // Apply canvas as background of overlay div
+            watermarkDiv.style.backgroundImage = `url(${canvas.toDataURL()})`;
+            watermarkDiv.style.backgroundRepeat = 'no-repeat';
+            watermarkDiv.style.backgroundPosition = 'left top';
+            watermarkDiv.style.backgroundSize = '100% 100%';
+
+            // Make element position relative and append watermark
+            element.style.position = 'relative';
+            element.appendChild(watermarkDiv);
         }
 
         // ===========================
@@ -2781,11 +3803,11 @@
                     document.getElementById('searchBox').focus();
                 }
 
-                // Ctrl+G: Jump to page
-                if (e.ctrlKey && e.key === 'g') {
-                    e.preventDefault();
-                    document.getElementById('pageJump').focus();
-                }
+                // Ctrl+G: Jump to page (disabled in new design - no page jump UI)
+                // if (e.ctrlKey && e.key === 'g') {
+                //     e.preventDefault();
+                //     // Page jump functionality not implemented in new toolbar design
+                // }
 
                 // Ctrl+E: Export PDF
                 if (e.ctrlKey && e.key === 'e') {
@@ -2810,19 +3832,29 @@
                 // Ctrl+ (Plus/Equal): Zoom in
                 if (e.ctrlKey && (e.key === '+' || e.key === '=')) {
                     e.preventDefault();
-                    zoomIn();
+                    const currentZoom = AppState.zoomLevel;
+                    const zoomLevels = [50, 75, 100, 125, 150, 200];
+                    const currentIndex = zoomLevels.indexOf(currentZoom);
+                    if (currentIndex < zoomLevels.length - 1) {
+                        setZoomLevel(zoomLevels[currentIndex + 1].toString());
+                    }
                 }
 
                 // Ctrl- (Minus): Zoom out
                 if (e.ctrlKey && e.key === '-') {
                     e.preventDefault();
-                    zoomOut();
+                    const currentZoom = AppState.zoomLevel;
+                    const zoomLevels = [50, 75, 100, 125, 150, 200];
+                    const currentIndex = zoomLevels.indexOf(currentZoom);
+                    if (currentIndex > 0) {
+                        setZoomLevel(zoomLevels[currentIndex - 1].toString());
+                    }
                 }
 
                 // Ctrl+0: Reset zoom
                 if (e.ctrlKey && e.key === '0') {
                     e.preventDefault();
-                    resetZoom();
+                    setZoomLevel('100');
                 }
 
                 // F3: Next search result
@@ -2839,6 +3871,18 @@
                 if (e.key === 'Escape') {
                     closeWatermarkModal();
                     closeRangesModal();
+                }
+
+                // Ctrl+M: Toggle maximize
+                if (e.ctrlKey && e.key === 'm') {
+                    e.preventDefault();
+                    toggleMaximize();
+                }
+
+                // F11: Toggle maximize (alternative)
+                if (e.key === 'F11') {
+                    e.preventDefault();
+                    toggleMaximize();
                 }
             });
         }
@@ -2881,26 +3925,8 @@
         // ===========================
         // ZOOM FUNCTIONS
         // ===========================
-        function zoomIn() {
-            AppState.zoomLevel = Math.min(AppState.zoomLevel + 10, 200);
-            applyZoom();
-        }
-
-        function zoomOut() {
-            AppState.zoomLevel = Math.max(AppState.zoomLevel - 10, 50);
-            applyZoom();
-        }
-
-        function resetZoom() {
-            AppState.zoomLevel = 100;
-            applyZoom();
-        }
-
-        function applyZoom() {
-            const fontSize = Math.round(11 * (AppState.zoomLevel / 100));
-            document.documentElement.style.setProperty('--report-font-size', fontSize + 'px');
-            document.getElementById('zoomLevel').textContent = AppState.zoomLevel + '%';
-        }
+        // Zoom functions replaced with setZoomLevel() dropdown
+        // Old zoomIn, zoomOut, resetZoom, applyZoom functions removed
 
         // ===========================
         // UTILITY FUNCTIONS
@@ -2935,10 +3961,9 @@
         // CURSOR POSITION TRACKING
         // ===========================
         function updateCursorPosition(row, col) {
-            const indicator = document.getElementById('cursorPosition');
+            const indicator = document.getElementById('rulerCursorPosition');
             if (indicator) {
-                indicator.textContent = `Row ${row} Col ${col}`;
-                indicator.classList.add('visible');
+                indicator.textContent = `Ln ${row} Col ${col}`;
             }
         }
 
@@ -2975,11 +4000,77 @@
             updateCursorPosition(pageLineNum, col);
         }
 
-        // Add click event listener to report display with event delegation
+        // Handle mouse move for column highlighting
+        function handleReportMouseMove(event) {
+            const reportDisplay = document.getElementById('reportDisplay');
+            const columnHighlight = document.getElementById('columnHighlight');
+
+            if (!reportDisplay || !columnHighlight) return;
+
+            // Find the line under the mouse
+            const lineElements = reportDisplay.querySelectorAll('.report-line');
+            let hoveredLine = null;
+            let pageLineNum = 1;
+
+            for (const lineEl of lineElements) {
+                const lineRect = lineEl.getBoundingClientRect();
+                if (event.clientY >= lineRect.top && event.clientY <= lineRect.bottom) {
+                    hoveredLine = lineEl;
+                    pageLineNum = parseInt(lineEl.getAttribute('data-page-line')) || 1;
+                    break;
+                }
+            }
+
+            if (!hoveredLine) {
+                columnHighlight.classList.remove('visible');
+                return;
+            }
+
+            // Calculate character width based on current zoom
+            const fontSize = parseFloat(getComputedStyle(reportDisplay).fontSize);
+            const charWidth = fontSize * 0.6; // Approximate monospace character width
+
+            // Get the line content span (where actual text starts)
+            const lineContent = hoveredLine.querySelector('.line-content');
+            if (!lineContent) return;
+
+            const lineContentRect = lineContent.getBoundingClientRect();
+            const mouseXRelativeToText = event.clientX - lineContentRect.left;
+
+            // Calculate column (1-based, accounting for text starting position)
+            const col = Math.max(1, Math.floor(mouseXRelativeToText / charWidth) + 1);
+
+            // Update cursor position indicator on hover
+            updateCursorPosition(pageLineNum, col);
+
+            // Only show column highlight if enabled and mouse is over text
+            if (AppState.columnHighlightEnabled && mouseXRelativeToText >= 0) {
+                const highlightLeft = lineContentRect.left + (Math.floor(mouseXRelativeToText / charWidth) * charWidth);
+                columnHighlight.style.left = highlightLeft + 'px';
+                columnHighlight.style.width = charWidth + 'px';
+                columnHighlight.classList.add('visible');
+            } else {
+                columnHighlight.classList.remove('visible');
+            }
+        }
+
+        // Handle mouse leave to hide column highlight and reset position
+        function handleReportMouseLeave() {
+            const columnHighlight = document.getElementById('columnHighlight');
+            if (columnHighlight) {
+                columnHighlight.classList.remove('visible');
+            }
+            // Reset cursor position indicator
+            updateCursorPosition(1, 1);
+        }
+
+        // Add click and mouse event listeners to report display
         function setupCursorTracking() {
             const reportDisplay = document.getElementById('reportDisplay');
             if (reportDisplay && !reportDisplay.dataset.cursorTrackingEnabled) {
                 reportDisplay.addEventListener('click', handleReportClick);
+                reportDisplay.addEventListener('mousemove', handleReportMouseMove);
+                reportDisplay.addEventListener('mouseleave', handleReportMouseLeave);
                 reportDisplay.dataset.cursorTrackingEnabled = 'true';
             }
         }
