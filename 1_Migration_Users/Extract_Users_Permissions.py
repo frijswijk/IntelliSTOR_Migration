@@ -318,6 +318,7 @@ class UsersPermissionsExtractor:
         self.testdata_user_count = 5000
         self.testdata_min_groups = 1
         self.testdata_max_groups = 3
+        self.testdata_special_group = 'DocMgmtUsers'
         self.unmapped_rids = set()
 
         # RID maps (will be built during extraction)
@@ -1246,7 +1247,7 @@ class UsersPermissionsExtractor:
             # Create Special Group for Document Management System
             # ================================================================
 
-            special_group_name = self.args.TESTDATA_SPECIAL_GROUP
+            special_group_name = self.testdata_special_group
             logging.info(f'Creating special group "{special_group_name}" for all test users...')
 
             # Find the next available GROUP_ID
@@ -1649,6 +1650,7 @@ def main():
             extractor.testdata_user_count = args.TESTDATA_USERS
             extractor.testdata_min_groups = args.TESTDATA_MIN_GROUPS
             extractor.testdata_max_groups = args.TESTDATA_MAX_GROUPS
+            extractor.testdata_special_group = args.TESTDATA_SPECIAL_GROUP
 
             if args.TESTDATA_DRYRUN:
                 logging.info('TEST DATA DRY-RUN MODE: No CSV files will be modified')
