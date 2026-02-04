@@ -8,10 +8,10 @@ REM Change to script directory
 cd /d "%~dp0"
 
 REM Load environment variables
-call ..\Migration_Environment.bat
+call Migration_Environment.bat
 
 REM Activate virtual environment
-call ..\venv\Scripts\activate.bat
+call venv\Scripts\activate.bat
 
 REM --- Display Header ---
 echo ========================================================================
@@ -125,9 +125,6 @@ echo Cleanup started at: %START_TIME%
 echo ========================================================================
 echo.
 
-REM Navigate to parent directory where cleanup_report_instances.py is located
-cd ..
-
 REM Build the command with appropriate arguments
 set CMD_ARGS=%DRY_RUN%
 if not "%START_DATE%"=="" set CMD_ARGS=%CMD_ARGS% --start-date %START_DATE%
@@ -146,8 +143,6 @@ echo Script finished at: %END_TIME%
 echo ========================================================================
 
 REM --- Logging Section ---
-cd "4. Migration_Instances"
-
 set MODE=DRY_RUN
 if "%DRY_RUN%"=="" set MODE=DELETED
 

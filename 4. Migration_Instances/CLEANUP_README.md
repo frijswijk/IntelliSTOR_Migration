@@ -9,8 +9,11 @@ The cleanup tool allows you to safely delete report instances and their associat
 
 ## Files
 
-- **`cleanup_report_instances.py`** - Main Python script (located in parent directory)
+All cleanup files are now located in the **root directory** (parent of this folder):
+
+- **`cleanup_report_instances.py`** - Main Python script
 - **`Cleanup_Report_Instances.command`** - macOS launcher (double-click to run)
+- **`Cleanup_Report_Instances.bat`** - Windows launcher (double-click to run)
 - **`Cleanup_Report_Instances_LOG.txt`** - Execution log file (created automatically)
 
 ## What Gets Deleted

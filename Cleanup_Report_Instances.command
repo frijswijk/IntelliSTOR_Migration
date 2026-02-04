@@ -9,10 +9,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
 
 # Source environment variables
-source "${SCRIPT_DIR}/../Migration_Environment.sh"
+source "${SCRIPT_DIR}/Migration_Environment.sh"
 
 # Activate virtual environment
-source "${SCRIPT_DIR}/../venv/bin/activate"
+source "${SCRIPT_DIR}/venv/bin/activate"
 
 # --- Display Header ---
 echo "========================================================================"
@@ -133,9 +133,6 @@ echo "Cleanup started at: ${START_TIME}"
 echo "========================================================================"
 echo ""
 
-# Navigate to parent directory where cleanup_report_instances.py is located
-cd "${SCRIPT_DIR}/.."
-
 # Build the command with appropriate arguments
 CMD_ARGS="${DRY_RUN}"
 if [ -n "$START_DATE" ]; then
@@ -183,7 +180,6 @@ if [ $SCRIPT_EXIT_CODE -eq 0 ]; then
         DATE_RANGE="Up to: ${END_DATE}"
     fi
 
-    cd "${SCRIPT_DIR}"
     echo "[${START_TIME}] DB: ${SQL_SG_Database} | ${DATE_RANGE} | Mode: ${MODE} | Duration: ${DURATION} | Status: SUCCESS" >> "${LOG_FILE}"
     echo ""
     echo "Log updated in ${LOG_FILE}"
@@ -197,7 +193,6 @@ else
         DATE_RANGE="Up to: ${END_DATE}"
     fi
 
-    cd "${SCRIPT_DIR}"
     echo "[${START_TIME}] DB: ${SQL_SG_Database} | ${DATE_RANGE} | Duration: ${DURATION} | Status: FAILED" >> "${LOG_FILE}"
     echo ""
     echo "ERROR: Script failed. Check log in ${LOG_FILE}"
