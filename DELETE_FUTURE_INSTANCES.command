@@ -37,8 +37,8 @@ echo "========================================================================"
 echo "Starting deletion process..."
 echo "========================================================================"
 
-# Run the cleanup script WITHOUT --dry-run flag
-python3 cleanup_report_instances.py --start-date 2026-01-01
+# Run the cleanup script WITHOUT --dry-run flag, with skip-orphan-check for speed
+python3 cleanup_report_instances.py --start-date 2026-01-01 --skip-orphan-check
 
 EXIT_CODE=$?
 

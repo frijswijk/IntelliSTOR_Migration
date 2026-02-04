@@ -260,7 +260,7 @@ class ReportInstanceCleaner:
         print(f"✓ Found {len(safe_to_delete)} RPT file(s) safe to delete")
         return safe_to_delete
 
-    def delete_data(self, start_date: str = None, end_date: str = None, dry_run: bool = True) -> Dict[str, int]:
+    def delete_data(self, start_date: str = None, end_date: str = None, dry_run: bool = True, skip_orphan_check: bool = False) -> Dict[str, int]:
         """
         Execute deletion of report instances and associated data
 
@@ -268,6 +268,7 @@ class ReportInstanceCleaner:
             start_date: Optional start date string in format 'YYYY-MM-DD'
             end_date: Optional end date string in format 'YYYY-MM-DD'
             dry_run: If True, only report what would be deleted
+            skip_orphan_check: If True, skip slow orphan file checking (faster for bulk deletions)
 
         Returns:
             Dictionary with counts of deleted records
@@ -314,9 +315,15 @@ class ReportInstanceCleaner:
                       f"Species: {inst['REPORT_SPECIES_ID']:5d} | "
                       f"RPT: {inst['RPT_FILE_SIZE_KB']:6d}KB | MAP: {inst['MAP_FILE_SIZE_KB']:6d}KB")
 
-        # Get associated files
-        map_file_ids = self.get_mapfiles_to_delete(instances)
-        rpt_file_ids = self.get_rptfiles_to_delete(instances)
+        # Get associated files (skip if requested for speed)
+        if skip_orphan_check and len(instances) > 1000:
+            print(f"\n⚠ Skipping orphan file check for {len(instances):,} instances (use for bulk deletions)")
+            print("  MAP and RPT files will be deleted by CASCADE or remain as orphans")
+            map_file_ids = []
+            rpt_file_ids = []
+        else:
+            map_file_ids = self.get_mapfiles_to_delete(instances)
+            rpt_file_ids = self.get_rptfiles_to_delete(instances)
 
         if dry_run:
             print("\n" + "="*80)
@@ -483,6 +490,12 @@ Examples:
         help='Show what would be deleted without actually deleting'
     )
 
+    parser.add_argument(
+        '--skip-orphan-check',
+        action='store_true',
+        help='Skip slow orphan file checking (recommended for bulk deletions >1000 instances)'
+    )
+
     args = parser.parse_args()
 
     # Validate that at least one date is provided
@@ -536,7 +549,7 @@ Examples:
 
     try:
         cleaner.connect()
-        stats = cleaner.delete_data(args.start_date, args.end_date, dry_run=args.dry_run)
+        stats = cleaner.delete_data(args.start_date, args.end_date, dry_run=args.dry_run, skip_orphan_check=args.skip_orphan_check)
 
         # Print summary
         print("\n" + "="*80)
