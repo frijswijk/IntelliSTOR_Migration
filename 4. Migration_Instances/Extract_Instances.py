@@ -8,7 +8,7 @@ to extract report instances, and outputs separate CSV files per report with resu
 Features:
 - Resume capability via progress tracking
 - Support for Windows Authentication and SQL Server Authentication
-- Automatic In_Use=0 updates for reports with no instances
+- Automatic IN_USE=0 updates for reports with no instances
 - Timezone conversion (AS_OF_TIMESTAMP to UTC) with configurable source timezone
 - Comprehensive logging and error handling
 
@@ -198,13 +198,13 @@ Examples:
 
 def read_progress(progress_file):
     """
-    Read last processed Report_Species_Id from progress file.
+    Read last processed REPORT_SPECIES_ID from progress file.
 
     Args:
         progress_file: Path to progress.txt file
 
     Returns:
-        int: Last processed Report_Species_Id, or 0 if file doesn't exist
+        int: Last processed REPORT_SPECIES_ID, or 0 if file doesn't exist
     """
     if not os.path.exists(progress_file):
         logging.debug(f'Progress file not found: {progress_file}. Starting from beginning.')
@@ -213,7 +213,7 @@ def read_progress(progress_file):
     try:
         with open(progress_file, 'r', encoding='utf-8') as f:
             last_id = int(f.read().strip())
-            logging.info(f'Resuming from Report_Species_Id: {last_id}')
+            logging.info(f'Resuming from REPORT_SPECIES_ID: {last_id}')
             return last_id
     except (ValueError, IOError) as e:
         logging.warning(f'Failed to read progress file: {e}. Starting from beginning.')
@@ -222,11 +222,11 @@ def read_progress(progress_file):
 
 def write_progress(progress_file, report_species_id):
     """
-    Write current Report_Species_Id to progress file.
+    Write current REPORT_SPECIES_ID to progress file.
 
     Args:
         progress_file: Path to progress.txt file
-        report_species_id: Current Report_Species_Id being processed
+        report_species_id: Current REPORT_SPECIES_ID being processed
     """
     try:
         with open(progress_file, 'w', encoding='utf-8') as f:
@@ -321,12 +321,12 @@ def load_report_species(csv_path):
 
 def update_in_use(csv_path, report_species_id, new_in_use_value=0):
     """
-    Update In_Use column for a specific report species.
+    Update IN_USE column for a specific report species.
 
     Args:
         csv_path: Path to Report_Species.csv file
         report_species_id: Report_Species_Id to update
-        new_in_use_value: New value for In_Use column (default: 0)
+        new_in_use_value: New value for IN_USE column (default: 0)
     """
     try:
         # Read entire CSV
@@ -335,9 +335,9 @@ def update_in_use(csv_path, report_species_id, new_in_use_value=0):
             reader = csv.DictReader(f)
             fieldnames = reader.fieldnames
             for row in reader:
-                if row['Report_Species_Id'] == str(report_species_id):
-                    row['In_Use'] = str(new_in_use_value)
-                    logging.debug(f'Updating Report_Species_Id {report_species_id}: In_Use={new_in_use_value}')
+                if row['REPORT_SPECIES_ID'] == str(report_species_id):
+                    row['IN_USE'] = str(new_in_use_value)
+                    logging.debug(f'Updating REPORT_SPECIES_ID {report_species_id}: IN_USE={new_in_use_value}')
                 rows.append(row)
 
         # Write back atomically (temp file + rename)
@@ -349,10 +349,10 @@ def update_in_use(csv_path, report_species_id, new_in_use_value=0):
 
         # Atomic replace
         os.replace(temp_path, csv_path)
-        logging.info(f'Updated In_Use={new_in_use_value} for Report_Species_Id {report_species_id}')
+        logging.info(f'Updated IN_USE={new_in_use_value} for REPORT_SPECIES_ID {report_species_id}')
 
     except Exception as e:
-        logging.error(f'Failed to update In_Use for Report_Species_Id {report_species_id}: {e}')
+        logging.error(f'Failed to update IN_USE for REPORT_SPECIES_ID {report_species_id}: {e}')
 
 
 # ============================================================================
@@ -440,7 +440,7 @@ def execute_query(cursor, report_species_id, start_year, end_year=None):
     """
     try:
         sql = get_sql_query(start_year, end_year)
-        logging.debug(f'Executing query for Report_Species_Id: {report_species_id}, years: {start_year}-{end_year or "present"}')
+        logging.debug(f'Executing query for REPORT_SPECIES_ID: {report_species_id}, years: {start_year}-{end_year or "present"}')
 
         # Build parameters: report_species_id, start_date, and optionally end_date
         start_date = f'{start_year}-01-01 00:00:00'
@@ -467,7 +467,7 @@ def execute_query(cursor, report_species_id, start_year, end_year=None):
         return results
 
     except Exception as e:
-        logging.error(f'Query failed for Report_Species_Id {report_species_id}: {e}')
+        logging.error(f'Query failed for REPORT_SPECIES_ID {report_species_id}: {e}')
         raise
 
 
@@ -603,20 +603,20 @@ def write_output_csv(output_path, results, report_species_name, country, year_fr
         output_path: Path to output CSV file
         results: List of dictionaries containing query results
         report_species_name: Report_Species_Name from Report_Species.csv
-        country: Country from Report_Species.csv
+        country: COUNTRY from Report_Species.csv
         year_from_filename: If True, calculate YEAR from filename; else from AS_OF_TIMESTAMP
         source_timezone: Timezone of AS_OF_TIMESTAMP for UTC conversion
     """
     # Define output header - only essential columns
     output_header = [
-        'RPT_SPECIES_NAME',
+        'REPORT_SPECIES_NAME',
         'FILENAME',
-        'Country',
+        'COUNTRY',
         'YEAR',
-        'Report Date',
+        'REPORT_DATE',
         'AS_OF_TIMESTAMP',
         'UTC',
-        'Segments',
+        'SEGMENTS',
         'REPORT_FILE_ID'
     ]
 
@@ -633,11 +633,11 @@ def write_output_csv(output_path, results, report_species_name, country, year_fr
                 utc_timestamp = convert_to_utc(row.get('AS_OF_TIMESTAMP'), source_timezone)
 
                 # Get filename and add leading backslash for relative path
-                filename = row.get('FILENAME', '')
-                if filename and not filename.startswith('\\'):
-                    filename = '\\' + filename
+               filename = row.get('FILENAME', '').removesuffix('.rpt')
+               # if filename and not filename.startswith('\\'):
+               #     filename = '\\' + filename
 
-                # Convert julian date from filename to Report Date
+                # Convert julian date from filename to REPORT_DATE
                 report_date = convert_julian_date(row.get('FILENAME', ''))
 
                 # Map database columns to simplified output format
@@ -646,10 +646,10 @@ def write_output_csv(output_path, results, report_species_name, country, year_fr
                     filename,  # With leading backslash
                     country,  # From Report_Species.csv
                     year,  # Calculated YEAR column
-                    report_date,  # Report Date from julian date
+                    report_date,  # REPORT_DATE from julian date
                     row.get('AS_OF_TIMESTAMP', ''),
                     utc_timestamp,  # UTC converted timestamp
-                    row.get('segments', ''),  # Segments column from STRING_AGG
+                    row.get('segments', ''),  # SEGMENTS column from STRING_AGG
                     row.get('RPT_FILE_ID', '')  # REPORT_FILE_ID
                 ]
                 writer.writerow(output_row)
@@ -699,7 +699,7 @@ def process_reports(conn, report_species_list, csv_path, output_dir, last_proces
     # Filter reports to process (those after last_processed_id)
     reports_to_process = [
         r for r in report_species_list
-        if int(r['Report_Species_Id']) > last_processed_id
+        if int(r['REPORT_SPECIES_ID']) > last_processed_id
     ]
 
     total_count = len(reports_to_process)
@@ -713,19 +713,19 @@ def process_reports(conn, report_species_list, csv_path, output_dir, last_proces
         print(f'Processing {total_count} report species | Year filter: {year_range} | Timezone: {source_timezone}')
 
     for idx, report in enumerate(reports_to_process, 1):
-        report_species_id = int(report['Report_Species_Id'])
-        report_name = report['Report_Species_Name']
-        country = report.get('Country_Code', '')  # Get Country_Code from CSV
+        report_species_id = int(report['REPORT_SPECIES_ID'])
+        report_name = report['REPORT_SPECIES_NAME']
+        country = report.get('COUNTRY_CODE', '')  # Get COUNTRY_Code from CSV
 
         if not quiet:
-            logging.info(f'Processing Report_Species_Id: {report_species_id}, Name: {report_name} ({idx}/{total_count})')
+            logging.info(f'Processing REPORT_SPECIES_ID: {report_species_id}, Name: {report_name} ({idx}/{total_count})')
 
         try:
             # Execute query with year filtering
             results = execute_query(cursor, report_species_id, start_year, end_year)
 
             if results:
-                # Write CSV file with Report_Species_Name, Country, and YEAR columns
+                # Write CSV file with REPORT_SPECIES_NAME, COUNTRY, and YEAR columns
                 # Add year suffix to output filename
                 if end_year:
                     output_filename = f'{report_name}_{start_year}_{end_year}.csv'
@@ -740,9 +740,9 @@ def process_reports(conn, report_species_list, csv_path, output_dir, last_proces
 
                 stats['reports_with_instances'] += 1
             else:
-                # No results - update In_Use=0
+                # No results - update IN_USE=0
                 if not quiet:
-                    logging.warning(f'Query returned 0 instances for {report_name} (year range: {year_range}), updating In_Use=0')
+                    logging.warning(f'Query returned 0 instances for {report_name} (year range: {year_range}), updating IN_USE=0')
 
                 update_in_use(csv_path, report_species_id, new_in_use_value=0)
                 stats['reports_without_instances'] += 1
@@ -760,7 +760,7 @@ def process_reports(conn, report_species_list, csv_path, output_dir, last_proces
 
         except Exception as e:
             # Always log errors to file
-            logging.error(f'Error processing Report_Species_Id {report_species_id}: {e}')
+            logging.error(f'Error processing REPORT_SPECIES_ID {report_species_id}: {e}')
             stats['errors'] += 1
             # Continue with next report
             continue
@@ -835,7 +835,7 @@ def main():
             logging.info('PROCESSING COMPLETE')
             logging.info(f'Total reports processed: {stats["total_reports"]}')
             logging.info(f'Reports with instances: {stats["reports_with_instances"]}')
-            logging.info(f'Reports with no instances (In_Use set to 0): {stats["reports_without_instances"]}')
+            logging.info(f'Reports with no instances (IN_USE set to 0): {stats["reports_without_instances"]}')
             logging.info(f'Errors encountered: {stats["errors"]}')
             logging.info('========================================')
 
