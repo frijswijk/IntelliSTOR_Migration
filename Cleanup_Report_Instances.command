@@ -122,6 +122,23 @@ else
     exit 0
 fi
 
+# --- Ask about performance mode ---
+echo ""
+echo "For large deletions (1000+ instances), do you want to use FAST MODE?"
+echo "  Fast mode skips orphan file checking (much faster but may leave orphan MAP/RPT files)"
+echo ""
+echo "  1) Normal mode (checks for orphan files - SLOW for bulk deletions)"
+echo "  2) Fast mode (skip orphan check - RECOMMENDED for 1000+ instances)"
+echo ""
+read -p "Enter choice [1 or 2]: " PERF_CHOICE
+
+SKIP_ORPHAN=""
+if [ "$PERF_CHOICE" = "2" ]; then
+    SKIP_ORPHAN="--skip-orphan-check"
+    echo ""
+    echo "Using FAST MODE (orphan check disabled)"
+fi
+
 # --- Capture Start Time ---
 START_TIME=$(date +"%Y-%m-%d %H:%M:%S")
 START_SECONDS=$(date +%s)
@@ -134,7 +151,7 @@ echo "========================================================================"
 echo ""
 
 # Build the command with appropriate arguments
-CMD_ARGS="${DRY_RUN}"
+CMD_ARGS="${DRY_RUN} ${SKIP_ORPHAN}"
 if [ -n "$START_DATE" ]; then
     CMD_ARGS="${CMD_ARGS} --start-date ${START_DATE}"
 fi

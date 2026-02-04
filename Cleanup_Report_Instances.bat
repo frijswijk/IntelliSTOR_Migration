@@ -115,6 +115,23 @@ if "%CHOICE%"=="1" (
     exit /b 0
 )
 
+REM --- Ask about performance mode ---
+echo.
+echo For large deletions (1000+ instances), do you want to use FAST MODE?
+echo   Fast mode skips orphan file checking (much faster but may leave orphan MAP/RPT files)
+echo.
+echo   1) Normal mode (checks for orphan files - SLOW for bulk deletions)
+echo   2) Fast mode (skip orphan check - RECOMMENDED for 1000+ instances)
+echo.
+set /p PERF_CHOICE="Enter choice [1 or 2]: "
+
+set SKIP_ORPHAN=
+if "%PERF_CHOICE%"=="2" (
+    set SKIP_ORPHAN=--skip-orphan-check
+    echo.
+    echo Using FAST MODE (orphan check disabled)
+)
+
 REM --- Capture Start Time ---
 set START_TIME=%date% %time%
 set LOG_FILE=Cleanup_Report_Instances_LOG.txt
@@ -126,7 +143,7 @@ echo ========================================================================
 echo.
 
 REM Build the command with appropriate arguments
-set CMD_ARGS=%DRY_RUN%
+set CMD_ARGS=%DRY_RUN% %SKIP_ORPHAN%
 if not "%START_DATE%"=="" set CMD_ARGS=%CMD_ARGS% --start-date %START_DATE%
 if not "%END_DATE%"=="" set CMD_ARGS=%CMD_ARGS% --end-date %END_DATE%
 
