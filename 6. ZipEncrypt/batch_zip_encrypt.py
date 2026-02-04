@@ -8,7 +8,7 @@ organized by year with resume capability.
 
 Improvements:
 - Optional password (no password = no encryption)
-- Adds "Compressed_Filename" column to instance CSVs (updated in real-time)
+- Adds "COMPRESSED_FILENAME" column to instance CSVs (updated in real-time)
 - Real-time log file writing with immediate flushing
 - Real-time compress-log.csv writing (append mode, survives crashes)
 - CSV logs for missing species and files
@@ -98,8 +98,8 @@ def init_compress_log():
         try:
             with open(COMPRESS_LOG_CSV, 'w', newline='', encoding='utf-8') as f:
                 writer = csv.DictWriter(f, fieldnames=[
-                    'species_id', 'Species_name', 'Species_Instance_Filename',
-                    'row', 'Filename', 'Status', 'Compressed_Filename'
+                    'SPECIES_ID', 'SPECIES_NAME', 'SPECIES_INSTANCE_FILENAME',
+                    'ROW', 'FILENAME', 'STATUS', 'COMPRESSED_FILENAME'
                 ])
                 writer.writeheader()
                 f.flush()
@@ -113,8 +113,8 @@ def append_compress_log(entry: Dict):
     Append a single entry to compress-log.csv in real-time
 
     Args:
-        entry: Dict with keys: species_id, Species_name, Species_Instance_Filename,
-               row, Filename, Status, Compressed_Filename
+        entry: Dict with keys: SPECIES_ID, SPECIES_NAME, SPECIES_INSTANCE_FILENAME,
+               row, FILENAME, Status, COMPRESSED_FILENAME
     """
     try:
         # Check if file exists to determine if we need headers
@@ -122,8 +122,8 @@ def append_compress_log(entry: Dict):
 
         with open(COMPRESS_LOG_CSV, 'a', newline='', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=[
-                'species_id', 'Species_name', 'Species_Instance_Filename',
-                'row', 'Filename', 'Status', 'Compressed_Filename'
+                'SPECIES_ID', 'SPECIES_NAME', 'SPECIES_INSTANCE_FILENAME',
+                'ROW', 'FILENAME', 'STATUS', 'COMPRESSED_FILENAME'
             ])
 
             # Write header if file is new
@@ -214,7 +214,7 @@ def load_progress(reset: bool = False) -> Tuple[Optional[int], int, Stats]:
         reset: If True, ignore existing progress file
 
     Returns:
-        Tuple of (report_species_id, row_index, Stats) or (None, 0, Stats()) if no progress
+        Tuple of (REPORT_SPECIES_ID, row_index, Stats) or (None, 0, Stats()) if no progress
     """
     if reset:
         logging.info("Progress reset requested, starting from beginning")
@@ -227,12 +227,12 @@ def load_progress(reset: bool = False) -> Tuple[Optional[int], int, Stats]:
     try:
         with open(PROGRESS_FILE, 'r') as f:
             progress = json.load(f)
-            species_id = progress.get('report_species_id')
+            species_id = progress.get('REPORT_SPECIES_ID')
             row_idx = progress.get('row_index', 0)
             stats_data = progress.get('stats', {})
             loaded_stats = Stats.from_dict(stats_data)
 
-            logging.info(f"Resuming from species_id={species_id}, row_index={row_idx}")
+            logging.info(f"Resuming from SPECIES_ID={species_id}, row_index={row_idx}")
             logging.info(f"Loaded stats: {loaded_stats.report()}")
             return species_id, row_idx, loaded_stats
     except json.JSONDecodeError:
@@ -248,13 +248,13 @@ def save_progress(species_id: int, row_idx: int, stats_obj: Stats):
     Save current progress to JSON file (Task 4: includes statistics)
 
     Args:
-        species_id: Current report_species_id being processed
+        species_id: Current REPORT_SPECIES_ID being processed
         row_idx: Current row index within the species CSV
         stats_obj: Current statistics object
     """
     try:
         progress = {
-            'report_species_id': species_id,
+            'REPORT_SPECIES_ID': species_id,
             'row_index': row_idx,
             'stats': stats_obj.to_dict()
         }
@@ -282,7 +282,7 @@ def save_missing_logs():
     if missing_species_log:
         try:
             with open(MISSING_SPECIES_CSV, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.DictWriter(f, fieldnames=['Species_Name', 'Species_ID'])
+                writer = csv.DictWriter(f, fieldnames=['SPECIES_NAME', 'Species_ID'])
                 writer.writeheader()
                 writer.writerows(missing_species_log)
             logging.info(f"Saved {len(missing_species_log)} missing species to {MISSING_SPECIES_CSV}")
@@ -293,7 +293,7 @@ def save_missing_logs():
     if missing_files_log:
         try:
             with open(MISSING_FILES_CSV, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.DictWriter(f, fieldnames=['Species_Name', 'Filename', 'Year', 'Base_Filename'])
+                writer = csv.DictWriter(f, fieldnames=['SPECIES_NAME', 'FILENAME', 'YEAR', 'Base_FILENAME'])
                 writer.writeheader()
                 writer.writerows(missing_files_log)
             logging.info(f"Saved {len(missing_files_log)} missing files to {MISSING_FILES_CSV}")
@@ -305,8 +305,8 @@ def save_missing_logs():
         try:
             with open(COMPRESS_LOG_CSV, 'w', newline='', encoding='utf-8') as f:
                 writer = csv.DictWriter(f, fieldnames=[
-                    'species_id', 'Species_name', 'Species_Instance_Filename',
-                    'row', 'Filename', 'Status', 'Compressed_Filename'
+                    'SPECIES_ID', 'SPECIES_NAME', 'SPECIES_INSTANCE_FILENAME',
+                    'ROW', 'FILENAME', 'STATUS', 'COMPRESSED_FILENAME'
                 ])
                 writer.writeheader()
                 writer.writerows(compress_log)
@@ -324,7 +324,7 @@ def read_species_csv(csv_path: str, filter_species: Optional[List[str]] = None) 
         filter_species: Optional list of species names to process
 
     Returns:
-        List of dicts with keys: Report_Species_Id, Report_Species_Name
+        List of dicts with keys: REPORT_SPECIES_ID, REPORT_SPECIES_NAME
     """
     species_list = []
 
@@ -332,16 +332,16 @@ def read_species_csv(csv_path: str, filter_species: Optional[List[str]] = None) 
         with open(csv_path, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
-                species_name = row['Report_Species_Name']
-                species_id = int(row['Report_Species_Id'])
+                species_name = row['REPORT_SPECIES_NAME']
+                species_id = int(row['REPORT_SPECIES_ID'])
 
                 # Apply filter if specified
                 if filter_species and species_name not in filter_species:
                     continue
 
                 species_list.append({
-                    'Report_Species_Id': species_id,
-                    'Report_Species_Name': species_name
+                    'REPORT_SPECIES_ID': species_id,
+                    'REPORT_SPECIES_NAME': species_name
                 })
 
         logging.info(f"Loaded {len(species_list)} species from {csv_path}")
@@ -507,7 +507,7 @@ def sanitize_year(year: str) -> str:
     Sanitize year value, handle empty or invalid values
 
     Args:
-        year: Year string from CSV
+        year: YEAR string from CSV
 
     Returns:
         Sanitized year string
@@ -564,7 +564,7 @@ def process_species(
     Process a single species (all instances in its CSV)
 
     Args:
-        species: Dict with Report_Species_Id and Report_Species_Name
+        species: Dict with REPORT_SPECIES_ID and REPORT_SPECIES_NAME
         instances_folder: Path to instance CSVs folder
         source_folder: Path to source files
         output_folder: Path to output archives
@@ -581,8 +581,8 @@ def process_species(
     Returns:
         Tuple of (should_continue, last_row_idx)
     """
-    species_id = species['Report_Species_Id']
-    species_name = species['Report_Species_Name']
+    species_id = species['REPORT_SPECIES_ID']
+    species_name = species['REPORT_SPECIES_NAME']
 
     # If resuming, skip species until we reach the resume point
     if resume_species_id is not None and species_id < resume_species_id:
@@ -610,12 +610,12 @@ def process_species(
     try:
         fieldnames, rows = read_instance_csv_full(instance_csv)
 
-        # Add "Compressed_Filename" column if not exists (Task 2)
-        if 'Compressed_Filename' not in fieldnames:
-            fieldnames = list(fieldnames) + ['Compressed_Filename']
+        # Add "COMPRESSED_FILENAME" column if not exists (Task 2)
+        if 'COMPRESSED_FILENAME' not in fieldnames:
+            fieldnames = list(fieldnames) + ['COMPRESSED_FILENAME']
             for row in rows:
-                if 'Compressed_Filename' not in row:
-                    row['Compressed_Filename'] = ''
+                if 'COMPRESSED_FILENAME' not in row:
+                    row['COMPRESSED_FILENAME'] = ''
 
     except Exception as e:
         logging.error(f"Failed to read instance CSV for {species_name}: {e}")
@@ -668,18 +668,18 @@ def process_species(
         if not simulate_zip and os.path.exists(output_7z):
             # Log to compress log (SKIPPED - already exists) - written in real-time
             append_compress_log({
-                'species_id': species_id,
-                'Species_name': species_name,
-                'Species_Instance_Filename': csv_filename,
+                'SPECIES_ID': species_id,
+                'SPECIES_NAME': species_name,
+                'SPECIES_INSTANCE_FILENAME': csv_filename,
                 'row': row_idx,
-                'Filename': filename,
+                'FILENAME': filename,
                 'Status': 'SKIPPED',
-                'Compressed_Filename': compressed_filename
+                'COMPRESSED_FILENAME': compressed_filename
             })
 
             # Already exists, update CSV if needed (Task 2)
-            if row.get('Compressed_Filename') != compressed_filename:
-                row['Compressed_Filename'] = compressed_filename
+            if row.get('COMPRESSED_FILENAME') != compressed_filename:
+                row['COMPRESSED_FILENAME'] = compressed_filename
                 # Write CSV immediately after update
                 try:
                     write_instance_csv_full(instance_csv, fieldnames, rows)
@@ -708,22 +708,22 @@ def process_species(
         if not source_files:
             # Log to compress log (NO FILES FOUND) - written in real-time
             append_compress_log({
-                'species_id': species_id,
-                'Species_name': species_name,
-                'Species_Instance_Filename': csv_filename,
+                'SPECIES_ID': species_id,
+                'SPECIES_NAME': species_name,
+                'SPECIES_INSTANCE_FILENAME': csv_filename,
                 'row': row_idx,
-                'Filename': filename,
+                'FILENAME': filename,
                 'Status': 'NO_FILES_FOUND',
-                'Compressed_Filename': ''
+                'COMPRESSED_FILENAME': ''
             })
 
             # Log missing files (Task 3)
             logging.warning(f"Processing: {csv_filename} row {row_idx}/{total_rows}: {base_filename} - NO FILES FOUND in {source_folder}")
             missing_files_log.append({
                 'Species_Name': species_name,
-                'Filename': filename,
-                'Year': year,
-                'Base_Filename': base_filename
+                'FILENAME': filename,
+                'YEAR': year,
+                'BASE_FILENAME': base_filename
             })
             stats_obj.no_files_found += 1
 
@@ -731,8 +731,8 @@ def process_species(
             if quiet:
                 print_progress_line(f"Processing: {csv_filename} row {row_idx}/{total_rows}: {base_filename} - NO FILES FOUND", quiet=True)
 
-            # Leave Compressed_Filename empty (Task 2)
-            row['Compressed_Filename'] = ''
+            # Leave COMPRESSED_FILENAME empty (Task 2)
+            row['COMPRESSED_FILENAME'] = ''
 
             # Write CSV immediately after update
             try:
@@ -761,18 +761,18 @@ def process_species(
         if success:
             # Log to compress log (SUCCESS or SIMULATED) - written in real-time
             append_compress_log({
-                'species_id': species_id,
-                'Species_name': species_name,
-                'Species_Instance_Filename': csv_filename,
+                'SPECIES_ID': species_id,
+                'SPECIES_NAME': species_name,
+                'SPECIES_INSTANCE_FILENAME': csv_filename,
                 'row': row_idx,
                 'Filename': filename,
                 'Status': 'SIMULATED' if simulate_zip else 'SUCCESS',
-                'Compressed_Filename': compressed_filename
+                'COMPRESSED_FILENAME': compressed_filename
             })
 
             stats_obj.archives_created += 1
             # Update CSV with compressed filename (Task 2)
-            row['Compressed_Filename'] = compressed_filename
+            row['COMPRESSED_FILENAME'] = compressed_filename
 
             # Write CSV immediately after successful creation
             try:
@@ -805,18 +805,18 @@ def process_species(
         else:
             # Log to compress log (FAILED) - written in real-time
             append_compress_log({
-                'species_id': species_id,
-                'Species_name': species_name,
-                'Species_Instance_Filename': csv_filename,
+                'SPECIES_ID': species_id,
+                'SPECIES_NAME': species_name,
+                'SPECIES_INSTANCE_FILENAME': csv_filename,
                 'row': row_idx,
                 'Filename': filename,
                 'Status': 'FAILED',
-                'Compressed_Filename': ''
+                'COMPRESSED_FILENAME': ''
             })
 
             stats_obj.errors += 1
-            # Leave Compressed_Filename empty on error (Task 2)
-            row['Compressed_Filename'] = ''
+            # Leave COMPRESSED_FILENAME empty on error (Task 2)
+            row['COMPRESSED_FILENAME'] = ''
 
             # Write CSV immediately even on error
             try:
@@ -965,7 +965,7 @@ def main():
                 break
 
             logging.info(f"=" * 80)
-            logging.info(f"Species {idx}/{len(species_list)}: {species['Report_Species_Name']} (ID: {species['Report_Species_Id']})")
+            logging.info(f"Species {idx}/{len(species_list)}: {species['REPORT_SPECIES_NAME']} (ID: {species['REPORT_SPECIES_ID']})")
             logging.info(f"=" * 80)
 
             try:
@@ -978,7 +978,7 @@ def main():
                     args.__dict__['7zip_path'],
                     args.compression_level,
                     resume_species_id,
-                    resume_row_idx if resume_species_id == species['Report_Species_Id'] else 0,
+                    resume_row_idx if resume_species_id == species['REPORT_SPECIES_ID'] else 0,
                     stats,
                     delete_after_compress=delete_after_compress,
                     quiet=args.quiet,
@@ -986,11 +986,11 @@ def main():
                 )
 
                 # Increment species processed count (only count species that were actually processed, not skipped)
-                if resume_species_id is None or resume_species_id == species['Report_Species_Id']:
+                if resume_species_id is None or resume_species_id == species['REPORT_SPECIES_ID']:
                     species_processed_count += 1
 
                 # Reset resume point after first species
-                if resume_species_id == species['Report_Species_Id']:
+                if resume_species_id == species['REPORT_SPECIES_ID']:
                     resume_species_id = None
                     resume_row_idx = 0
 
@@ -1014,7 +1014,7 @@ def main():
                 save_missing_logs()
                 sys.exit(0)
             except Exception as e:
-                logging.error(f"Error processing species {species['Report_Species_Name']}: {e}")
+                logging.error(f"Error processing species {species['REPORT_SPECIES_NAME']}: {e}")
                 stats.errors += 1
                 continue
 

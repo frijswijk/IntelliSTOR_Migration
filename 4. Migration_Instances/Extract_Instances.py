@@ -633,7 +633,7 @@ def write_output_csv(output_path, results, report_species_name, country, year_fr
                 utc_timestamp = convert_to_utc(row.get('AS_OF_TIMESTAMP'), source_timezone)
 
                 # Get filename and add leading backslash for relative path
-               filename = row.get('FILENAME', '').removesuffix('.rpt')
+                filename = row.get('FILENAME', '').removesuffix('.rpt')
                # if filename and not filename.startswith('\\'):
                #     filename = '\\' + filename
 

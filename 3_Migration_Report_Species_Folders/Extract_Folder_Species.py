@@ -414,8 +414,8 @@ class FolderSpeciesExtractor:
         """Get report name and display name.
 
         Logic:
-        - Report_Species_DisplayName: Always from ITEM_ID=0
-        - Report_Species_Name: From ITEM_ID=1 if exists, else from ITEM_ID=0
+        - REPORT_SPECIES_DISPLAYNAME: Always from ITEM_ID=0
+        - REPORT_SPECIES_NAME: From ITEM_ID=1 if exists, else from ITEM_ID=0
         """
         # Get display name (ITEM_ID=0)
         display_key = (domain_id, species_id, 0)
@@ -481,12 +481,12 @@ class FolderSpeciesExtractor:
                 'NAME': folder['NAME'],
                 'PARENT_ID': folder['PARENT_ID'],
                 'ITEM_TYPE': folder['ITEM_TYPE'],
-                'Country_Code': country_code
+                'COUNTRY_CODE': country_code
             })
 
         output_path = self.output_dir / output_file
         with open(output_path, 'w', newline='', encoding='utf-8') as f:
-            fieldnames = ['ITEM_ID', 'NAME', 'PARENT_ID', 'ITEM_TYPE', 'Country_Code']
+            fieldnames = ['ITEM_ID', 'NAME', 'PARENT_ID', 'ITEM_TYPE', 'COUNTRY_CODE']
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(records)
@@ -533,18 +533,18 @@ class FolderSpeciesExtractor:
             records.append({
                 'ITEM_ID': item_id,
                 'ITEM_NAME': folder_name,
-                'Report_Species_Id': species_id,
-                'Report_Species_Name': name,
-                'Report_Species_DisplayName': display_name,
-                'Country_Code': report_country_code
+                'REPORT_SPECIES_ID': species_id,
+                'REPORT_SPECIES_NAME': name,
+                'REPORT_SPECIES_DISPLAYNAME': display_name,
+                'COUNTRY_CODE': report_country_code
             })
 
-        # Sort by ITEM_ID, then Report_Species_Id
-        records.sort(key=lambda x: (x['ITEM_ID'], x['Report_Species_Id']))
+        # Sort by ITEM_ID, then REPORT_SPECIES_ID
+        records.sort(key=lambda x: (x['ITEM_ID'], x['REPORT_SPECIES_ID']))
 
         output_path = self.output_dir / output_file
         with open(output_path, 'w', newline='', encoding='utf-8') as f:
-            fieldnames = ['ITEM_ID', 'ITEM_NAME', 'Report_Species_Id', 'Report_Species_Name', 'Report_Species_DisplayName', 'Country_Code']
+            fieldnames = ['ITEM_ID', 'ITEM_NAME', 'REPORT_SPECIES_ID', 'REPORT_SPECIES_NAME', 'REPORT_SPECIES_DISPLAYNAME', 'COUNTRY_CODE']
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(records)
@@ -583,16 +583,16 @@ class FolderSpeciesExtractor:
             country_code = self.report_country_codes.get(species_id, 'SG')
 
             records.append({
-                'Report_Species_Id': species_id,
-                'Report_Species_Name': name,
-                'Report_Species_DisplayName': display_name,
-                'Country_Code': country_code,
-                'In_Use': 1
+                'REPORT_SPECIES_ID': species_id,
+                'REPORT_SPECIES_NAME': name,
+                'REPORT_SPECIES_DISPLAYNAME': display_name,
+                'COUNTRY_CODE': country_code,
+                'IN_USE': 1
             })
 
         output_path = self.output_dir / output_file
         with open(output_path, 'w', newline='', encoding='utf-8') as f:
-            fieldnames = ['Report_Species_Id', 'Report_Species_Name', 'Report_Species_DisplayName', 'Country_Code', 'In_Use']
+            fieldnames = ['REPORT_SPECIES_ID', 'REPORT_SPECIES_NAME', 'REPORT_SPECIES_DISPLAYNAME', 'COUNTRY_CODE', 'IN_USE']
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(records)
