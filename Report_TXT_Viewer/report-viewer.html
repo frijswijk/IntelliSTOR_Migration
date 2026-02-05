@@ -249,6 +249,32 @@
             min-width: 100px;
         }
 
+        /* Page jump container - fixed compact width */
+        #pageJumpContainer {
+            flex: 0 0 95px !important;
+            width: 95px !important;
+            min-width: 95px !important;
+            max-width: 95px !important;
+        }
+
+        /* Page jump input should NOT flex - fixed width */
+        #pageJumpInput {
+            flex: 0 0 38px !important;
+            min-width: 38px !important;
+            width: 38px !important;
+            max-width: 38px !important;
+        }
+
+        /* Hide number input spinner arrows */
+        #pageJumpInput::-webkit-inner-spin-button,
+        #pageJumpInput::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        #pageJumpInput[type=number] {
+            -moz-appearance: textfield;
+        }
+
         .match-info {
             font-size: 11px;
             color: var(--text-secondary);
@@ -343,6 +369,93 @@
         .settings-btn:hover {
             background: var(--accent-primary);
             border-color: var(--accent-primary);
+        }
+
+        /* Search Results Panel */
+        .search-results-panel {
+            position: fixed;
+            top: 120px;
+            right: 20px;
+            width: 280px;
+            max-height: calc(100vh - 180px);
+            background: var(--bg-secondary);
+            border: 2px solid var(--accent-primary);
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+            z-index: 195;
+            display: none;
+            animation: slideDown 0.2s ease;
+        }
+
+        .search-results-panel.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .search-results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+        }
+
+        .search-results-header h4 {
+            margin: 0;
+            font-size: 13px;
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .search-results-close {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 18px;
+            cursor: pointer;
+            padding: 0;
+            width: 20px;
+            height: 20px;
+            line-height: 20px;
+            transition: color 0.2s ease;
+        }
+
+        .search-results-close:hover {
+            color: var(--accent-primary);
+        }
+
+        .search-results-content {
+            overflow-y: auto;
+            padding: 8px;
+            flex: 1;
+        }
+
+        .search-result-page {
+            padding: 8px 10px;
+            margin-bottom: 4px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .search-result-page:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--accent-primary);
+        }
+
+        .search-result-page-number {
+            font-weight: 600;
+            color: var(--accent-primary);
+            font-size: 12px;
+        }
+
+        .search-result-match-count {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 2px;
         }
 
         /* Settings Panel */
@@ -790,7 +903,7 @@
             padding: 0;
             border-radius: 8px;
             border: 1px solid var(--border-color);
-            border-left: 35px solid var(--bg-secondary);
+            border-left: 70px solid var(--bg-secondary);
             position: relative;
             user-select: text;
             cursor: text;
@@ -833,7 +946,7 @@
            Old .report-display.light-mode styles removed */
 
         .report-content {
-            padding: 20px 20px 20px 7px;
+            padding: 20px 20px 20px 15px;
             position: relative;
             user-select: text;
             overflow: visible;
@@ -940,11 +1053,11 @@
 
         .line-number {
             position: absolute;
-            left: -4.2em;
-            width: 3.8em;
+            left: -5.5em;
+            width: 6em;
             color: var(--text-secondary);
             text-align: right;
-            padding-right: 0.2em;
+            padding-right: 0.3em;
             user-select: none;
             font-size: 0.9em;
             cursor: default;
@@ -1549,6 +1662,11 @@
             .page-separator {
                 page-break-after: always;
             }
+
+            #reportDisplay.printing {
+                height: auto !important;
+                overflow: visible !important;
+            }
         }
 
         /* ===========================
@@ -1630,6 +1748,13 @@
                 <option value="255">255</option>
             </select>
 
+            <div id="pageJumpContainer" class="search-container" style="width: 95px; min-width: 95px; max-width: 95px; padding: 4px 6px;">
+                <span class="search-icon" style="font-size: 12px;" title="Jump to page">📄</span>
+                <input type="number" id="pageJumpInput" placeholder="Pg" min="1"
+                    style="width: 38px; padding: 3px 4px; font-size: 13px;" onkeypress="handlePageJumpKey(event)" title="Enter page number and press Enter">
+                <button class="search-nav-btn" style="padding: 3px 8px; font-size: 13px;" onclick="jumpToPage()" title="Jump to page">Go</button>
+            </div>
+
             <button class="settings-btn" onclick="toggleSettingsPanel()" title="Settings">⚙️</button>
 
             <span class="file-type-indicator" id="fileTypeIndicator" title="File format type"></span>
@@ -1697,6 +1822,33 @@
                 </div>
             </div>
 
+            <!-- Large File Settings -->
+            <div class="settings-section">
+                <label class="settings-label">Large Files (>10K lines)</label>
+                <div class="config-group" style="margin-bottom: 12px;">
+                    <label style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; display: block;">
+                        Pages to render at once:
+                    </label>
+                    <select id="pagestoRenderSelect" onchange="changePagesToRender()" style="
+                        width: 100%;
+                        padding: 8px;
+                        background: var(--bg-tertiary);
+                        color: var(--text-primary);
+                        border: 1px solid var(--border-color);
+                        border-radius: 4px;
+                        font-size: 14px;
+                    ">
+                        <option value="1">1 page (Maximum speed)</option>
+                        <option value="3" selected>3 pages (Recommended)</option>
+                        <option value="5">5 pages (More context)</option>
+                        <option value="10">10 pages (High memory)</option>
+                    </select>
+                </div>
+                <div style="font-size: 12px; color: var(--text-secondary); line-height: 1.4;">
+                    💡 Tip: Scroll to top/bottom to auto-load more pages
+                </div>
+            </div>
+
             <!-- Tools Section -->
             <div class="settings-section">
                 <label class="settings-label">Tools</label>
@@ -1704,6 +1856,17 @@
                 <button class="tool-btn" onclick="openRangesModal(); toggleSettingsPanel();" id="rangesBtn">📊 Ranges...</button>
                 <button class="tool-btn" onclick="exportToPDF(); toggleSettingsPanel();">📄 Export PDF</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Search Results Panel -->
+    <div id="searchResultsPanel" class="search-results-panel">
+        <div class="search-results-header">
+            <h4 id="searchResultsPanelTitle">Search Results</h4>
+            <button class="search-results-close" onclick="toggleSearchResultsPanel()">&times;</button>
+        </div>
+        <div class="search-results-content" id="searchResultsContent">
+            <!-- Search results will be populated here -->
         </div>
     </div>
 
@@ -1911,6 +2074,7 @@
             // Search
             searchTerm: '',
             searchResults: [],
+            searchResultsByPage: {},
             currentSearchIndex: -1,
             searchDebounceTimer: null,
 
@@ -1929,6 +2093,116 @@
             currentPage: 1,
             settingsPanelOpen: false
         };
+
+        // ===========================
+        // VIRTUAL SCROLLING
+        // ===========================
+        class VirtualScroller {
+            constructor(container, itemHeight) {
+                this.container = container;
+                this.itemHeight = itemHeight; // 16px per line
+                this.viewportHeight = 0;
+                this.scrollTop = 0;
+                this.visibleStartIndex = 0;
+                this.visibleEndIndex = 0;
+                this.bufferSize = 50; // Extra rows above/below viewport
+                this.totalItems = 0;
+                this.renderCallback = null;
+                this.rafPending = false;
+                this.scrollListener = null;
+                this.resizeObserver = null;
+            }
+
+            init(totalItems, renderCallback) {
+                this.totalItems = totalItems;
+                this.renderCallback = renderCallback;
+                this.viewportHeight = this.container.clientHeight;
+
+                // Create structure: topSpacer + content + bottomSpacer
+                this.topSpacer = document.createElement('div');
+                this.bottomSpacer = document.createElement('div');
+                this.content = document.createElement('div');
+                this.content.setAttribute('role', 'region');
+                this.content.setAttribute('aria-label', 'Report content');
+
+                this.container.innerHTML = '';
+                this.container.appendChild(this.topSpacer);
+                this.container.appendChild(this.content);
+                this.container.appendChild(this.bottomSpacer);
+
+                this.updateVisibleRange();
+                this.render();
+
+                // Passive scroll listener for performance
+                this.scrollListener = () => this.onScroll();
+                this.container.addEventListener('scroll', this.scrollListener, { passive: true });
+
+                // Handle resize
+                this.resizeObserver = new ResizeObserver(() => this.onResize());
+                this.resizeObserver.observe(this.container);
+            }
+
+            onScroll() {
+                if (this.rafPending) return;
+
+                this.rafPending = true;
+                requestAnimationFrame(() => {
+                    this.scrollTop = this.container.scrollTop;
+                    const newStartIndex = Math.floor(this.scrollTop / this.itemHeight);
+
+                    // Re-render if scrolled more than 10 rows
+                    if (Math.abs(newStartIndex - this.visibleStartIndex) > 10) {
+                        this.updateVisibleRange();
+                        this.render();
+                    }
+
+                    this.rafPending = false;
+                });
+            }
+
+            onResize() {
+                this.viewportHeight = this.container.clientHeight;
+                this.updateVisibleRange();
+                this.render();
+            }
+
+            updateVisibleRange() {
+                this.visibleStartIndex = Math.max(0,
+                    Math.floor(this.scrollTop / this.itemHeight) - this.bufferSize);
+                this.visibleEndIndex = Math.min(this.totalItems,
+                    Math.ceil((this.scrollTop + this.viewportHeight) / this.itemHeight) + this.bufferSize);
+            }
+
+            render() {
+                // Update spacers to maintain scroll position
+                this.topSpacer.style.height = (this.visibleStartIndex * this.itemHeight) + 'px';
+                this.bottomSpacer.style.height =
+                    ((this.totalItems - this.visibleEndIndex) * this.itemHeight) + 'px';
+
+                // Render visible items via callback
+                if (this.renderCallback) {
+                    this.renderCallback(this.visibleStartIndex, this.visibleEndIndex, this.content);
+                }
+            }
+
+            scrollToIndex(index) {
+                const targetScroll = index * this.itemHeight;
+                this.container.scrollTop = targetScroll;
+            }
+
+            destroy() {
+                if (this.resizeObserver) {
+                    this.resizeObserver.disconnect();
+                    this.resizeObserver = null;
+                }
+                if (this.scrollListener) {
+                    this.container.removeEventListener('scroll', this.scrollListener);
+                    this.scrollListener = null;
+                }
+            }
+        }
+
+        let virtualScroller = null;
 
         // ===========================
         // INITIALIZATION
@@ -2082,6 +2356,12 @@
 
                 const fontSize = fontSizeMap[AppState.zoomLevel] || '11px';
                 document.documentElement.style.setProperty('--report-font-size', fontSize);
+            }
+
+            // Clear cached character width for mousemove handler
+            const reportDisplay = document.getElementById('reportDisplay');
+            if (reportDisplay) {
+                delete reportDisplay._cachedCharWidth;
             }
 
             // Ruler now uses variable font-size, so no scaleX needed
@@ -2492,8 +2772,474 @@
         // ===========================
         // RENDERING
         // ===========================
+        const USE_VIRTUAL_SCROLLING = false; // DISABLED - Virtual scrolling needs further optimization for files >100K lines
+        const LARGE_FILE_THRESHOLD = 10000; // Lines - use page-by-page rendering above this
+        let PAGES_TO_RENDER = 3; // Number of pages to render at once for large files (configurable)
+
         function renderReport() {
             const display = document.getElementById('reportDisplay');
+
+            // Choose rendering strategy based on file size
+            if (AppState.lines.length > LARGE_FILE_THRESHOLD) {
+                // Large file: Page-by-page rendering
+                renderPageByPage();
+            } else if (USE_VIRTUAL_SCROLLING && AppState.lines.length > 1000) {
+                // Medium file: Virtual scrolling
+                renderReportVirtual();
+            } else {
+                // Small file: Traditional full rendering
+                renderReportTraditional();
+            }
+
+            // Update ranges button indicator
+            updateRangesIndicator();
+
+            // Update sticky ruler bar
+            updateStickyRuler();
+        }
+
+        // Page-by-page rendering for large files
+        function renderPageByPage() {
+            const display = document.getElementById('reportDisplay');
+
+            // Initialize current page index if not set
+            if (!AppState.currentPageIndex) {
+                AppState.currentPageIndex = 0;
+            }
+
+            // Determine which pages to display
+            let allPages = AppState.pages;
+            if (AppState.showRangesOnly && AppState.pageRanges.length > 0) {
+                allPages = filterPagesByRanges();
+            }
+
+            // Calculate page range to render (current page +/- buffer)
+            const startPage = Math.max(0, AppState.currentPageIndex - Math.floor(PAGES_TO_RENDER / 2));
+            const endPage = Math.min(allPages.length, startPage + PAGES_TO_RENDER);
+            const pagesToDisplay = allPages.slice(startPage, endPage);
+
+            // Get actual page numbers being displayed
+            const firstVisiblePage = pagesToDisplay[0]?.pageNumber || 1;
+            const lastVisiblePage = pagesToDisplay[pagesToDisplay.length - 1]?.pageNumber || 1;
+            const totalPages = allPages[allPages.length - 1]?.pageNumber || allPages.length;
+
+            // Show navigation controls
+            showPageNavigation(firstVisiblePage, lastVisiblePage, totalPages, AppState.currentPageIndex, allPages.length);
+
+            // Render only the selected pages (traditional rendering)
+            let html = '<div class="report-content">';
+
+            pagesToDisplay.forEach((page, pageIndex) => {
+                // Add page separator
+                const sectionName = getSectionNameForPage(page.pageNumber);
+                const pageLabelText = sectionName
+                    ? `── PAGE ${page.pageNumber} (${sectionName}) ──`
+                    : `── PAGE ${page.pageNumber} ──`;
+                html += `<div class="page-separator" data-page="${page.pageNumber}">`;
+                html += `<div><span class="page-label">${pageLabelText}</span></div>`;
+                html += `<hr class="separator-line"></div>`;
+
+                // Create page container
+                html += `<div class="report-page" data-page="${page.pageNumber}" id="page-${page.pageNumber}">`;
+
+                // Add all lines for this page
+                page.lines.forEach((line, lineIndex) => {
+                    const zebraClass = AppState.zebraEnabled ? (lineIndex % 2 === 0 ? 'zebra-even' : 'zebra-odd') : '';
+                    html += `<div class="report-line ${zebraClass}" data-line="${line.lineNumber}" data-page="${page.pageNumber}" data-page-line="${lineIndex + 1}">`;
+                    if (AppState.showLineNumbers) {
+                        html += `<span class="line-number">${lineIndex + 1}</span>`;
+                    }
+                    html += `<span class="line-content">${escapeHtml(line.displayText)}</span>`;
+                    html += `</div>`;
+                });
+
+                html += '</div>';
+            });
+
+            html += '</div>';
+            display.innerHTML = html;
+
+            // Apply watermark if enabled
+            if (AppState.watermark.enabled && AppState.watermark.imageSrc) {
+                setTimeout(() => applyWatermarkToDisplay(), 100);
+            }
+
+            // Update current page indicator in footer to match navigation bar
+            if (firstVisiblePage === lastVisiblePage) {
+                AppState.currentPage = firstVisiblePage;
+                document.getElementById('currentPage').textContent = firstVisiblePage;
+            } else {
+                // Show page range in footer too
+                AppState.currentPage = lastVisiblePage;
+                document.getElementById('currentPage').textContent = `${firstVisiblePage}-${lastVisiblePage}`;
+            }
+        }
+
+        function showPageNavigation(firstPage, lastPage, totalPages, currentIndex, totalPagesCount) {
+            // Check if navigation already exists
+            let navBar = document.getElementById('pageNavBar');
+            if (!navBar) {
+                // Create navigation bar
+                navBar = document.createElement('div');
+                navBar.id = 'pageNavBar';
+                navBar.style.cssText = `
+                    position: fixed;
+                    bottom: 20px;
+                    right: 20px;
+                    background: var(--bg-secondary);
+                    border: 2px solid var(--border-color);
+                    border-radius: 8px;
+                    padding: 12px 20px;
+                    display: flex;
+                    gap: 12px;
+                    align-items: center;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                    z-index: 1000;
+                    font-size: 14px;
+                `;
+                document.body.appendChild(navBar);
+
+                // Setup scroll listener for auto-load
+                const display = document.getElementById('reportDisplay');
+                let scrollTimeout;
+                display.addEventListener('scroll', function() {
+                    clearTimeout(scrollTimeout);
+                    scrollTimeout = setTimeout(() => checkScrollPosition(), 150);
+                });
+            }
+
+            // Determine page display text
+            const pageText = firstPage === lastPage
+                ? `Page <strong>${firstPage}</strong> of <strong>${totalPages}</strong>`
+                : `Pages <strong>${firstPage}-${lastPage}</strong> of <strong>${totalPages}</strong>`;
+
+            // Update navigation content
+            navBar.innerHTML = `
+                <button onclick="previousPage()" style="
+                    padding: 8px 16px;
+                    background: var(--accent-primary);
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 14px;
+                " ${currentIndex <= 0 ? 'disabled' : ''}>◄ Previous</button>
+                <span style="color: var(--text-primary); min-width: 150px; text-align: center;">
+                    ${pageText}
+                </span>
+                <button onclick="nextPage()" style="
+                    padding: 8px 16px;
+                    background: var(--accent-primary);
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 14px;
+                " ${currentIndex >= totalPagesCount - 1 ? 'disabled' : ''}>Next ►</button>
+                <button onclick="jumpToPagePrompt()" style="
+                    padding: 8px 16px;
+                    background: var(--accent-secondary);
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 14px;
+                ">Go to Page...</button>
+            `;
+        }
+
+        function hidePageNavigation() {
+            const navBar = document.getElementById('pageNavBar');
+            if (navBar) {
+                navBar.remove();
+            }
+
+            // Keep page jump input visible for all files
+            // (removed code that was hiding it for small files)
+        }
+
+        function previousPage() {
+            if (AppState.currentPageIndex > 0) {
+                AppState.currentPageIndex--;
+                renderReport();
+                document.getElementById('reportDisplay').scrollTop = 0;
+            }
+        }
+
+        function nextPage() {
+            const totalPages = AppState.pages.length;
+            if (AppState.currentPageIndex < totalPages - 1) {
+                AppState.currentPageIndex++;
+                renderReport();
+                document.getElementById('reportDisplay').scrollTop = 0;
+            }
+        }
+
+        function jumpToPagePrompt() {
+            const totalPages = AppState.pages.length;
+            const pageNum = prompt(`Enter page number (1-${totalPages}):`);
+            if (pageNum) {
+                const num = parseInt(pageNum);
+                if (num >= 1 && num <= totalPages) {
+                    AppState.currentPageIndex = num - 1;
+                    renderReport();
+                    document.getElementById('reportDisplay').scrollTop = 0;
+                } else {
+                    showToast(`Invalid page number. Enter 1-${totalPages}`, 'error');
+                }
+            }
+        }
+
+        function checkScrollPosition() {
+            // Only run for large files with page-by-page rendering
+            if (AppState.lines.length <= LARGE_FILE_THRESHOLD) return;
+
+            const display = document.getElementById('reportDisplay');
+            const scrollTop = display.scrollTop;
+            const scrollHeight = display.scrollHeight;
+            const clientHeight = display.clientHeight;
+            const totalPages = AppState.pages.length;
+
+            // Threshold for triggering load (100px from edge)
+            const threshold = 100;
+
+            // Check if scrolled near bottom
+            if (scrollTop + clientHeight >= scrollHeight - threshold) {
+                if (AppState.currentPageIndex < totalPages - 1) {
+                    // Save current scroll position relative to document
+                    const wasAtBottom = true;
+
+                    AppState.currentPageIndex++;
+                    renderReport();
+
+                    // Keep scroll near bottom (show continuity)
+                    requestAnimationFrame(() => {
+                        display.scrollTop = threshold;
+                    });
+                }
+            }
+            // Check if scrolled near top
+            else if (scrollTop <= threshold) {
+                if (AppState.currentPageIndex > 0) {
+                    AppState.currentPageIndex--;
+                    renderReport();
+
+                    // Keep scroll near top of new content (show continuity)
+                    requestAnimationFrame(() => {
+                        display.scrollTop = scrollHeight - clientHeight - threshold;
+                    });
+                }
+            }
+        }
+
+        function jumpToPage() {
+            const input = document.getElementById('pageJumpInput');
+            const pageNum = parseInt(input.value);
+
+            if (!pageNum || isNaN(pageNum)) {
+                showToast('Enter a valid page number', 'error');
+                return;
+            }
+
+            // Check if using page-by-page rendering (large files)
+            if (AppState.lines.length > LARGE_FILE_THRESHOLD) {
+                // Large file: Update currentPageIndex and re-render
+                const totalPages = AppState.pages.length;
+                if (pageNum >= 1 && pageNum <= totalPages) {
+                    const pageIndex = AppState.pages.findIndex(p => p.pageNumber === pageNum);
+                    if (pageIndex >= 0) {
+                        AppState.currentPageIndex = pageIndex;
+                        renderReport();
+                        document.getElementById('reportDisplay').scrollTop = 0;
+                        input.value = ''; // Clear input
+                        showToast(`Jumped to page ${pageNum}`, 'success');
+                    } else {
+                        showToast(`Page ${pageNum} not found`, 'error');
+                    }
+                } else {
+                    showToast(`Enter page 1-${totalPages}`, 'error');
+                }
+            } else {
+                // Small file: Scroll to page separator
+                const pageSeparator = document.querySelector(`.page-separator[data-page="${pageNum}"]`);
+                if (pageSeparator) {
+                    pageSeparator.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    input.value = ''; // Clear input
+                    showToast(`Jumped to page ${pageNum}`, 'success');
+                } else {
+                    const totalPages = AppState.pages[AppState.pages.length - 1]?.pageNumber || AppState.pages.length;
+                    showToast(`Page ${pageNum} not found (1-${totalPages})`, 'error');
+                }
+            }
+        }
+
+        function handlePageJumpKey(event) {
+            if (event.key === 'Enter') {
+                jumpToPage();
+            }
+        }
+
+        function renderReportVirtual() {
+            const display = document.getElementById('reportDisplay');
+
+            // Determine which pages to display
+            let pagesToDisplay = AppState.pages;
+            if (AppState.showRangesOnly && AppState.pageRanges.length > 0) {
+                pagesToDisplay = filterPagesByRanges();
+            }
+
+            // Flatten pages into single line array
+            const allLines = [];
+            const pageStarts = new Map(); // Track page boundaries
+
+            pagesToDisplay.forEach(page => {
+                pageStarts.set(allLines.length, {
+                    pageNumber: page.pageNumber,
+                    sectionName: getSectionNameForPage(page.pageNumber)
+                });
+
+                // Store page-relative line index for each line
+                page.lines.forEach((line, lineIndex) => {
+                    // Store the page-relative index temporarily for rendering
+                    line._pageLineIndex = lineIndex;
+                    allLines.push(line);
+                });
+            });
+
+            // Store for access by other functions
+            AppState.flattenedLines = allLines;
+            AppState.pageStarts = pageStarts;
+
+            // Initialize or update virtual scroller
+            if (!virtualScroller) {
+                virtualScroller = new VirtualScroller(display, 16);
+            }
+
+            virtualScroller.init(allLines.length, (startIdx, endIdx, contentDiv) => {
+                renderVisibleLines(allLines, pageStarts, startIdx, endIdx, contentDiv);
+            });
+
+            // Apply watermark once after initial render (not on every scroll)
+            if (AppState.watermark.enabled && AppState.watermark.imageSrc) {
+                setTimeout(() => applyWatermarkToDisplay(), 100);
+            }
+
+            // Cache page positions after render completes
+            requestAnimationFrame(() => {
+                setTimeout(() => cachePagePositions(), 100);
+            });
+        }
+
+        function renderVisibleLines(allLines, pageStarts, startIdx, endIdx, contentDiv) {
+            const fragment = document.createDocumentFragment();
+            let currentPage = -1;
+
+            // Add ARIA live region announcement when content changes
+            contentDiv.setAttribute('aria-live', 'polite');
+            contentDiv.setAttribute('aria-atomic', 'false');
+
+            // Announce visible range to screen readers
+            const announceText = `Showing lines ${startIdx + 1} to ${endIdx} of ${allLines.length}`;
+            contentDiv.setAttribute('aria-label', announceText);
+
+            for (let i = startIdx; i < endIdx; i++) {
+                const line = allLines[i];
+
+                // Add page separator if this is a page start
+                if (pageStarts.has(i)) {
+                    const pageInfo = pageStarts.get(i);
+                    const separator = createPageSeparator(pageInfo.pageNumber, pageInfo.sectionName);
+                    fragment.appendChild(separator);
+                    currentPage = pageInfo.pageNumber;
+                }
+
+                // Create line element using DOM API (not string concatenation)
+                const lineDiv = createLineElement(line, i);
+                fragment.appendChild(lineDiv);
+            }
+
+            // Single DOM update
+            contentDiv.innerHTML = '';
+            contentDiv.appendChild(fragment);
+
+            // Note: Watermark is NOT applied here during scroll updates
+            // It's only applied once after initial render in renderReportVirtual()
+        }
+
+        function createLineElement(line, globalIndex) {
+            const lineDiv = document.createElement('div');
+            lineDiv.className = 'report-line';
+
+            // Use the stored page-relative line index (set during flattening)
+            const lineIndex = line._pageLineIndex || 0;
+
+            // Zebra striping
+            if (AppState.zebraEnabled) {
+                lineDiv.classList.add(lineIndex % 2 === 0 ? 'zebra-even' : 'zebra-odd');
+            }
+
+            // Data attributes
+            lineDiv.dataset.line = line.lineNumber;
+            lineDiv.dataset.page = line.pageNumber;
+            lineDiv.dataset.pageLine = lineIndex + 1;
+
+            // Line number
+            if (AppState.showLineNumbers) {
+                const lineNumSpan = document.createElement('span');
+                lineNumSpan.className = 'line-number';
+                lineNumSpan.textContent = lineIndex + 1;
+                lineDiv.appendChild(lineNumSpan);
+            }
+
+            // Line content
+            const contentSpan = document.createElement('span');
+            contentSpan.className = 'line-content';
+
+            // Apply search highlighting if match
+            if (line.hasMatch && AppState.searchTerm) {
+                contentSpan.innerHTML = highlightSearchTerm(escapeHtml(line.displayText));
+            } else {
+                contentSpan.textContent = line.displayText;
+            }
+
+            lineDiv.appendChild(contentSpan);
+            return lineDiv;
+        }
+
+        function createPageSeparator(pageNumber, sectionName) {
+            const separator = document.createElement('div');
+            separator.className = 'page-separator';
+            separator.dataset.page = pageNumber;
+
+            const labelDiv = document.createElement('div');
+            const label = document.createElement('span');
+            label.className = 'page-label';
+            label.textContent = sectionName
+                ? `── PAGE ${pageNumber} (${sectionName}) ──`
+                : `── PAGE ${pageNumber} ──`;
+            labelDiv.appendChild(label);
+
+            const hr = document.createElement('hr');
+            hr.className = 'separator-line';
+
+            separator.appendChild(labelDiv);
+            separator.appendChild(hr);
+
+            return separator;
+        }
+
+        function highlightSearchTerm(text) {
+            const caseSensitive = isCaseSensitive();
+            const escapedTerm = AppState.searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(escapedTerm, caseSensitive ? 'g' : 'gi');
+            return text.replace(regex, '<span class="search-highlight">$&</span>');
+        }
+
+        function renderReportTraditional() {
+            const display = document.getElementById('reportDisplay');
+
+            // Hide page navigation for small files
+            hidePageNavigation();
 
             // Determine which pages to display
             let pagesToDisplay = AppState.pages;
@@ -2544,16 +3290,6 @@
             } else {
                 console.log('Watermark NOT scheduled - enabled:', AppState.watermark.enabled, 'imageSrc:', !!AppState.watermark.imageSrc);
             }
-
-            // Update page jump input (disabled in new design)
-            // const pageJumpEl = document.getElementById('pageJump');
-            // if (pageJumpEl) pageJumpEl.max = pagesToDisplay.length;
-
-            // Update ranges button indicator
-            updateRangesIndicator();
-
-            // Update sticky ruler bar
-            updateStickyRuler();
         }
 
         function buildRuler() {
@@ -2785,6 +3521,17 @@
             }
         }
 
+        function changePagesToRender() {
+            const select = document.getElementById('pagestoRenderSelect');
+            PAGES_TO_RENDER = parseInt(select.value);
+
+            // Re-render if large file is currently loaded
+            if (AppState.lines.length > LARGE_FILE_THRESHOLD) {
+                renderReport();
+                showToast(`Now rendering ${PAGES_TO_RENDER} page(s) at a time`, 'success');
+            }
+        }
+
         function detectReportWidth() {
             let maxWidth = 132; // Default
             let actualMaxWidth = 0;
@@ -2840,6 +3587,7 @@
             const term = document.getElementById('searchBox').value.trim();
             if (!term || AppState.lines.length === 0) {
                 updateSearchDisplay();
+                closeSearchResultsPanel();
                 return;
             }
 
@@ -2871,13 +3619,32 @@
                 }
             });
 
+            // Group results by page
+            AppState.searchResultsByPage = {};
+            AppState.searchResults.forEach(result => {
+                const page = result.pageNumber;
+                if (!AppState.searchResultsByPage[page]) {
+                    AppState.searchResultsByPage[page] = [];
+                }
+                AppState.searchResultsByPage[page].push(result);
+            });
+
             // Update UI
             updateSearchDisplay();
             if (AppState.searchResults.length > 0) {
-                renderReportWithSearch();
-                jumpToSearchResult(0);
+                // For large files, show search results panel
+                if (AppState.lines.length > LARGE_FILE_THRESHOLD) {
+                    showSearchResultsPanel();
+                    // Jump to first result without re-rendering all pages
+                    jumpToPageWithSearchResult(AppState.searchResults[0].pageNumber, 0);
+                } else {
+                    // For small files, render everything with highlights
+                    renderReportWithSearch();
+                    jumpToSearchResult(0);
+                }
             } else {
                 showToast('No matches found', 'error');
+                closeSearchResultsPanel();
             }
         }
 
@@ -2964,18 +3731,42 @@
             AppState.currentSearchIndex = index;
             const result = AppState.searchResults[index];
 
-            // Update current highlight
-            const highlights = document.querySelectorAll('.search-highlight');
-            highlights.forEach(h => h.classList.remove('current'));
+            if (virtualScroller && AppState.flattenedLines) {
+                // Virtual scrolling: calculate flat index and scroll to it
+                const lineIndex = result.lineIndex;
 
-            // Find and highlight current result
-            const lineElement = document.querySelector(`[data-line="${result.lineNumber}"]`);
-            if (lineElement) {
-                const highlight = lineElement.querySelectorAll('.search-highlight')[0];
-                if (highlight) {
-                    highlight.classList.add('current');
+                // Scroll to line using virtual scroller
+                virtualScroller.scrollToIndex(lineIndex);
+
+                // Wait for render, then highlight
+                setTimeout(() => {
+                    const lineElement = document.querySelector(`[data-line="${result.lineNumber}"]`);
+                    if (lineElement) {
+                        // Update current highlight
+                        const highlights = document.querySelectorAll('.search-highlight');
+                        highlights.forEach(h => h.classList.remove('current'));
+
+                        const highlight = lineElement.querySelectorAll('.search-highlight')[0];
+                        if (highlight) {
+                            highlight.classList.add('current');
+                        }
+                        lineElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }, 100);
+            } else {
+                // Traditional rendering: direct scroll
+                const lineElement = document.querySelector(`[data-line="${result.lineNumber}"]`);
+                if (lineElement) {
+                    // Update current highlight
+                    const highlights = document.querySelectorAll('.search-highlight');
+                    highlights.forEach(h => h.classList.remove('current'));
+
+                    const highlight = lineElement.querySelectorAll('.search-highlight')[0];
+                    if (highlight) {
+                        highlight.classList.add('current');
+                    }
+                    lineElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
-                lineElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
 
             // Update search display
@@ -2985,13 +3776,55 @@
         function nextSearchResult() {
             if (AppState.searchResults.length === 0) return;
             const nextIndex = (AppState.currentSearchIndex + 1) % AppState.searchResults.length;
-            jumpToSearchResult(nextIndex);
+
+            // For large files, check if we need to jump to a different page
+            if (AppState.lines.length > LARGE_FILE_THRESHOLD) {
+                const nextResult = AppState.searchResults[nextIndex];
+                const currentRenderedPages = getCurrentRenderedPageNumbers();
+
+                if (!currentRenderedPages.includes(nextResult.pageNumber)) {
+                    // Need to jump to a different page
+                    jumpToPageWithSearchResult(nextResult.pageNumber, 0);
+                } else {
+                    // Result is on current pages, just navigate
+                    jumpToSearchResult(nextIndex);
+                }
+            } else {
+                jumpToSearchResult(nextIndex);
+            }
         }
 
         function previousSearchResult() {
             if (AppState.searchResults.length === 0) return;
             const prevIndex = (AppState.currentSearchIndex - 1 + AppState.searchResults.length) % AppState.searchResults.length;
-            jumpToSearchResult(prevIndex);
+
+            // For large files, check if we need to jump to a different page
+            if (AppState.lines.length > LARGE_FILE_THRESHOLD) {
+                const prevResult = AppState.searchResults[prevIndex];
+                const currentRenderedPages = getCurrentRenderedPageNumbers();
+
+                if (!currentRenderedPages.includes(prevResult.pageNumber)) {
+                    // Need to jump to a different page
+                    jumpToPageWithSearchResult(prevResult.pageNumber, 0);
+                } else {
+                    // Result is on current pages, just navigate
+                    jumpToSearchResult(prevIndex);
+                }
+            } else {
+                jumpToSearchResult(prevIndex);
+            }
+        }
+
+        function getCurrentRenderedPageNumbers() {
+            const pageElements = document.querySelectorAll('.report-page[data-page]');
+            const pageNumbers = [];
+            pageElements.forEach(el => {
+                const pageNum = parseInt(el.getAttribute('data-page'));
+                if (!isNaN(pageNum)) {
+                    pageNumbers.push(pageNum);
+                }
+            });
+            return pageNumbers;
         }
 
         function clearSearch() {
@@ -2999,6 +3832,7 @@
             document.getElementById('clearSearchBtn').classList.remove('visible');
             AppState.searchTerm = '';
             AppState.searchResults = [];
+            AppState.searchResultsByPage = {};
             AppState.currentSearchIndex = -1;
 
             // Clear hasMatch flags
@@ -3006,34 +3840,197 @@
 
             // Update display
             updateSearchDisplay();
+            closeSearchResultsPanel();
 
             // Re-render without search highlights
             renderReport();
         }
 
         // ===========================
+        // SEARCH RESULTS PANEL
+        // ===========================
+        function showSearchResultsPanel() {
+            const panel = document.getElementById('searchResultsPanel');
+            const content = document.getElementById('searchResultsContent');
+            const title = document.getElementById('searchResultsPanelTitle');
+
+            const totalMatches = AppState.searchResults.length;
+            const totalPages = Object.keys(AppState.searchResultsByPage).length;
+
+            title.textContent = `${totalMatches} matches on ${totalPages} pages`;
+
+            // Build list of pages with matches
+            let html = '';
+            const sortedPages = Object.keys(AppState.searchResultsByPage).map(Number).sort((a, b) => a - b);
+
+            sortedPages.forEach(pageNum => {
+                const matches = AppState.searchResultsByPage[pageNum].length;
+                html += `<div class="search-result-page" onclick="jumpToPageWithSearchResult(${pageNum}, 0)">`;
+                html += `  <div class="search-result-page-number">Page ${pageNum}</div>`;
+                html += `  <div class="search-result-match-count">${matches} match${matches > 1 ? 'es' : ''}</div>`;
+                html += `</div>`;
+            });
+
+            content.innerHTML = html;
+            panel.classList.add('active');
+        }
+
+        function closeSearchResultsPanel() {
+            document.getElementById('searchResultsPanel').classList.remove('active');
+        }
+
+        function toggleSearchResultsPanel() {
+            const panel = document.getElementById('searchResultsPanel');
+            panel.classList.toggle('active');
+        }
+
+        function jumpToPageWithSearchResult(pageNum, resultIndexInPage) {
+            // For large files: jump to specific page and render with search highlights
+            if (AppState.lines.length > LARGE_FILE_THRESHOLD) {
+                // Find page index in AppState.pages
+                const pageIndex = AppState.pages.findIndex(p => p.pageNumber === pageNum);
+                if (pageIndex >= 0) {
+                    AppState.currentPageIndex = pageIndex;
+                    renderPageByPageWithSearch();
+
+                    // Find the search result index for this page and position
+                    const resultsOnPage = AppState.searchResultsByPage[pageNum] || [];
+                    if (resultsOnPage.length > 0) {
+                        const targetResult = resultsOnPage[resultIndexInPage] || resultsOnPage[0];
+                        const globalIndex = AppState.searchResults.findIndex(r =>
+                            r.lineNumber === targetResult.lineNumber &&
+                            r.matchStart === targetResult.matchStart
+                        );
+                        if (globalIndex >= 0) {
+                            AppState.currentSearchIndex = globalIndex;
+
+                            // Scroll to the line
+                            setTimeout(() => {
+                                const lineElement = document.querySelector(`[data-line="${targetResult.lineNumber}"]`);
+                                if (lineElement) {
+                                    lineElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                                    // Highlight current match
+                                    const highlights = document.querySelectorAll('.search-highlight');
+                                    highlights.forEach(h => h.classList.remove('current'));
+                                    const highlight = lineElement.querySelectorAll('.search-highlight')[0];
+                                    if (highlight) {
+                                        highlight.classList.add('current');
+                                    }
+                                }
+                            }, 100);
+                        }
+                    }
+
+                    updateSearchDisplay();
+                }
+            } else {
+                // For small files: just scroll to the match
+                const resultsOnPage = AppState.searchResultsByPage[pageNum] || [];
+                if (resultsOnPage.length > 0) {
+                    const targetResult = resultsOnPage[resultIndexInPage] || resultsOnPage[0];
+                    const globalIndex = AppState.searchResults.findIndex(r =>
+                        r.lineNumber === targetResult.lineNumber &&
+                        r.matchStart === targetResult.matchStart
+                    );
+                    if (globalIndex >= 0) {
+                        jumpToSearchResult(globalIndex);
+                    }
+                }
+            }
+        }
+
+        function renderPageByPageWithSearch() {
+            const display = document.getElementById('reportDisplay');
+
+            // Initialize current page index if not set
+            if (!AppState.currentPageIndex) {
+                AppState.currentPageIndex = 0;
+            }
+
+            // Determine which pages to display
+            let allPages = AppState.pages;
+            if (AppState.showRangesOnly && AppState.pageRanges.length > 0) {
+                allPages = filterPagesByRanges();
+            }
+
+            // Calculate page range to render (current page +/- buffer)
+            const startPage = Math.max(0, AppState.currentPageIndex - Math.floor(PAGES_TO_RENDER / 2));
+            const endPage = Math.min(allPages.length, startPage + PAGES_TO_RENDER);
+            const pagesToDisplay = allPages.slice(startPage, endPage);
+
+            // Get actual page numbers being displayed
+            const firstVisiblePage = pagesToDisplay[0]?.pageNumber || 1;
+            const lastVisiblePage = pagesToDisplay[pagesToDisplay.length - 1]?.pageNumber || 1;
+            const totalPages = allPages[allPages.length - 1]?.pageNumber || allPages.length;
+
+            // Show navigation controls
+            showPageNavigation(firstVisiblePage, lastVisiblePage, totalPages, AppState.currentPageIndex, allPages.length);
+
+            // Render pages with search highlights
+            const caseSensitive = isCaseSensitive();
+            const escapedTerm = AppState.searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+            let html = '<div class="report-content">';
+
+            pagesToDisplay.forEach((page, pageIndex) => {
+                // Add page separator
+                const sectionName = getSectionNameForPage(page.pageNumber);
+                const pageLabelText = sectionName
+                    ? `── PAGE ${page.pageNumber} (${sectionName}) ──`
+                    : `── PAGE ${page.pageNumber} ──`;
+                html += `<div class="page-separator" data-page="${page.pageNumber}">`;
+                html += `<div><span class="page-label">${pageLabelText}</span></div>`;
+                html += `<hr class="separator-line"></div>`;
+
+                // Create page container
+                html += `<div class="report-page" data-page="${page.pageNumber}" id="page-${page.pageNumber}">`;
+
+                // Add all lines for this page
+                page.lines.forEach((line, lineIndex) => {
+                    let lineText = escapeHtml(line.displayText);
+
+                    // Apply search highlighting if this line has a match
+                    if (line.hasMatch && AppState.searchTerm) {
+                        const regex = new RegExp(escapedTerm, caseSensitive ? 'g' : 'gi');
+                        lineText = lineText.replace(regex, '<span class="search-highlight">$&</span>');
+                    }
+
+                    const zebraClass = AppState.zebraEnabled ? (lineIndex % 2 === 0 ? 'zebra-even' : 'zebra-odd') : '';
+                    html += `<div class="report-line ${zebraClass}" data-line="${line.lineNumber}" data-page="${page.pageNumber}" data-page-line="${lineIndex + 1}">`;
+                    if (AppState.showLineNumbers) {
+                        html += `<span class="line-number">${lineIndex + 1}</span>`;
+                    }
+                    html += `<span class="line-content">${lineText}</span>`;
+                    html += `</div>`;
+                });
+
+                html += '</div>';
+            });
+
+            html += '</div>';
+            display.innerHTML = html;
+
+            // Apply watermark if enabled
+            if (AppState.watermark.enabled && AppState.watermark.imageSrc) {
+                setTimeout(() => applyWatermarkToDisplay(), 100);
+            }
+
+            // Update current page indicator in footer to match navigation bar
+            if (firstVisiblePage === lastVisiblePage) {
+                AppState.currentPage = firstVisiblePage;
+                document.getElementById('currentPage').textContent = firstVisiblePage;
+            } else {
+                AppState.currentPage = lastVisiblePage;
+                document.getElementById('currentPage').textContent = `${firstVisiblePage}-${lastVisiblePage}`;
+            }
+        }
+
+        // ===========================
         // PAGE NAVIGATION
         // ===========================
-        function handlePageJumpKeyup(event) {
-            if (event.key === 'Enter') {
-                jumpToPage();
-            }
-        }
-
-        function jumpToPage() {
-            const pageNum = parseInt(document.getElementById('pageJump').value);
-            if (isNaN(pageNum) || pageNum < 1 || pageNum > AppState.pages.length) {
-                showToast('Invalid page number', 'error');
-                return;
-            }
-
-            const separator = document.querySelector(`[data-page="${pageNum}"]`);
-            if (separator) {
-                separator.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                AppState.currentPage = pageNum;
-                document.getElementById('currentPage').textContent = pageNum;
-            }
-        }
+        // REMOVED DUPLICATE: handlePageJumpKeyup and jumpToPage functions
+        // These are already defined correctly earlier in the file (around line 2910-2955)
 
         // ===========================
         // PAGE RANGES
@@ -3803,11 +4800,12 @@
                     document.getElementById('searchBox').focus();
                 }
 
-                // Ctrl+G: Jump to page (disabled in new design - no page jump UI)
-                // if (e.ctrlKey && e.key === 'g') {
-                //     e.preventDefault();
-                //     // Page jump functionality not implemented in new toolbar design
-                // }
+                // Ctrl+G: Jump to page
+                if (e.ctrlKey && e.key === 'g') {
+                    e.preventDefault();
+                    document.getElementById('pageJumpInput').focus();
+                    document.getElementById('pageJumpInput').select();
+                }
 
                 // Ctrl+E: Export PDF
                 if (e.ctrlKey && e.key === 'e') {
@@ -3932,26 +4930,65 @@
         // UTILITY FUNCTIONS
         // ===========================
 
+        // Cache page positions after render
+        let cachedPagePositions = [];
+
+        function cachePagePositions() {
+            const separators = document.querySelectorAll('.page-separator');
+            cachedPagePositions = Array.from(separators).map(sep => ({
+                pageNumber: parseInt(sep.dataset.page),
+                offsetTop: sep.offsetTop
+            }));
+        }
+
         // Scroll detection for current page indicator
         let scrollTimeout;
         document.getElementById('reportDisplay')?.addEventListener('scroll', function() {
             clearTimeout(scrollTimeout);
             scrollTimeout = setTimeout(() => {
                 updateCurrentPageIndicator();
-            }, 100);
-        });
+            }, 150);
+        }, { passive: true });
 
         function updateCurrentPageIndicator() {
+            // For large files using page-by-page rendering, don't update here
+            // The page indicator is set by renderPageByPage() and should not be overwritten by scroll
+            if (AppState.lines.length > LARGE_FILE_THRESHOLD) {
+                return; // Page indicator is managed by renderPageByPage()
+            }
+
+            // Only update for small files using traditional full rendering
             const display = document.getElementById('reportDisplay');
             const scrollTop = display.scrollTop;
-            const separators = document.querySelectorAll('.page-separator');
 
+            if (cachedPagePositions.length === 0) {
+                // Fallback to traditional method for small files
+                const separators = document.querySelectorAll('.page-separator');
+                let currentPage = 1;
+                separators.forEach(sep => {
+                    if (sep.offsetTop <= scrollTop + 100) {
+                        currentPage = parseInt(sep.getAttribute('data-page'));
+                    }
+                });
+                document.getElementById('currentPage').textContent = currentPage;
+                AppState.currentPage = currentPage;
+                return;
+            }
+
+            // Binary search for current page
+            let left = 0;
+            let right = cachedPagePositions.length - 1;
             let currentPage = 1;
-            separators.forEach(sep => {
-                if (sep.offsetTop <= scrollTop + 100) {
-                    currentPage = parseInt(sep.getAttribute('data-page'));
+
+            while (left <= right) {
+                const mid = Math.floor((left + right) / 2);
+                if (cachedPagePositions[mid].offsetTop <= scrollTop + 100) {
+                    currentPage = cachedPagePositions[mid].pageNumber;
+                    left = mid + 1;
+                } else {
+                    right = mid - 1;
                 }
-            });
+            }
 
             document.getElementById('currentPage').textContent = currentPage;
             AppState.currentPage = currentPage;
@@ -4007,17 +5044,13 @@
 
             if (!reportDisplay || !columnHighlight) return;
 
-            // Find the line under the mouse
-            const lineElements = reportDisplay.querySelectorAll('.report-line');
-            let hoveredLine = null;
-            let pageLineNum = 1;
-
-            for (const lineEl of lineElements) {
-                const lineRect = lineEl.getBoundingClientRect();
-                if (event.clientY >= lineRect.top && event.clientY <= lineRect.bottom) {
-                    hoveredLine = lineEl;
-                    pageLineNum = parseInt(lineEl.getAttribute('data-page-line')) || 1;
-                    break;
+            // Use event delegation - traverse up from target
+            let hoveredLine = event.target;
+            while (hoveredLine && !hoveredLine.classList.contains('report-line')) {
+                hoveredLine = hoveredLine.parentElement;
+                if (hoveredLine === reportDisplay) {
+                    columnHighlight.classList.remove('visible');
+                    return;
                 }
             }
 
@@ -4026,9 +5059,14 @@
                 return;
             }
 
-            // Calculate character width based on current zoom
-            const fontSize = parseFloat(getComputedStyle(reportDisplay).fontSize);
-            const charWidth = fontSize * 0.6; // Approximate monospace character width
+            const pageLineNum = parseInt(hoveredLine.dataset.pageLine) || 1;
+
+            // Cache font metrics to avoid repeated getComputedStyle calls
+            if (!reportDisplay._cachedCharWidth) {
+                const fontSize = parseFloat(getComputedStyle(reportDisplay).fontSize);
+                reportDisplay._cachedCharWidth = fontSize * 0.6;
+            }
+            const charWidth = reportDisplay._cachedCharWidth;
 
             // Get the line content span (where actual text starts)
             const lineContent = hoveredLine.querySelector('.line-content');
@@ -4040,8 +5078,12 @@
             // Calculate column (1-based, accounting for text starting position)
             const col = Math.max(1, Math.floor(mouseXRelativeToText / charWidth) + 1);
 
-            // Update cursor position indicator on hover
-            updateCursorPosition(pageLineNum, col);
+            // Throttle cursor updates
+            const now = Date.now();
+            if (!handleReportMouseMove._lastCursorUpdate || now - handleReportMouseMove._lastCursorUpdate > 50) {
+                updateCursorPosition(pageLineNum, col);
+                handleReportMouseMove._lastCursorUpdate = now;
+            }
 
             // Only show column highlight if enabled and mouse is over text
             if (AppState.columnHighlightEnabled && mouseXRelativeToText >= 0) {
@@ -4079,6 +5121,99 @@
         document.addEventListener('DOMContentLoaded', setupCursorTracking);
         // Also call it immediately in case DOM is already loaded
         setupCursorTracking();
+
+        // ===========================
+        // PRINT SUPPORT
+        // ===========================
+        function renderFullReportForPrint() {
+            const display = document.getElementById('reportDisplay');
+            const fragment = document.createDocumentFragment();
+
+            let pagesToDisplay = AppState.pages;
+            if (AppState.showRangesOnly && AppState.pageRanges.length > 0) {
+                pagesToDisplay = filterPagesByRanges();
+            }
+
+            pagesToDisplay.forEach(page => {
+                const separator = createPageSeparator(page.pageNumber, getSectionNameForPage(page.pageNumber));
+                fragment.appendChild(separator);
+
+                page.lines.forEach((line, idx) => {
+                    const lineDiv = createLineElement({
+                        ...line,
+                        pageNumber: page.pageNumber
+                    }, idx);
+                    fragment.appendChild(lineDiv);
+                });
+            });
+
+            display.innerHTML = '';
+            display.appendChild(fragment);
+        }
+
+        // Detect print and render all content
+        window.addEventListener('beforeprint', () => {
+            if (virtualScroller) {
+                // Temporarily render ALL lines for printing
+                const display = document.getElementById('reportDisplay');
+                display.classList.add('printing');
+
+                // Destroy virtual scroller
+                virtualScroller.destroy();
+                virtualScroller = null;
+
+                // Render full content
+                renderFullReportForPrint();
+            }
+        });
+
+        window.addEventListener('afterprint', () => {
+            const display = document.getElementById('reportDisplay');
+            display.classList.remove('printing');
+
+            // Restore virtual scrolling
+            renderReport();
+        });
+
+        // ===========================
+        // ACCESSIBILITY
+        // ===========================
+        function setupAccessibilityNavigation() {
+            const display = document.getElementById('reportDisplay');
+
+            display.addEventListener('keydown', (e) => {
+                if (!virtualScroller) return;
+
+                const currentScroll = display.scrollTop;
+                const lineHeight = 16;
+
+                switch(e.key) {
+                    case 'PageDown':
+                        e.preventDefault();
+                        display.scrollTop = currentScroll + display.clientHeight;
+                        break;
+                    case 'PageUp':
+                        e.preventDefault();
+                        display.scrollTop = currentScroll - display.clientHeight;
+                        break;
+                    case 'Home':
+                        if (e.ctrlKey) {
+                            e.preventDefault();
+                            display.scrollTop = 0;
+                        }
+                        break;
+                    case 'End':
+                        if (e.ctrlKey) {
+                            e.preventDefault();
+                            display.scrollTop = display.scrollHeight;
+                        }
+                        break;
+                }
+            });
+        }
+
+        // Set up accessibility when DOM is loaded
+        document.addEventListener('DOMContentLoaded', setupAccessibilityNavigation);
 
     </script>
 </body>
