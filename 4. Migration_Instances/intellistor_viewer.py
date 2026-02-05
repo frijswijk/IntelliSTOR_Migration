@@ -8,9 +8,11 @@ This program demonstrates the complete workflow for:
 3. Fast page access in large spool files (Form Feed and ASA formats)
 
 MAP File Index Structure:
-- Segment 0: Lookup/Directory table mapping (LINE_ID, FIELD_ID) → segment number
-- Segments 1-N: Index entries for each indexed field
-- Entry format: [length:2][value:N][page:2][flags:3] where N = field_width
+- Segment 0: Lookup/Directory table + sections/branch index (IS_SIGNIFICANT fields)
+- Segments 1-N: Index entries for each indexed field (IS_INDEXED fields)
+- Two entry formats (both have total size = 7 + field_width):
+  - Small files: [length:2][value:N][page:2][flags:3] — page is direct uint16 page number
+  - Large files: [length:2][value:N][u32_index:4][last:1] — u32 is line occurrence index
 
 Usage:
     python intellistor_viewer.py --help
@@ -147,10 +149,21 @@ class MapSegmentInfo:
 
 @dataclass
 class IndexEntry:
-    """Single index entry from MAP file"""
+    """Single index entry from MAP file
+
+    Entry format varies by MAP file:
+    - Small files: [length:2][value:N][page:2][flags:3] — page is uint16 page number
+    - Large files: [length:2][value:N][u32_index:4][last:1] — u32 is line occurrence index
+
+    In both cases, total entry_size = 7 + field_width.
+    For large files: (u32_index - 1) / 2 = 0-based index into LINE occurrences in spool.
+    """
     value: str
-    page_number: int
+    page_number: int          # For small files: direct page; for large files: 0 (unresolved)
     raw_length: int
+    raw_trailing: bytes = field(default=b'')  # The 5 bytes after the value text
+    u32_index: int = 0        # For large files: the 4-byte index value
+    entry_format: str = 'page'  # 'page' (small files) or 'u32_index' (large files)
 
 
 # ============================================================================
@@ -415,8 +428,13 @@ class MapFileParser:
         """
         Parse Segment 0 lookup/directory table.
 
-        Segment 0 contains entries mapping (LINE_ID, FIELD_ID) to segment numbers.
-        Entry format: [SEG_NUM:1][LINE_ID:1][FIELD_ID:1][FLAGS:1] = 4 bytes
+        Segment 0 contains:
+        1. A lookup table mapping (LINE_ID, FIELD_ID) to segment numbers
+        2. The sections/branch index data (for IS_SIGNIFICANT fields)
+
+        Lookup table entry format: [SEG_NUM:1][LINE_ID:1][FIELD_ID:1][FLAGS:1] = 4 bytes
+        The table is small (one entry per indexed field) and is followed by the
+        much larger sections/branch index data.
         """
         if not self.me_positions:
             self.find_me_markers()
@@ -427,12 +445,12 @@ class MapFileParser:
         seg0_start = self.me_positions[0]
         seg1_start = self.me_positions[1]
 
-        # Lookup table data starts approximately at offset 0x11C from file start
-        # (after segment 0 header and metadata)
-        lookup_start = seg0_start + 0xC2  # Approximately 0x11C - 0x5A = 0xC2 from **ME
+        # Lookup table data starts approximately at offset 0xC2 from **ME marker
+        lookup_start = seg0_start + 0xC2
 
         entries = []
         offset = lookup_start
+        consecutive_invalid = 0
 
         while offset < seg1_start - 4:
             # Check for **ME marker (end of segment 0)
@@ -445,19 +463,57 @@ class MapFileParser:
             field_id = b[2]
             flags = b[3]
 
-            # Filter for valid entries (reasonable LINE_ID values)
-            if seg_num <= 20 and line_id <= 30 and line_id > 0:
+            # Valid lookup entries have small segment numbers and non-zero line/field IDs.
+            # LINE_ID is stored as 1 byte here (max 255), which covers most indexed fields.
+            # Stop scanning after consecutive invalid entries (we've hit the branch index data).
+            if seg_num <= 20 and 0 < line_id <= 255 and field_id > 0:
                 entries.append({
                     'segment': seg_num,
                     'line_id': line_id,
                     'field_id': field_id,
                     'flags': flags
                 })
+                consecutive_invalid = 0
+            else:
+                consecutive_invalid += 1
+                if consecutive_invalid >= 4:
+                    # We've likely passed the lookup table into binary data
+                    break
 
             offset += 4
 
         self.lookup_table = entries
         return entries
+
+    def _find_data_offset(self, me_pos: int, next_pos: int, field_width: int) -> int:
+        """
+        Dynamically find the data offset within a segment by searching for
+        the first entry whose 2-byte length field equals field_width.
+
+        The data offset varies between MAP files (e.g., 0xCD for small files,
+        0xCF for large files). We search in the range [me_pos+0xC0, me_pos+0xE0]
+        which covers observed variation.
+        """
+        if field_width == 0 or field_width > 100:
+            return me_pos + 0xCD  # Fallback for invalid/unknown segments
+
+        search_start = me_pos + 0xC0
+        search_end = min(me_pos + 0xE0, next_pos - 2)
+
+        for probe in range(search_start, search_end):
+            if probe + 2 > len(self.data):
+                break
+            probe_len = struct.unpack('<H', self.data[probe:probe+2])[0]
+            if probe_len == field_width:
+                # Verify: the text following should look like ASCII data
+                if probe + 2 + field_width <= len(self.data):
+                    text = self.data[probe+2:probe+2+field_width]
+                    printable = sum(1 for b in text if 32 <= b < 127)
+                    if printable > field_width * 0.5:  # >50% printable chars
+                        return probe
+
+        # Fallback to original hardcoded offset
+        return me_pos + 0xCD
 
     def parse_segments(self) -> List[MapSegmentInfo]:
         """Parse all binary segments with full metadata"""
@@ -513,9 +569,10 @@ class MapFileParser:
                 field_width = struct.unpack('<H', self.data[meta_off+10:meta_off+12])[0]
                 entry_count = struct.unpack('<H', self.data[meta_off+14:meta_off+16])[0]
 
-                # Data offset is consistently 0xCD (205) bytes from **ME marker
-                # This includes: **ME(8) + header(16) + metadata + padding
-                data_offset = me_pos + 0xCD
+                # Dynamically find data_offset by searching for the first entry
+                # whose length field == field_width. The offset varies between
+                # MAP files (observed: 0xCD for small, 0xCF for large files).
+                data_offset = self._find_data_offset(me_pos, next_pos, field_width)
 
                 segment = MapSegmentInfo(
                     index=seg_index,
@@ -545,12 +602,20 @@ class MapFileParser:
                 return seg
         return None
 
-    def read_index_entries(self, segment: MapSegmentInfo, max_entries: int = 100) -> List[IndexEntry]:
+    def read_index_entries(self, segment: MapSegmentInfo, max_entries: int = 0) -> List[IndexEntry]:
         """
         Read index entries from a segment.
 
-        Entry format: [length:2][value:N][page:2][flags:3]
-        where N = field_width and total entry size = 7 + field_width
+        Two entry formats exist (both have total entry_size = 7 + field_width):
+        - Small files: [length:2][value:N][page:2][flags:3] — page is uint16
+        - Large files: [length:2][value:N][u32_index:4][last:1] — u32 is line occurrence index
+
+        Format detection: read a batch of entries and check if all uint16 values
+        at the page position are odd. If so, it's the u32_index format.
+
+        Args:
+            segment: The segment to read entries from
+            max_entries: Maximum entries to read (0 = all entries in segment)
         """
         if segment.field_width == 0 or segment.field_width > 100:
             return []  # Invalid or non-text segment
@@ -558,52 +623,115 @@ class MapFileParser:
         entries = []
         entry_size = 7 + segment.field_width
         offset = segment.data_offset
+        end_boundary = min(segment.offset + segment.size, len(self.data))
 
-        # Read entries directly from data_offset
-        for i in range(max_entries):
-            if offset + entry_size > segment.next_offset:
+        # Calculate max possible entries in this segment
+        available_bytes = end_boundary - offset
+        max_possible = available_bytes // entry_size if entry_size > 0 else 0
+
+        if max_entries > 0:
+            limit = min(max_entries, max_possible)
+        else:
+            limit = max_possible
+
+        # First pass: read raw entries to detect format
+        raw_entries = []
+        probe_offset = offset
+        probe_count = min(100, limit)  # Sample first 100 entries for format detection
+
+        for _ in range(probe_count):
+            if probe_offset + entry_size > end_boundary:
                 break
-            if offset + entry_size > len(self.data):
-                break
 
-            # Read entry: [length:2][text:N][page:2][flags:3]
-            length = struct.unpack('<H', self.data[offset:offset+2])[0]
-
-            # Validate length matches field_width
+            length = struct.unpack('<H', self.data[probe_offset:probe_offset+2])[0]
             if length != segment.field_width:
-                # Entry format mismatch - this segment may have different structure
-                # Try to find the correct start by searching for valid length
-                found = False
-                for probe in range(offset, min(offset + 50, segment.next_offset)):
-                    probe_len = struct.unpack('<H', self.data[probe:probe+2])[0]
-                    if probe_len == segment.field_width:
-                        offset = probe
-                        length = probe_len
-                        found = True
-                        break
-                if not found:
-                    break
+                break  # End of valid entries
+
+            text_start = probe_offset + 2
+            text_end = text_start + segment.field_width
+            trailing_start = text_end
+            trailing_end = trailing_start + 5  # 5 bytes after text
 
             try:
-                value = self.data[offset+2:offset+2+segment.field_width].decode('ascii', errors='replace').strip()
-            except:
+                value = self.data[text_start:text_end].decode('ascii', errors='replace').strip()
+            except Exception:
                 value = ''
 
-            page = struct.unpack('<H', self.data[offset+2+segment.field_width:offset+4+segment.field_width])[0]
+            trailing = self.data[trailing_start:trailing_end]
+            raw_entries.append((value, length, trailing, probe_offset))
+            probe_offset += entry_size
 
-            # Only add if the value looks like valid text (not binary garbage)
-            if value and any(c.isalnum() for c in value[:5]):
+        if not raw_entries:
+            return []
+
+        # Detect format: check if uint16 at trailing[0:2] are ALL odd
+        # Small files have page numbers that are typically small and can be even.
+        # Large files have u32 values where the low uint16 is always odd.
+        odd_count = 0
+        for _, _, trailing, _ in raw_entries:
+            if len(trailing) >= 2:
+                u16 = struct.unpack('<H', trailing[0:2])[0]
+                if u16 % 2 == 1:
+                    odd_count += 1
+
+        # If ALL sampled uint16 values are odd AND we have a meaningful sample,
+        # this is the u32_index format
+        is_u32_format = (odd_count == len(raw_entries) and len(raw_entries) >= 3)
+
+        # Now read all entries with the detected format
+        read_offset = offset
+        for i in range(limit):
+            if read_offset + entry_size > end_boundary:
+                break
+
+            length = struct.unpack('<H', self.data[read_offset:read_offset+2])[0]
+            if length != segment.field_width:
+                break  # End of valid entries
+
+            text_start = read_offset + 2
+            text_end = text_start + segment.field_width
+            trailing_start = text_end
+
+            try:
+                value = self.data[text_start:text_end].decode('ascii', errors='replace').strip()
+            except Exception:
+                value = ''
+
+            trailing = self.data[trailing_start:trailing_start+5]
+
+            if not value or not any(c.isalnum() for c in value[:5]):
+                read_offset += entry_size
+                continue
+
+            if is_u32_format:
+                # Large file format: [u32_index:4][last_byte:1]
+                u32_val = struct.unpack('<I', trailing[0:4])[0]
+                last_byte = trailing[4] if len(trailing) >= 5 else 0
+                entries.append(IndexEntry(
+                    value=value,
+                    page_number=0,  # Cannot resolve without spool file
+                    raw_length=length,
+                    raw_trailing=trailing,
+                    u32_index=u32_val,
+                    entry_format='u32_index'
+                ))
+            else:
+                # Small file format: [page:2][flags:3]
+                page = struct.unpack('<H', trailing[0:2])[0]
                 entries.append(IndexEntry(
                     value=value,
                     page_number=page,
-                    raw_length=length
+                    raw_length=length,
+                    raw_trailing=trailing,
+                    u32_index=0,
+                    entry_format='page'
                 ))
 
-            offset += entry_size
+            read_offset += entry_size
 
         return entries
 
-    def search_index(self, search_value: str, line_id: int, field_id: int) -> List[int]:
+    def search_index(self, search_value: str, line_id: int, field_id: int) -> List[IndexEntry]:
         """
         Search for a value in the MAP file index.
 
@@ -612,33 +740,44 @@ class MapFileParser:
             line_id: LINE_ID from FIELD table
             field_id: FIELD_ID from FIELD table
 
-        Returns: List of page numbers where value appears
+        Returns: List of matching IndexEntry objects
         """
         segment = self.find_segment_for_field(line_id, field_id)
         if not segment:
             return []
 
-        entries = self.read_index_entries(segment, max_entries=10000)
-        pages = []
+        entries = self.read_index_entries(segment)
+        matches = []
 
         for entry in entries:
             if entry.value == search_value or entry.value.startswith(search_value):
-                pages.append(entry.page_number)
+                matches.append(entry)
 
-        return pages
+        return matches
 
-    def get_all_indexed_values(self, line_id: int, field_id: int) -> List[Tuple[str, int]]:
+    def get_all_indexed_values(self, line_id: int, field_id: int) -> List[IndexEntry]:
         """
-        Get all indexed values and their page numbers for a field.
+        Get all indexed values for a field.
 
-        Returns: List of (value, page_number) tuples
+        Returns: List of IndexEntry objects
         """
         segment = self.find_segment_for_field(line_id, field_id)
         if not segment:
             return []
 
-        entries = self.read_index_entries(segment, max_entries=10000)
-        return [(e.value, e.page_number) for e in entries]
+        return self.read_index_entries(segment)
+
+    def get_unique_indexed_values(self, line_id: int, field_id: int) -> List[Tuple[str, int]]:
+        """
+        Get unique indexed values with occurrence counts.
+
+        Returns: List of (value, count) tuples sorted by value
+        """
+        entries = self.get_all_indexed_values(line_id, field_id)
+        counts: Dict[str, int] = {}
+        for entry in entries:
+            counts[entry.value] = counts.get(entry.value, 0) + 1
+        return sorted(counts.items())
 
     # Legacy method for backwards compatibility
     def parse_segments_legacy(self) -> List[Dict[str, Any]]:
@@ -902,16 +1041,33 @@ class IntelliSTORViewer:
         # Show sample index entries for each segment with data
         if show_entries:
             print(f"\n{'='*60}")
-            print("Sample Index Entries by Segment")
+            print("Index Entries by Segment")
             print('='*60)
 
             for seg in segments[1:]:  # Skip segment 0
                 if seg.field_width > 0 and seg.field_width <= 60:
-                    entries = parser.read_index_entries(seg, max_entries=5)
+                    entries = parser.read_index_entries(seg, max_entries=20)
                     if entries:
-                        print(f"\nSegment {seg.index} (LINE {seg.line_id}, FIELD {seg.field_id}, width={seg.field_width}):")
-                        for entry in entries:
-                            print(f"  '{entry.value}' → PAGE {entry.page_number}")
+                        fmt = entries[0].entry_format
+                        total = parser.read_index_entries(seg)
+                        total_count = len(total)
+                        print(f"\nSegment {seg.index} (LINE {seg.line_id}, FIELD {seg.field_id}, "
+                              f"width={seg.field_width}, format={fmt}, total={total_count:,} entries):")
+
+                        if fmt == 'u32_index':
+                            # Show unique values with counts
+                            counts: Dict[str, int] = {}
+                            for e in total:
+                                counts[e.value] = counts.get(e.value, 0) + 1
+                            unique = sorted(counts.items())
+                            print(f"  Unique values: {len(unique)}")
+                            for val, cnt in unique[:20]:
+                                print(f"  '{val}' × {cnt}")
+                            if len(unique) > 20:
+                                print(f"  ... and {len(unique) - 20} more unique values")
+                        else:
+                            for entry in entries:
+                                print(f"  '{entry.value}' -> PAGE {entry.page_number}")
 
     def search_map_index(self, map_filename: str, search_value: str,
                          line_id: int, field_id: int):
@@ -946,23 +1102,42 @@ class IntelliSTORViewer:
         print(f"\nFound segment {segment.index} with field_width={segment.field_width}")
 
         # Search
-        pages = parser.search_index(search_value, line_id, field_id)
+        matches = parser.search_index(search_value, line_id, field_id)
 
-        if pages:
-            print(f"\nSearch Results ({len(pages)} matches):")
-            for page in pages[:20]:
-                print(f"  PAGE {page}")
-            if len(pages) > 20:
-                print(f"  ... and {len(pages) - 20} more pages")
+        if matches:
+            fmt = matches[0].entry_format
+            print(f"Entry format: {fmt}")
+            print(f"\nSearch Results ({len(matches)} matches):")
+
+            if fmt == 'u32_index':
+                # u32_index format: show the index values
+                for entry in matches[:30]:
+                    line_occ = (entry.u32_index - 1) // 2
+                    print(f"  '{entry.value}' -> line_occurrence={line_occ} (u32={entry.u32_index})")
+                if len(matches) > 30:
+                    print(f"  ... and {len(matches) - 30} more matches")
+                print(f"\nNote: u32_index values represent LINE {line_id} occurrence "
+                      f"indices in the spool file.")
+                print(f"Formula: (u32_index - 1) / 2 = 0-based line occurrence number")
+            else:
+                # Page format: show page numbers directly
+                for entry in matches[:30]:
+                    print(f"  '{entry.value}' -> PAGE {entry.page_number}")
+                if len(matches) > 30:
+                    print(f"  ... and {len(matches) - 30} more pages")
         else:
             print("\nNo matches found.")
 
             # Show some sample values from this segment
             entries = parser.read_index_entries(segment, max_entries=10)
             if entries:
-                print(f"\nSample values in this segment:")
+                fmt = entries[0].entry_format if entries else 'unknown'
+                print(f"\nSample values in this segment (format={fmt}):")
                 for entry in entries:
-                    print(f"  '{entry.value}' → PAGE {entry.page_number}")
+                    if entry.entry_format == 'u32_index':
+                        print(f"  '{entry.value}' (u32={entry.u32_index})")
+                    else:
+                        print(f"  '{entry.value}' -> PAGE {entry.page_number}")
 
     def analyze_spool_file(self, spool_filepath: str):
         """Analyze a spool file"""

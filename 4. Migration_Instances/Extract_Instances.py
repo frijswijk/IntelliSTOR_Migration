@@ -27,6 +27,7 @@ import os
 from pathlib import Path
 from datetime import datetime, timedelta
 import pytz
+from rpt_section_reader import read_sectionhdr, format_segments
 
 
 # ============================================================================
@@ -93,10 +94,14 @@ Examples:
   python Extract_Instances.py --server localhost --database IntelliSTOR --windows-auth --start-year 2023 --timezone "Europe/London"
   python Extract_Instances.py --server localhost --database IntelliSTOR --windows-auth --start-year 2023 --timezone "Asia/Tokyo"
 
+  # SEGMENTS from RPT file SECTIONHDR (section_id#start_page#page_count format)
+  python Extract_Instances.py --server localhost --database IntelliSTOR --windows-auth --start-year 2023 \\
+      --rptfolder "/path/to/rpt/files"
+
   # Custom paths with all options
   python Extract_Instances.py --server myserver --database IntelliSTOR --windows-auth \\
       --start-year 2023 --end-year 2025 --year-from-filename --timezone "Asia/Singapore" --quiet \\
-      --input "C:\\path\\to\\Report_Species.csv" --output-dir "C:\\output"
+      --rptfolder "/data/rptfiles" --input "C:\\path\\to\\Report_Species.csv" --output-dir "C:\\output"
         """
     )
 
@@ -166,6 +171,14 @@ Examples:
         help='Timezone of AS_OF_TIMESTAMP values for UTC conversion. Uses IANA timezone names (e.g., "Asia/Singapore", "America/New_York", "Europe/London", "UTC"). Default: Asia/Singapore. For full list: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones'
     )
 
+    # RPT folder parameter
+    parser.add_argument(
+        '--rptfolder',
+        help='Directory containing .RPT files (as named in RPTFILE.FILENAME). '
+             'When provided, SEGMENTS column is populated from RPT file SECTIONHDR '
+             'instead of from the database REPORT_INSTANCE_SEGMENT table.'
+    )
+
     # Output options
     parser.add_argument(
         '--quiet',
@@ -188,6 +201,10 @@ Examples:
         pytz.timezone(args.timezone)
     except pytz.exceptions.UnknownTimeZoneError:
         parser.error(f'Invalid timezone: {args.timezone}. Use IANA timezone names like "Asia/Singapore", "America/New_York", "Europe/London", "Asia/Tokyo", "UTC". See: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones')
+
+    # Validate rptfolder parameter
+    if args.rptfolder and not os.path.isdir(args.rptfolder):
+        parser.error(f'RPT folder does not exist: {args.rptfolder}')
 
     return args
 
@@ -595,7 +612,60 @@ def convert_to_utc(timestamp, source_timezone):
         return ''
 
 
-def write_output_csv(output_path, results, report_species_name, country, year_from_filename, source_timezone):
+# Cache for RPT segment lookups (avoids re-reading same RPT file for multiple instances)
+_rpt_segments_cache = {}
+
+
+def get_rpt_segments(rptfolder, filename):
+    """
+    Extract SECTIONHDR segments from an RPT file.
+
+    Looks up the RPT file in the rptfolder by FILENAME (as stored in RPTFILE table).
+    Returns formatted segments string: section_id#start_page#page_count|...
+    Results are cached per filename to avoid re-reading the same RPT file.
+
+    Args:
+        rptfolder: Directory containing RPT files
+        filename: RPT filename from RPTFILE table (e.g., "260271NL.RPT")
+
+    Returns:
+        str: Formatted segments string, or empty string if file not found or has no sections
+    """
+    if not rptfolder or not filename:
+        return ''
+
+    # The FILENAME from RPTFILE may or may not have .RPT extension
+    rpt_filename = filename.strip()
+    if not rpt_filename.upper().endswith('.RPT'):
+        rpt_filename = rpt_filename + '.RPT'
+
+    # Check cache first
+    cache_key = rpt_filename.upper()
+    if cache_key in _rpt_segments_cache:
+        return _rpt_segments_cache[cache_key]
+
+    rpt_path = os.path.join(rptfolder, rpt_filename)
+
+    if not os.path.exists(rpt_path):
+        logging.debug(f'RPT file not found: {rpt_path}')
+        _rpt_segments_cache[cache_key] = ''
+        return ''
+
+    try:
+        header, sections = read_sectionhdr(rpt_path)
+        if header is None or not sections:
+            result = ''
+        else:
+            result = format_segments(sections)
+        _rpt_segments_cache[cache_key] = result
+        return result
+    except Exception as e:
+        logging.warning(f'Failed to read SECTIONHDR from {rpt_path}: {e}')
+        _rpt_segments_cache[cache_key] = ''
+        return ''
+
+
+def write_output_csv(output_path, results, report_species_name, country, year_from_filename, source_timezone, rptfolder=None):
     """
     Write query results to CSV file with simplified column set.
 
@@ -606,6 +676,7 @@ def write_output_csv(output_path, results, report_species_name, country, year_fr
         country: COUNTRY from Report_Species.csv
         year_from_filename: If True, calculate YEAR from filename; else from AS_OF_TIMESTAMP
         source_timezone: Timezone of AS_OF_TIMESTAMP for UTC conversion
+        rptfolder: Optional directory containing RPT files for SECTIONHDR extraction
     """
     # Define output header - only essential columns
     output_header = [
@@ -642,6 +713,14 @@ def write_output_csv(output_path, results, report_species_name, country, year_fr
                 # Convert julian date from filename to REPORT_DATE
                 report_date = convert_julian_date(row.get('FILENAME', ''))
 
+                # Determine SEGMENTS value
+                if rptfolder:
+                    # Extract SECTIONHDR from RPT file (format: section_id#start_page#page_count|...)
+                    segments = get_rpt_segments(rptfolder, row.get('FILENAME', ''))
+                else:
+                    # Use database STRING_AGG result (format: section_name#segment_number#start_page#pages|...)
+                    segments = row.get('segments', '')
+
                 # Map database columns to simplified output format
                 output_row = [
                     report_species_name,  # From Report_Species.csv
@@ -651,7 +730,7 @@ def write_output_csv(output_path, results, report_species_name, country, year_fr
                     report_date,  # REPORT_DATE from julian date
                     row.get('AS_OF_TIMESTAMP', ''),
                     utc_timestamp,  # UTC converted timestamp
-                    row.get('segments', ''),  # SEGMENTS column from STRING_AGG
+                    segments,  # SEGMENTS column (RPT-based or DB-based)
                     row.get('RPT_FILE_ID', '')  # REPORT_FILE_ID
                 ]
                 writer.writerow(output_row)
@@ -668,7 +747,8 @@ def write_output_csv(output_path, results, report_species_name, country, year_fr
 # ============================================================================
 
 def process_reports(conn, report_species_list, csv_path, output_dir, last_processed_id,
-                    start_year, end_year, year_from_filename, source_timezone, quiet=False):
+                    start_year, end_year, year_from_filename, source_timezone, quiet=False,
+                    rptfolder=None):
     """
     Main processing loop for extracting report instances.
 
@@ -683,6 +763,7 @@ def process_reports(conn, report_species_list, csv_path, output_dir, last_proces
         year_from_filename: If True, calculate YEAR from filename; else from AS_OF_TIMESTAMP
         source_timezone: Timezone of AS_OF_TIMESTAMP for UTC conversion
         quiet: If True, show single-line progress counter instead of detailed logs
+        rptfolder: Optional directory containing RPT files for SECTIONHDR extraction
 
     Returns:
         dict: Statistics about processing
@@ -711,8 +792,13 @@ def process_reports(conn, report_species_list, csv_path, output_dir, last_proces
         logging.info(f'Processing {total_count} report species (starting after ID {last_processed_id})')
         logging.info(f'Year filter: {year_range}, YEAR column from: {"filename" if year_from_filename else "AS_OF_TIMESTAMP"}')
         logging.info(f'Timezone: {source_timezone} (converting to UTC)')
+        if rptfolder:
+            logging.info(f'SEGMENTS source: RPT file SECTIONHDR from {rptfolder}')
+        else:
+            logging.info(f'SEGMENTS source: database REPORT_INSTANCE_SEGMENT table')
     else:
-        print(f'Processing {total_count} report species | Year filter: {year_range} | Timezone: {source_timezone}')
+        rpt_info = f' | RPT folder: {rptfolder}' if rptfolder else ''
+        print(f'Processing {total_count} report species | Year filter: {year_range} | Timezone: {source_timezone}{rpt_info}')
 
     for idx, report in enumerate(reports_to_process, 1):
         report_species_id = int(report['REPORT_SPECIES_ID'])
@@ -734,7 +820,7 @@ def process_reports(conn, report_species_list, csv_path, output_dir, last_proces
                 else:
                     output_filename = f'{report_name}_{start_year}.csv'
                 output_path = os.path.join(output_dir, output_filename)
-                write_output_csv(output_path, results, report_name, country, year_from_filename, source_timezone)
+                write_output_csv(output_path, results, report_name, country, year_from_filename, source_timezone, rptfolder=rptfolder)
 
                 if not quiet:
                     logging.info(f'Query returned {len(results)} instances for {report_name}')
@@ -820,7 +906,8 @@ def main():
             end_year=args.end_year,
             year_from_filename=args.year_from_filename,
             source_timezone=args.timezone,
-            quiet=args.quiet
+            quiet=args.quiet,
+            rptfolder=args.rptfolder
         )
 
         # Close connection
