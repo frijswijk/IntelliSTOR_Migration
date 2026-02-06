@@ -18,7 +18,7 @@ echo Options:
 echo   1. Show RPT file info (sections, page table, compression)
 echo   2. Extract all pages from an RPT file
 echo   3. Extract page range from an RPT file
-echo   4. Extract pages for a specific section (by SECTION_ID)
+echo   4. Extract pages for one or more sections (by SECTION_ID)
 echo   5. Extract all RPT files in a folder
 echo   6. Show help
 echo   0. Exit
@@ -90,12 +90,14 @@ echo.
 echo Sections in this RPT file:
 python rpt_page_extractor.py --info "%RPT_FILE%" 2>nul | findstr /R "SECTION_ID [0-9]"
 echo.
-set /p SECTION_ID="Enter SECTION_ID to extract: "
+echo Enter one or more SECTION_IDs separated by spaces.
+echo Missing IDs will be skipped. Pages are extracted in the order given.
+set /p SECTION_IDS="Enter SECTION_ID(s) to extract: "
 set /p OUTPUT_DIR="Enter output directory [.\extracted]: "
 if "%OUTPUT_DIR%"=="" set "OUTPUT_DIR=.\extracted"
-if "%SECTION_ID%"=="" goto END
+if "%SECTION_IDS%"=="" goto END
 echo.
-python rpt_page_extractor.py --section-id %SECTION_ID% --output "%OUTPUT_DIR%" "%RPT_FILE%"
+python rpt_page_extractor.py --section-id %SECTION_IDS% --output "%OUTPUT_DIR%" "%RPT_FILE%"
 goto END
 
 :EXTRACT_FOLDER

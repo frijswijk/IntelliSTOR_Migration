@@ -9,6 +9,7 @@ Supports:
   - Full extraction: all pages from one or more RPT files
   - Page range:      --pages 10-20 (extract pages 10 through 20)
   - Section-based:   --section-id 14259 (extract only pages belonging to that section)
+  - Multi-section:   --section-id 14259 14260 14261 (multiple sections, in order)
   - Folder mode:     --folder <dir> (process all RPT files in a directory)
 
 RPT File Layout (reference):
@@ -233,6 +234,43 @@ def select_pages_by_section(entries: List[PageTableEntry],
     return select_pages_by_range(entries, start, end)
 
 
+def select_pages_by_sections(entries: List[PageTableEntry],
+                             sections: List[SectionEntry],
+                             section_ids: List[int]) -> Tuple[List[PageTableEntry], List[int], List[int]]:
+    """
+    Select page table entries for multiple sections, preserving the requested order.
+
+    Pages are collected in the order of section_ids provided. Sections that
+    are not found are silently skipped.
+
+    Args:
+        entries: All page table entries
+        sections: SECTIONHDR entries from the RPT file
+        section_ids: List of SECTION_IDs to extract, in desired order
+
+    Returns:
+        Tuple of (selected_entries, found_ids, skipped_ids)
+    """
+    # Build lookup for sections
+    section_map = {s.section_id: s for s in sections}
+
+    selected = []
+    found_ids = []
+    skipped_ids = []
+
+    for sid in section_ids:
+        if sid not in section_map:
+            skipped_ids.append(sid)
+            continue
+        found_ids.append(sid)
+        section = section_map[sid]
+        start = section.start_page
+        end = section.start_page + section.page_count - 1
+        selected.extend(select_pages_by_range(entries, start, end))
+
+    return selected, found_ids, skipped_ids
+
+
 # ============================================================================
 # Output
 # ============================================================================
@@ -267,6 +305,7 @@ def save_pages(pages: List[Tuple[int, bytes]], output_dir: str,
 def extract_rpt(filepath: str, output_base: str,
                 page_range: Optional[Tuple[int, int]] = None,
                 section_id: Optional[int] = None,
+                section_ids: Optional[List[int]] = None,
                 info_only: bool = False) -> dict:
     """
     Extract pages from a single RPT file.
@@ -275,7 +314,8 @@ def extract_rpt(filepath: str, output_base: str,
         filepath: Path to .RPT file
         output_base: Base directory for output
         page_range: Optional (start, end) page range (1-based, inclusive)
-        section_id: Optional SECTION_ID to extract
+        section_id: Optional single SECTION_ID to extract (legacy, kept for compatibility)
+        section_ids: Optional list of SECTION_IDs to extract (in order, skips missing)
         info_only: If True, show info without extracting
 
     Returns:
@@ -324,12 +364,19 @@ def extract_rpt(filepath: str, output_base: str,
         ratio = total_uncomp / total_comp
         print(f"  Compressed: {total_comp:,} bytes -> Uncompressed: {total_uncomp:,} bytes ({ratio:.1f}x)")
 
+    # Collect all requested section IDs for marker display
+    requested_sids = set()
+    if section_ids:
+        requested_sids = set(section_ids)
+    elif section_id is not None:
+        requested_sids = {section_id}
+
     if sections:
         print(f"\n  Sections ({len(sections)}):")
         print(f"  {'SECTION_ID':>12s}  {'START_PAGE':>10s}  {'PAGE_COUNT':>10s}")
         print(f"  {'-'*12}  {'-'*10}  {'-'*10}")
         for s in sections:
-            marker = " <--" if section_id is not None and s.section_id == section_id else ""
+            marker = " <--" if s.section_id in requested_sids else ""
             print(f"  {s.section_id:>12d}  {s.start_page:>10d}  {s.page_count:>10d}{marker}")
 
     if info_only:
@@ -353,18 +400,28 @@ def extract_rpt(filepath: str, output_base: str,
     # Select pages to extract
     selected = page_entries  # default: all pages
 
-    if section_id is not None:
-        selected = select_pages_by_section(page_entries, sections, section_id)
-        if selected is None:
-            stats['error'] = f'Section ID {section_id} not found in SECTIONHDR'
+    # Normalize: single section_id into section_ids list
+    effective_section_ids = section_ids if section_ids else ([section_id] if section_id is not None else None)
+
+    if effective_section_ids is not None:
+        selected, found_ids, skipped_ids = select_pages_by_sections(
+            page_entries, sections, effective_section_ids)
+        if skipped_ids:
+            print(f"\n  Skipped (not found): {', '.join(str(sid) for sid in skipped_ids)}")
+        if not found_ids:
+            stats['error'] = f'None of the requested section IDs found in SECTIONHDR'
             print(f"\n  ERROR: {stats['error']}")
             if sections:
                 print(f"  Available section IDs: {', '.join(str(s.section_id) for s in sections[:20])}")
             return stats
-        section_info = next(s for s in sections if s.section_id == section_id)
-        print(f"\n  Extracting section {section_id}: "
-              f"pages {section_info.start_page}-{section_info.start_page + section_info.page_count - 1} "
-              f"({section_info.page_count} pages)")
+        section_map = {s.section_id: s for s in sections}
+        for sid in found_ids:
+            si = section_map[sid]
+            print(f"\n  Extracting section {sid}: "
+                  f"pages {si.start_page}-{si.start_page + si.page_count - 1} "
+                  f"({si.page_count} pages)")
+        total_section_pages = sum(section_map[sid].page_count for sid in found_ids)
+        print(f"\n  Total: {len(found_ids)} section(s), {total_section_pages} pages")
 
     elif page_range is not None:
         start_p, end_p = page_range
@@ -384,8 +441,12 @@ def extract_rpt(filepath: str, output_base: str,
         return stats
 
     # Determine output directory
-    if section_id is not None:
-        output_dir = os.path.join(output_base, rpt_name, f'section_{section_id}')
+    if effective_section_ids is not None:
+        if len(found_ids) == 1:
+            output_dir = os.path.join(output_base, rpt_name, f'section_{found_ids[0]}')
+        else:
+            label = '_'.join(str(sid) for sid in found_ids)
+            output_dir = os.path.join(output_base, rpt_name, f'sections_{label}')
     elif page_range is not None:
         output_dir = os.path.join(output_base, rpt_name, f'pages_{page_range[0]}-{page_range[1]}')
     else:
@@ -442,6 +503,9 @@ Examples:
   # Extract pages for a specific section (by SECTION_ID)
   python rpt_page_extractor.py --section-id 14259 251110OD.RPT
 
+  # Extract pages for multiple sections (in order, skips missing)
+  python rpt_page_extractor.py --section-id 14259 14260 14261 251110OD.RPT
+
   # Process all RPT files in a folder
   python rpt_page_extractor.py --folder /path/to/rpt/files
 
@@ -471,7 +535,9 @@ Examples:
     parser.add_argument(
         '--section-id',
         type=int,
-        help='Extract only pages belonging to this SECTION_ID'
+        nargs='+',
+        metavar='ID',
+        help='Extract pages belonging to one or more SECTION_IDs (in order, skips missing)'
     )
     parser.add_argument(
         '--info',
@@ -523,7 +589,7 @@ Examples:
             filepath=filepath,
             output_base=args.output,
             page_range=page_range,
-            section_id=args.section_id,
+            section_ids=args.section_id,
             info_only=args.info
         )
         all_stats.append(stats)
