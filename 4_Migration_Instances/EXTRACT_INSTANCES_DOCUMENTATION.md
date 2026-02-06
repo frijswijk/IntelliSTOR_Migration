@@ -203,13 +203,15 @@ Report_Species_Id,Report_Species_Name,Country_Code,In_Use
 
 | Column | Description | Example |
 |--------|-------------|---------|
-| RPT_SPECIES_NAME | Report species name from input CSV | Daily_Sales_Report |
-| FILENAME | Report file name from RPTFILE.FILENAME | 24013001.rpt |
-| Country | Country code from input CSV | SG |
+| REPORT_SPECIES_NAME | Report species name from input CSV | Daily_Sales_Report |
+| FILENAME | Display name (RPTFILE.FILENAME with extension stripped) | 260271NL |
+| RPT_FILENAME | Original RPTFILE.FILENAME from database (used for RPT file lookup) | 260271NL.RPT |
+| COUNTRY | Country code from input CSV | SG |
 | YEAR | Calculated year (from filename or timestamp) | 2024 |
+| REPORT_DATE | Date derived from julian date in filename | 2024-01-13 |
 | AS_OF_TIMESTAMP | Original timestamp from database | 2024-01-30 14:23:15.000 |
 | UTC | Converted UTC timestamp | 2024-01-30 06:23:15 |
-| Segments | Pipe-delimited segment information | See below |
+| SEGMENTS | Pipe-delimited segment information from RPT SECTIONHDR | See below |
 | REPORT_FILE_ID | Report file ID from RPTFILE.RPT_FILE_ID | 12345 |
 
 **Segments Column Format (from RPT file SECTIONHDR):**

@@ -658,6 +658,7 @@ def write_output_csv(output_path, results, report_species_name, country, year_fr
     output_header = [
         'REPORT_SPECIES_NAME',
         'FILENAME',
+        'RPT_FILENAME',
         'COUNTRY',
         'YEAR',
         'REPORT_DATE',
@@ -679,12 +680,13 @@ def write_output_csv(output_path, results, report_species_name, country, year_fr
                 # Convert AS_OF_TIMESTAMP to UTC
                 utc_timestamp = convert_to_utc(row.get('AS_OF_TIMESTAMP'), source_timezone)
 
-                # Get filename and remove .rpt/.RPT extension (case-insensitive)
-                filename = row.get('FILENAME', '')
+                # RPT_FILENAME = original RPTFILE.FILENAME from database (e.g., "260271NL.RPT")
+                rpt_filename = row.get('FILENAME', '')
+
+                # FILENAME = display name with .RPT extension stripped
+                filename = rpt_filename
                 if filename.upper().endswith('.RPT'):
                     filename = filename[:-4]
-               # if filename and not filename.startswith('\\'):
-               #     filename = '\\' + filename
 
                 # Convert julian date from filename to REPORT_DATE
                 report_date = convert_julian_date(row.get('FILENAME', ''))
@@ -695,7 +697,8 @@ def write_output_csv(output_path, results, report_species_name, country, year_fr
                 # Map database columns to simplified output format
                 output_row = [
                     report_species_name,  # From Report_Species.csv
-                    filename,  # With leading backslash
+                    filename,  # Display name (extension stripped)
+                    rpt_filename,  # Original RPTFILE.FILENAME from database
                     country,  # From Report_Species.csv
                     year,  # Calculated YEAR column
                     report_date,  # REPORT_DATE from julian date
