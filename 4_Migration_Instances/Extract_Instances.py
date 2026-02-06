@@ -11,6 +11,7 @@ Features:
 - Automatic IN_USE=0 updates for reports with no instances
 - Timezone conversion (AS_OF_TIMESTAMP to UTC) with configurable source timezone
 - Comprehensive logging and error handling
+- SEGMENTS populated from RPT file SECTIONHDR (requires --rptfolder)
 
 Timezone Support:
 - Uses IANA timezone database (pytz library)
@@ -94,7 +95,7 @@ Examples:
   python Extract_Instances.py --server localhost --database IntelliSTOR --windows-auth --start-year 2023 --timezone "Europe/London"
   python Extract_Instances.py --server localhost --database IntelliSTOR --windows-auth --start-year 2023 --timezone "Asia/Tokyo"
 
-  # SEGMENTS from RPT file SECTIONHDR (section_id#start_page#page_count format)
+  # Populate SEGMENTS from RPT file SECTIONHDR (recommended - format: section_id#start_page#page_count)
   python Extract_Instances.py --server localhost --database IntelliSTOR --windows-auth --start-year 2023 \\
       --rptfolder "/path/to/rpt/files"
 
@@ -175,8 +176,8 @@ Examples:
     parser.add_argument(
         '--rptfolder',
         help='Directory containing .RPT files (as named in RPTFILE.FILENAME). '
-             'When provided, SEGMENTS column is populated from RPT file SECTIONHDR '
-             'instead of from the database REPORT_INSTANCE_SEGMENT table.'
+             'SEGMENTS column is populated from RPT file SECTIONHDR when provided. '
+             'Without this option, the SEGMENTS column will be empty.'
     )
 
     # Output options
@@ -380,8 +381,8 @@ def get_sql_query(start_year, end_year=None):
     """
     Return SQL Server query for extracting report instances with year filtering.
 
-    This query uses SQL Server 2017+ STRING_AGG function.
-    Only selects essential columns for output.
+    Selects essential columns: REPORT_SPECIES_ID, RPT_FILE_ID, FILENAME, AS_OF_TIMESTAMP.
+    SEGMENTS are populated separately from RPT file SECTIONHDR (not from database).
 
     Args:
         start_year: Start year for filtering (inclusive)
@@ -396,16 +397,7 @@ SELECT
     ri.REPORT_SPECIES_ID,
     rfi.RPT_FILE_ID,
     RTRIM(rf.FILENAME) AS FILENAME,
-    ri.AS_OF_TIMESTAMP,
-    STRING_AGG(
-        CONCAT(
-            CAST(sec.NAME AS VARCHAR), '#',
-            CAST(ris.SEGMENT_NUMBER AS VARCHAR), '#',
-            CAST(ISNULL(ris.START_PAGE_NUMBER, 0) AS VARCHAR), '#',
-            CAST(ris.NUMBER_OF_PAGES AS VARCHAR)
-        ),
-        '|'
-    ) WITHIN GROUP (ORDER BY ris.SEGMENT_NUMBER ASC) AS segments
+    ri.AS_OF_TIMESTAMP
 FROM REPORT_INSTANCE ri
 LEFT JOIN RPTFILE_INSTANCE rfi
     ON ri.DOMAIN_ID = rfi.DOMAIN_ID
@@ -414,15 +406,6 @@ LEFT JOIN RPTFILE_INSTANCE rfi
     AND ri.REPROCESS_IN_PROGRESS = rfi.REPROCESS_IN_PROGRESS
 LEFT JOIN RPTFILE rf
     ON rfi.RPT_FILE_ID = rf.RPT_FILE_ID
-LEFT JOIN REPORT_INSTANCE_SEGMENT ris
-    ON ri.DOMAIN_ID = ris.DOMAIN_ID
-    AND ri.REPORT_SPECIES_ID = ris.REPORT_SPECIES_ID
-    AND ri.AS_OF_TIMESTAMP = ris.AS_OF_TIMESTAMP
-    AND ri.REPROCESS_IN_PROGRESS = ris.REPROCESS_IN_PROGRESS
-LEFT JOIN SECTION sec
-    ON ris.DOMAIN_ID = sec.DOMAIN_ID
-    AND ris.REPORT_SPECIES_ID = sec.REPORT_SPECIES_ID
-    AND ris.SEGMENT_NUMBER = sec.SECTION_ID
 WHERE ri.REPORT_SPECIES_ID = %s
     AND ri.AS_OF_TIMESTAMP >= %s"""
 
@@ -430,14 +413,7 @@ WHERE ri.REPORT_SPECIES_ID = %s
     if end_year:
         query += "\n    AND ri.AS_OF_TIMESTAMP < %s"
 
-    query += """
-GROUP BY
-    ri.REPORT_SPECIES_ID,
-    ri.AS_OF_TIMESTAMP,
-    rfi.RPT_FILE_ID,
-    rf.FILENAME
-ORDER BY ri.AS_OF_TIMESTAMP ASC
-"""
+    query += "\nORDER BY ri.AS_OF_TIMESTAMP ASC\n"
 
     return query
 
@@ -713,13 +689,8 @@ def write_output_csv(output_path, results, report_species_name, country, year_fr
                 # Convert julian date from filename to REPORT_DATE
                 report_date = convert_julian_date(row.get('FILENAME', ''))
 
-                # Determine SEGMENTS value
-                if rptfolder:
-                    # Extract SECTIONHDR from RPT file (format: section_id#start_page#page_count|...)
-                    segments = get_rpt_segments(rptfolder, row.get('FILENAME', ''))
-                else:
-                    # Use database STRING_AGG result (format: section_name#segment_number#start_page#pages|...)
-                    segments = row.get('segments', '')
+                # SEGMENTS always from RPT file SECTIONHDR (or empty if no --rptfolder)
+                segments = get_rpt_segments(rptfolder, row.get('FILENAME', '')) if rptfolder else ''
 
                 # Map database columns to simplified output format
                 output_row = [
@@ -730,7 +701,7 @@ def write_output_csv(output_path, results, report_species_name, country, year_fr
                     report_date,  # REPORT_DATE from julian date
                     row.get('AS_OF_TIMESTAMP', ''),
                     utc_timestamp,  # UTC converted timestamp
-                    segments,  # SEGMENTS column (RPT-based or DB-based)
+                    segments,  # SEGMENTS from RPT SECTIONHDR (or empty)
                     row.get('RPT_FILE_ID', '')  # REPORT_FILE_ID
                 ]
                 writer.writerow(output_row)
@@ -795,9 +766,9 @@ def process_reports(conn, report_species_list, csv_path, output_dir, last_proces
         if rptfolder:
             logging.info(f'SEGMENTS source: RPT file SECTIONHDR from {rptfolder}')
         else:
-            logging.info(f'SEGMENTS source: database REPORT_INSTANCE_SEGMENT table')
+            logging.info(f'SEGMENTS source: none (--rptfolder not provided, SEGMENTS will be empty)')
     else:
-        rpt_info = f' | RPT folder: {rptfolder}' if rptfolder else ''
+        rpt_info = f' | RPT folder: {rptfolder}' if rptfolder else ' | SEGMENTS: empty (no --rptfolder)'
         print(f'Processing {total_count} report species | Year filter: {year_range} | Timezone: {source_timezone}{rpt_info}')
 
     for idx, report in enumerate(reports_to_process, 1):

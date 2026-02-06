@@ -4,8 +4,8 @@
 
 `extract_instances_sections.py` is a Python script that extracts report instance data from a SQL Server IntelliSTOR database and exports it to CSV files. The script processes report species from a master CSV file, queries the database for report instances, and generates separate CSV files per report with comprehensive segment information.
 
-**Version**: 2.0 (with .MAP file integration)
-**Database**: SQL Server 2017+ (requires STRING_AGG function)
+**Version**: 3.0 (SEGMENTS from RPT file SECTIONHDR)
+**Database**: SQL Server (STRING_AGG no longer required)
 **Python Version**: 3.7+
 
 ---
@@ -33,13 +33,14 @@
 - **Resume Capability**: Tracks progress and can resume from last processed report
 - **Year Filtering**: Filters report instances by year range (start/end year)
 - **Timezone Conversion**: Converts AS_OF_TIMESTAMP from source timezone to UTC
-- **Segment Aggregation**: Aggregates report segments with comprehensive metadata
-- **Map File Fallback**: Uses .MAP files to fill missing segment names from database
-
-### Data Quality Features
-- **Missing Segment Name Resolution**: Automatically looks up segment names from .MAP files when database records are missing
-- **Unknown Placeholder**: Marks segments as "Unknown" when not found in either source
+- **RPT File SECTIONHDR**: SEGMENTS populated from RPT file binary SECTIONHDR structure (requires --rptfolder)
 - **Automatic In_Use Updates**: Sets In_Use=0 for reports with no instances in specified year range
+
+### Important Note on SEGMENTS
+The SEGMENTS column is populated exclusively from the RPT file's SECTIONHDR binary structure
+(via `rpt_section_reader.py`), NOT from the database `REPORT_INSTANCE_SEGMENT` table.
+The `REPORT_INSTANCE_SEGMENT` table tracks ingestion arrival chunks, not section segregation of pages.
+When `--rptfolder` is not provided, the SEGMENTS column will be empty.
 
 ### Performance & Reliability
 - **Progress Tracking**: Saves progress after each report for safe interruption
@@ -73,9 +74,10 @@ pip install pymssql pytz
 
 ### Database Requirements
 
-- SQL Server 2017 or higher (requires STRING_AGG function)
-- Read access to tables: REPORT_INSTANCE, RPTFILE_INSTANCE, RPTFILE, REPORT_INSTANCE_SEGMENT, SECTION, SST_STORAGE, MAPFILE
+- SQL Server (STRING_AGG no longer required)
+- Read access to tables: REPORT_INSTANCE, RPTFILE_INSTANCE, RPTFILE
 - Network connectivity to SQL Server instance
+- Note: REPORT_INSTANCE_SEGMENT and SECTION tables are no longer queried (SEGMENTS comes from RPT files)
 
 ---
 
@@ -104,7 +106,7 @@ pip install pymssql pytz
 | `--end-year` | None | End year for filtering (exclusive) |
 | `--year-from-filename` | False | Calculate YEAR column from filename (first 2 chars) instead of AS_OF_TIMESTAMP |
 | `--timezone` | `Asia/Singapore` | Source timezone for AS_OF_TIMESTAMP values (IANA format) |
-| `--map-dir` | `.` (current) | Directory containing .MAP files for segment name lookups |
+| `--rptfolder` | None | Directory containing .RPT files for SECTIONHDR-based SEGMENTS extraction. Without this, SEGMENTS will be empty. |
 | `--input` / `-i` | `Report_Species.csv` | Path to input CSV file containing report species |
 | `--output-dir` / `-o` | `.` (current) | Output directory for CSV files and logs |
 | `--quiet` | False | Quiet mode - single-line progress counter only |
@@ -152,43 +154,13 @@ Contains report file metadata.
 - `RPT_FILE_ID` (int, PRIMARY KEY)
 - `FILENAME` (varchar)
 
-#### 4. REPORT_INSTANCE_SEGMENT
-Contains segment information for report instances.
+#### 4. REPORT_INSTANCE_SEGMENT (NO LONGER USED)
+~~Previously used for segment information. Now known to track ingestion arrival chunks, not section segregation.~~
+SEGMENTS are now extracted from RPT file SECTIONHDR via `rpt_section_reader.py`.
 
-**Required Columns:**
-- `DOMAIN_ID` (int)
-- `REPORT_SPECIES_ID` (int)
-- `AS_OF_TIMESTAMP` (datetime)
-- `REPROCESS_IN_PROGRESS` (bit/tinyint)
-- `SEGMENT_NUMBER` (int)
-- `START_PAGE_NUMBER` (int, nullable)
-- `NUMBER_OF_PAGES` (int)
-
-#### 5. SECTION
-Contains segment name definitions.
-
-**Required Columns:**
-- `DOMAIN_ID` (int)
-- `REPORT_SPECIES_ID` (int)
-- `SECTION_ID` (int)
-- `NAME` (varchar, nullable)
-
-#### 6. SST_STORAGE
-Links report instances to map files.
-
-**Required Columns:**
-- `DOMAIN_ID` (int)
-- `REPORT_SPECIES_ID` (int)
-- `AS_OF_TIMESTAMP` (datetime)
-- `REPROCESS_IN_PROGRESS` (bit/tinyint)
-- `MAP_FILE_ID` (int)
-
-#### 7. MAPFILE
-Contains map file metadata.
-
-**Required Columns:**
-- `MAP_FILE_ID` (int, PRIMARY KEY)
-- `FILENAME` (varchar)
+#### 5. SECTION (NO LONGER USED)
+~~Previously used for segment name definitions.~~
+Section data now comes from RPT file SECTIONHDR binary structure.
 
 ### Join Relationships
 
@@ -196,10 +168,7 @@ Contains map file metadata.
 REPORT_INSTANCE (ri)
 ├─ LEFT JOIN RPTFILE_INSTANCE (rfi)
 │  └─ LEFT JOIN RPTFILE (rf)
-├─ LEFT JOIN REPORT_INSTANCE_SEGMENT (ris)
-│  └─ LEFT JOIN SECTION (sec)
-└─ LEFT JOIN SST_STORAGE (sst)
-   └─ LEFT JOIN MAPFILE (mf)
+└─ SEGMENTS from RPT file SECTIONHDR (via --rptfolder, not from database)
 ```
 
 ---
@@ -243,103 +212,52 @@ Report_Species_Id,Report_Species_Name,Country_Code,In_Use
 | Segments | Pipe-delimited segment information | See below |
 | REPORT_FILE_ID | Report file ID from RPTFILE.RPT_FILE_ID | 12345 |
 
-**Segments Column Format:**
+**Segments Column Format (from RPT file SECTIONHDR):**
 
-Format: `Name#SegmentID#StartPage#NumPages|Name#SegmentID#StartPage#NumPages|...`
+Format: `SectionID#StartPage#PageCount|SectionID#StartPage#PageCount|...`
 
 **Example:**
 ```
-Finance Summary#1#0#5|Sales Detail#2#5#10|Operations Report#3#15#8
+124525#1#110|68102#111#1|14259#117#2204
 ```
 
 **Segment Field Breakdown:**
-- **Name**: Segment name (from SECTION.NAME or .MAP file or "Unknown")
-- **SegmentID**: Segment number (from REPORT_INSTANCE_SEGMENT.SEGMENT_NUMBER)
-- **StartPage**: Starting page number (from REPORT_INSTANCE_SEGMENT.START_PAGE_NUMBER, 0 if NULL)
-- **NumPages**: Number of pages in segment (from REPORT_INSTANCE_SEGMENT.NUMBER_OF_PAGES)
+- **SectionID**: Section identifier from RPT file SECTIONHDR (uint32)
+- **StartPage**: Starting page number, 1-based (from SECTIONHDR)
+- **PageCount**: Number of pages in this section (from SECTIONHDR)
+
+Note: SEGMENTS will be empty if `--rptfolder` is not provided or if the RPT file is not found.
 
 ---
 
-## Map File Integration
+## RPT File SECTIONHDR Extraction
 
 ### Purpose
 
-.MAP files serve as a fallback source for segment names when the database SECTION table is missing records. This ensures segment names are available even when database metadata is incomplete.
+SEGMENTS are populated by reading the SECTIONHDR binary structure directly from RPT files.
+This is the only correct source for section/page segregation data. The `REPORT_INSTANCE_SEGMENT`
+database table was found to track ingestion arrival chunks, not section boundaries.
 
-### Map File Format
+### How It Works
 
-.MAP files contain binary-formatted segment definitions with the following structure:
+1. The `--rptfolder` argument specifies where RPT files are stored
+2. For each report instance, the FILENAME from the database is used to locate the RPT file
+3. `rpt_section_reader.py` reads the SECTIONHDR binary structure (12-byte triplets)
+4. Each triplet contains: SECTION_ID (uint32), START_PAGE (uint32), PAGE_COUNT (uint32)
+5. Results are cached per filename to avoid re-reading the same RPT file
+
+### Format
 
 ```
-( 01-Executive Summary
-( 02-Financial Overview
-( 03-Detailed Analysis
-( 04-Appendices
+section_id#start_page#page_count|section_id#start_page#page_count|...
 ```
 
-**Pattern:** `( {ID}-{Name}` followed by padding spaces
+**Example:** `124525#1#110|68102#111#1|14259#117#2204`
 
-**Key Characteristics:**
-- Parenthesis `(` followed by spaces
-- Zero-padded segment ID (e.g., `01`, `02`, `03`)
-- Hyphen separator `-`
-- Segment name
-- Multiple trailing spaces (at least 2) for padding
+### When RPT File Is Not Found
 
-### MapFileCache Class
-
-The script uses an intelligent caching system for .MAP files:
-
-**Features:**
-1. **Lazy Loading**: Files loaded only when first needed
-2. **ID Format Flexibility**: Stores both normalized ('4') and padded ('04') formats
-3. **Missing File Tracking**: Remembers which files don't exist to avoid repeated checks
-4. **Error Tolerance**: Gracefully handles binary content and parse errors
-
-**Example Usage Flow:**
-```
-1. Query returns segment with ID=4, NAME=NULL, MAP_FILENAME='260270DF.MAP'
-2. Script checks MapFileCache for '260270DF.MAP'
-3. If not cached, loads and parses file
-4. Looks up ID '4' in cache
-5. If found, replaces NULL with map file name
-6. If not found, uses 'Unknown' placeholder
-```
-
-### Map File Lookup Algorithm
-
-```python
-# Pseudocode
-for each segment in result:
-    if segment.name is empty:
-        map_name = map_cache.get_segment_name(
-            map_filename=row.MAP_FILENAME,
-            segment_id=segment.id
-        )
-        if map_name:
-            segment.name = map_name
-        else:
-            segment.name = 'Unknown'
-```
-
-### Regex Pattern
-
-**Pattern:** `r'\(\s+(\d+)-(.+?)\s{2,}'`
-
-**Breakdown:**
-- `\(` - Literal parenthesis
-- `\s+` - One or more whitespace characters
-- `(\d+)` - Capture group 1: One or more digits (segment ID)
-- `-` - Literal hyphen
-- `(.+?)` - Capture group 2: One or more characters, non-greedy (segment name)
-- `\s{2,}` - Two or more whitespace characters (padding marker)
-
-**Example Match:**
-```
-Input:  "( 04-Chayanon Wannathepsakul     "
-Group 1: "04"
-Group 2: "Chayanon Wannathepsakul"
-```
+If no RPT file is found for a given instance (or `--rptfolder` is not provided),
+the SEGMENTS column is left empty. This is correct behavior — no data is better than wrong data.
 
 ---
 
@@ -542,32 +460,17 @@ python extract_instances_sections.py \
 ```python
 # For each report instance result:
 for row in results:
-    segments_string = row['segments']
-    # Example: "#1#0#5|Marketing Report#2#5#10"
-
-    map_filename = row['MAP_FILENAME']
-    # Example: "260270DF.MAP"
-
-    # Split by pipe to get individual segments
-    for segment in segments_string.split('|'):
-        parts = segment.split('#')
-        # parts = ['', '1', '0', '5']
-
-        name = parts[0]
-        segment_id = parts[1]
-
-        # If name is empty, try map file
-        if not name:
-            name = map_cache.get_segment_name(map_filename, segment_id)
-
-            # If still not found, use placeholder
-            if not name:
-                name = 'Unknown'
-                log.debug(f'Segment {segment_id} not found')
-
-        # Reconstruct segment with name
-        output_segment = f'{name}#{segment_id}#{parts[2]}#{parts[3]}'
+    filename = row.get('FILENAME', '')
+    # SEGMENTS always from RPT file SECTIONHDR (or empty if no --rptfolder)
+    segments = get_rpt_segments(rptfolder, filename) if rptfolder else ''
+    # Example result: "124525#1#110|68102#111#1|14259#117#2204"
 ```
+
+The `get_rpt_segments()` function handles:
+- Looking up the RPT file in the --rptfolder directory
+- Reading the SECTIONHDR binary structure via `rpt_section_reader.read_sectionhdr()`
+- Formatting as pipe-separated triplets via `format_segments()`
+- Caching results per filename to avoid re-reading the same file
 
 ---
 
@@ -610,38 +513,33 @@ sqlcmd -S localhost -d IntelliSTOR -E
 **Symptom:** `Invalid column name` or query execution errors
 
 **Solutions:**
-- Verify all required tables exist in database
+- Verify all required tables exist in database (REPORT_INSTANCE, RPTFILE_INSTANCE, RPTFILE)
 - Check column names match schema requirements
-- Ensure SQL Server version is 2017+ (for STRING_AGG function)
-
-**Version Check:**
-```sql
-SELECT @@VERSION
-```
+- Note: STRING_AGG is no longer used; no SQL Server 2017+ requirement
 
 ---
 
-#### 4. Map Files Not Found
+#### 4. RPT Files Not Found
 
-**Symptom:** Log shows `Map file not found: [path]`
+**Symptom:** Log shows `RPT file not found: [path]`
 
 **Behavior:**
 - Script continues processing
-- Missing segment names show as "Unknown"
+- SEGMENTS column will be empty for that instance
 
 **Solutions:**
-- Verify --map-dir path is correct
-- Check .MAP files exist in specified directory
+- Verify --rptfolder path is correct
+- Check .RPT files exist in specified directory
 - Verify file permissions allow read access
-- Check MAP_FILENAME values in database match actual filenames
+- Check FILENAME values from RPTFILE table match actual filenames in the folder
 
 **Debug:**
 ```bash
-# List files in map directory
-dir "C:\path\to\map\files\*.MAP"
+# List RPT files in folder
+ls /path/to/rptfolder/*.RPT
 
-# Check specific file
-type "C:\path\to\map\files\260270DF.MAP"
+# Test extraction standalone
+python rpt_section_reader.py --scan /path/to/rptfolder/
 ```
 
 ---
@@ -685,16 +583,14 @@ del progress.txt
 **Symptom:** Segments column is empty in output CSV
 
 **Possible Causes:**
-- No records in REPORT_INSTANCE_SEGMENT table for this report instance
-- All segments filtered out by query conditions
+- `--rptfolder` was not provided (SEGMENTS will always be empty)
+- RPT file not found in the specified folder
+- RPT file has no SECTIONHDR structure (single-section report)
 
 **Investigation:**
-```sql
--- Check if segments exist
-SELECT COUNT(*)
-FROM REPORT_INSTANCE_SEGMENT
-WHERE REPORT_SPECIES_ID = [id]
-  AND AS_OF_TIMESTAMP >= '2023-01-01';
+```bash
+# Check if RPT file exists and has sections
+python rpt_section_reader.py /path/to/rptfolder/FILENAME.RPT
 ```
 
 ---
@@ -733,12 +629,7 @@ extract_instances_sections.py
 │  ├─ argparse (Command-line parsing)
 │  ├─ logging (Logging framework)
 │  ├─ pytz (Timezone conversion)
-│  └─ re (Regex for .MAP file parsing)
-│
-├─ MapFileCache Class
-│  ├─ __init__(map_dir)
-│  ├─ get_segment_name(map_filename, segment_id)
-│  └─ _load_map_file(filename)
+│  └─ rpt_section_reader (RPT file SECTIONHDR extraction)
 │
 ├─ Configuration and Setup
 │  ├─ setup_logging(output_dir, quiet)
@@ -762,13 +653,14 @@ extract_instances_sections.py
 ├─ CSV Output
 │  ├─ calculate_year(row, year_from_filename)
 │  ├─ convert_to_utc(timestamp, source_timezone)
+│  ├─ get_rpt_segments(rptfolder, filename)
 │  └─ write_output_csv(output_path, results, report_species_name,
-│                        country, year_from_filename, source_timezone, map_cache)
+│                        country, year_from_filename, source_timezone, rptfolder)
 │
 ├─ Main Processing Loop
 │  └─ process_reports(conn, report_species_list, csv_path, output_dir,
 │                      last_processed_id, start_year, end_year,
-│                      year_from_filename, source_timezone, map_dir, quiet)
+│                      year_from_filename, source_timezone, quiet, rptfolder)
 │
 └─ Main Function
    └─ main()
@@ -783,8 +675,8 @@ Report_Species.csv ──┐
                      │
 SQL Server DB ───────┼─→ create_connection()
                      │
-.MAP Files ──────────┼─→ MapFileCache
-                     │
+RPT Files ───────────┼─→ rpt_section_reader (SECTIONHDR extraction)
+(--rptfolder)        │
                      ├─→ process_reports()
                      │   │
                      │   ├─→ execute_query()
@@ -792,17 +684,13 @@ SQL Server DB ───────┼─→ create_connection()
                      │   │   └─→ SQL Query with JOINs
                      │   │       ├─ REPORT_INSTANCE
                      │   │       ├─ RPTFILE_INSTANCE
-                     │   │       ├─ RPTFILE
-                     │   │       ├─ REPORT_INSTANCE_SEGMENT
-                     │   │       ├─ SECTION
-                     │   │       ├─ SST_STORAGE
-                     │   │       └─ MAPFILE
+                     │   │       └─ RPTFILE
                      │   │
                      │   ├─→ write_output_csv()
                      │   │   │
                      │   │   ├─→ calculate_year()
                      │   │   ├─→ convert_to_utc()
-                     │   │   └─→ MapFileCache.get_segment_name()
+                     │   │   └─→ get_rpt_segments() → rpt_section_reader
                      │   │
                      │   └─→ update_in_use() [if no results]
                      │
@@ -813,18 +701,13 @@ SQL Server DB ───────┼─→ create_connection()
 
 ### Key Design Patterns
 
-#### 1. Lazy Loading (MapFileCache)
+#### 1. RPT Segment Caching
 ```python
-# Files loaded only when first accessed
-if map_filename not in self.cache:
-    self._load_map_file(map_filename)
-```
-
-#### 2. Caching Strategy
-```python
-# Store both ID formats for flexible lookup
-segment_map[str(int(seg_id))] = name  # '04' → '4'
-segment_map[seg_id] = name             # Keep '04'
+# RPT file SECTIONHDR cached per filename to avoid re-reading
+_rpt_segments_cache = {}
+cache_key = rpt_filename.upper()
+if cache_key in _rpt_segments_cache:
+    return _rpt_segments_cache[cache_key]
 ```
 
 #### 3. Progress Checkpoint Pattern
@@ -865,7 +748,7 @@ except Exception as e:
 #### DEBUG
 - SQL query execution details
 - Row counts from queries
-- Map file loading details
+- RPT file SECTIONHDR extraction details
 - Progress file updates
 
 #### INFO
@@ -875,7 +758,7 @@ except Exception as e:
 - Connection status
 
 #### WARNING
-- Map files not found
+- RPT files not found
 - Progress file read/write failures
 - Timestamp conversion errors
 - Reports with no instances
@@ -884,7 +767,7 @@ except Exception as e:
 - Query execution failures
 - CSV write failures
 - Connection errors
-- Map file parse errors
+- RPT file read errors
 
 ### Example Log Entries
 
@@ -894,28 +777,20 @@ except Exception as e:
 2024-01-30 14:20:01 - INFO - Database connection established successfully
 2024-01-30 14:20:01 - INFO - Loaded 150 report species from Report_Species.csv
 2024-01-30 14:20:01 - INFO - Resuming from Report_Species_Id: 0
-2024-01-30 14:20:01 - INFO - Map file directory: C:\Users\freddievr\Downloads\RPTnMAP_Files
 2024-01-30 14:20:01 - INFO - Processing 150 report species (starting after ID 0)
 2024-01-30 14:20:01 - INFO - Year filter: 2023+, YEAR column from: AS_OF_TIMESTAMP
 2024-01-30 14:20:01 - INFO - Timezone: Asia/Singapore (converting to UTC)
 2024-01-30 14:20:02 - INFO - Processing Report_Species_Id: 1, Name: Daily_Sales (1/150)
 2024-01-30 14:20:02 - DEBUG - Executing query for Report_Species_Id: 1, years: 2023-present
 2024-01-30 14:20:03 - DEBUG - Query returned 145 rows
-2024-01-30 14:20:03 - DEBUG - Loaded 12 unique segments from 260270DF.MAP
 2024-01-30 14:20:04 - DEBUG - Wrote 145 rows to Daily_Sales_2023.csv
 2024-01-30 14:20:04 - INFO - Query returned 145 instances for Daily_Sales
 2024-01-30 14:20:04 - INFO - Wrote 145 rows to Daily_Sales_2023.csv
 ```
 
-**Map File Lookup:**
+**RPT File Lookup:**
 ```
-2024-01-30 14:25:12 - DEBUG - Loaded 8 unique segments from 260271NL.MAP
-2024-01-30 14:25:13 - DEBUG - Segment 4 not found in DB or map file 260271NL.MAP
-```
-
-**Missing Map File:**
-```
-2024-01-30 14:30:45 - WARNING - Map file not found: C:\Users\freddievr\Downloads\RPTnMAP_Files\MISSING.MAP
+2024-01-30 14:25:12 - DEBUG - RPT file not found: /path/to/rptfolder/MISSING.RPT
 ```
 
 **Empty Results:**
@@ -926,8 +801,8 @@ except Exception as e:
 
 **Error Handling:**
 ```
-2024-01-30 14:40:10 - ERROR - Query failed for Report_Species_Id 67: Invalid column name 'SEGMENT_NUMBER'
-2024-01-30 14:40:10 - ERROR - Error processing Report_Species_Id 67: Invalid column name 'SEGMENT_NUMBER'
+2024-01-30 14:40:10 - ERROR - Query failed for Report_Species_Id 67: Invalid column name 'FILENAME'
+2024-01-30 14:40:10 - ERROR - Error processing Report_Species_Id 67: Invalid column name 'FILENAME'
 ```
 
 **Final Summary:**
@@ -952,9 +827,9 @@ except Exception as e:
    - Reduces console I/O overhead
    - Better for automated scripts
 
-2. **Place .MAP Files on Fast Storage**
-   - SSD preferred for map directory
-   - Reduces disk I/O during segment lookup
+2. **Place .RPT Files on Fast Storage**
+   - SSD preferred for --rptfolder directory
+   - Reduces disk I/O during SECTIONHDR extraction
 
 3. **Network Latency**
    - Run script close to SQL Server (same network)
@@ -967,13 +842,8 @@ except Exception as e:
 ### Memory Usage
 
 - **Report_Species.csv**: Loaded entirely into memory
-- **.MAP Files**: Cached in memory after first access
+- **RPT SECTIONHDR**: Cached in memory per filename after first read (very small footprint)
 - **Query Results**: Processed per report (not all at once)
-
-**Estimated Memory:**
-- Base: ~50 MB
-- Per .MAP file: ~1-5 MB (depending on segment count)
-- Per report result set: ~10-50 MB (temporary)
 
 ---
 
@@ -999,7 +869,7 @@ except Exception as e:
 ### File Permissions
 
 - **Output Directory**: Ensure appropriate write permissions
-- **.MAP Files**: Read-only access sufficient
+- **.RPT Files** (--rptfolder): Read-only access sufficient
 - **Report_Species.csv**: Script requires read/write (for In_Use updates)
 
 ### SQL Injection Protection
@@ -1012,13 +882,18 @@ except Exception as e:
 
 ## Version History
 
-### Version 2.0 (Current)
+### Version 3.0 (Current)
+- SEGMENTS now exclusively from RPT file SECTIONHDR (via rpt_section_reader.py)
+- Removed REPORT_INSTANCE_SEGMENT and SECTION table queries (tracked ingestion, not sections)
+- Simplified SQL query (no STRING_AGG, no GROUP BY)
+- SQL Server 2017+ no longer required
+- --rptfolder provides SECTIONHDR-based SEGMENTS; without it, SEGMENTS is empty
+
+### Version 2.0
 - Added .MAP file integration for segment name lookups
 - Added MapFileCache class with intelligent caching
 - Added --map-dir command-line argument
 - Enhanced segment processing with fallback logic
-- Added "Unknown" placeholder for missing segment names
-- Updated SQL query to join SST_STORAGE and MAPFILE tables
 
 ### Version 1.0
 - Initial release
@@ -1041,17 +916,7 @@ SELECT
     ri.REPORT_SPECIES_ID,
     rfi.RPT_FILE_ID,
     RTRIM(rf.FILENAME) AS FILENAME,
-    RTRIM(mf.FILENAME) AS MAP_FILENAME,
-    ri.AS_OF_TIMESTAMP,
-    STRING_AGG(
-        CONCAT(
-            CAST(ISNULL(sec.NAME, '') AS VARCHAR), '#',
-            CAST(ris.SEGMENT_NUMBER AS VARCHAR), '#',
-            CAST(ISNULL(ris.START_PAGE_NUMBER, 0) AS VARCHAR), '#',
-            CAST(ris.NUMBER_OF_PAGES AS VARCHAR)
-        ),
-        '|'
-    ) WITHIN GROUP (ORDER BY ris.SEGMENT_NUMBER ASC) AS segments
+    ri.AS_OF_TIMESTAMP
 FROM REPORT_INSTANCE ri
 LEFT JOIN RPTFILE_INSTANCE rfi
     ON ri.DOMAIN_ID = rfi.DOMAIN_ID
@@ -1060,33 +925,14 @@ LEFT JOIN RPTFILE_INSTANCE rfi
     AND ri.REPROCESS_IN_PROGRESS = rfi.REPROCESS_IN_PROGRESS
 LEFT JOIN RPTFILE rf
     ON rfi.RPT_FILE_ID = rf.RPT_FILE_ID
-LEFT JOIN REPORT_INSTANCE_SEGMENT ris
-    ON ri.DOMAIN_ID = ris.DOMAIN_ID
-    AND ri.REPORT_SPECIES_ID = ris.REPORT_SPECIES_ID
-    AND ri.AS_OF_TIMESTAMP = ris.AS_OF_TIMESTAMP
-    AND ri.REPROCESS_IN_PROGRESS = ris.REPROCESS_IN_PROGRESS
-LEFT JOIN SECTION sec
-    ON ris.DOMAIN_ID = sec.DOMAIN_ID
-    AND ris.REPORT_SPECIES_ID = sec.REPORT_SPECIES_ID
-    AND ris.SEGMENT_NUMBER = sec.SECTION_ID
-LEFT JOIN SST_STORAGE sst
-    ON ri.DOMAIN_ID = sst.DOMAIN_ID
-    AND ri.REPORT_SPECIES_ID = sst.REPORT_SPECIES_ID
-    AND ri.AS_OF_TIMESTAMP = sst.AS_OF_TIMESTAMP
-    AND ri.REPROCESS_IN_PROGRESS = sst.REPROCESS_IN_PROGRESS
-LEFT JOIN MAPFILE mf
-    ON sst.MAP_FILE_ID = mf.MAP_FILE_ID
 WHERE ri.REPORT_SPECIES_ID = %s
     AND ri.AS_OF_TIMESTAMP >= %s
     AND ri.AS_OF_TIMESTAMP < %s  -- Only if --end-year specified
-GROUP BY
-    ri.REPORT_SPECIES_ID,
-    ri.AS_OF_TIMESTAMP,
-    rfi.RPT_FILE_ID,
-    rf.FILENAME,
-    mf.FILENAME
 ORDER BY ri.AS_OF_TIMESTAMP ASC
 ```
+
+Note: SEGMENTS are no longer queried from the database. They are extracted from RPT file
+SECTIONHDR binary structures via `rpt_section_reader.py` when `--rptfolder` is provided.
 
 ### Exit Codes
 
@@ -1109,6 +955,6 @@ For issues, questions, or contributions related to this script:
 
 ---
 
-**Document Version**: 2.0
-**Last Updated**: 2024-01-30
-**Script Version**: 2.0 (with .MAP file integration)
+**Document Version**: 3.0
+**Last Updated**: 2026-02-06
+**Script Version**: 3.0 (SEGMENTS from RPT file SECTIONHDR)
