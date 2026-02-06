@@ -771,7 +771,7 @@ function decompressPage(filepath, entry) {
  * @param {boolean} options.pageConcat - Concatenate all text pages into one file with \f\n separators
  * @returns {object} Extraction statistics
  */
-function extractRpt(filepath, outputBase, { pageRange = null, sectionIds = null, infoOnly = false, binaryOnly = false, noBinary = false, pageConcat = false } = {}) {
+function extractRpt(filepath, outputBase, { pageRange = null, sectionIds = null, infoOnly = false, binaryOnly = false, noBinary = false, pageConcat = false, exportSectionsCsv = null } = {}) {
     const stats = {
         file: filepath,
         pagesTotal: 0,
@@ -859,6 +859,20 @@ function extractRpt(filepath, outputBase, { pageRange = null, sectionIds = null,
                 `  ${String(s.sectionId).padStart(12)}  ${String(s.startPage).padStart(10)}  ${String(s.pageCount).padStart(10)}${marker}`
             );
         }
+    }
+
+    // Export sections as CSV if requested
+    if (exportSectionsCsv && sections.length > 0) {
+        const csvDir = path.dirname(exportSectionsCsv);
+        if (csvDir) {
+            fs.mkdirSync(csvDir, { recursive: true });
+        }
+        const lines = ['Report_Species_Id,Section_Id,Start_Page,Pages'];
+        for (const s of sections) {
+            lines.push(`${header.reportSpeciesId},${s.sectionId},${s.startPage},${s.pageCount}`);
+        }
+        fs.writeFileSync(exportSectionsCsv, lines.join('\n') + '\n');
+        console.log(`\n  Sections exported to: ${exportSectionsCsv}`);
     }
 
     if (infoOnly) {
@@ -1154,6 +1168,7 @@ Options:
   --binary-only         Extract only the binary document (PDF/AFP), skip text pages
   --no-binary           Extract only text pages, skip binary objects (PDF/AFP)
   --page-concat         Concatenate all text pages into a single file (form-feed separated)
+  --export-sections <file>  Export section table as CSV (for rpt_file_builder --section-csv)
   --folder <dir>        Process all .RPT files in this directory
   --output <dir>        Output base directory (default: ".")
   --help                Show this help message
@@ -1190,7 +1205,10 @@ Examples:
   node rpt_page_extractor.js --page-concat --pages 1-5 260271NL.RPT
 
   # Custom output directory
-  node rpt_page_extractor.js --output /tmp/extracted 251110OD.RPT`);
+  node rpt_page_extractor.js --output /tmp/extracted 251110OD.RPT
+
+  # Export section table to CSV
+  node rpt_page_extractor.js --info --export-sections sections.csv 260271NL.RPT`);
 }
 
 /**
@@ -1209,6 +1227,7 @@ function parseArgs(argv) {
         folder: null,
         output: '.',
         help: false,
+        exportSections: null,
         rptFiles: [],
     };
 
@@ -1263,6 +1282,14 @@ function parseArgs(argv) {
             i++;
         } else if (arg === '--page-concat') {
             args.pageConcat = true;
+            i++;
+        } else if (arg === '--export-sections') {
+            i++;
+            if (i >= argv.length) {
+                console.error('Error: --export-sections requires a file path');
+                process.exit(1);
+            }
+            args.exportSections = argv[i];
             i++;
         } else if (arg === '--output' || arg === '-o') {
             i++;
@@ -1363,6 +1390,7 @@ function main() {
             binaryOnly: args.binaryOnly,
             noBinary: args.noBinary,
             pageConcat: args.pageConcat,
+            exportSectionsCsv: args.exportSections,
         });
         allStats.push(stats);
 

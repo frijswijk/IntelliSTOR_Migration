@@ -806,7 +806,8 @@ static ExtractionStats extract_rpt(
         bool info_only,
         bool binary_only,
         bool no_binary,
-        bool page_concat)
+        bool page_concat,
+        const std::string& export_sections_csv = "")
 {
     ExtractionStats stats;
     stats.file = filepath;
@@ -903,6 +904,28 @@ static ExtractionStats extract_rpt(
                       << "  " << std::setw(10) << s.start_page
                       << "  " << std::setw(10) << s.page_count
                       << marker << "\n";
+        }
+    }
+
+    // Export sections as CSV if requested
+    if (!export_sections_csv.empty() && !sections.empty()) {
+        fs::path csv_path(export_sections_csv);
+        if (csv_path.has_parent_path()) {
+            std::error_code ec;
+            fs::create_directories(csv_path.parent_path(), ec);
+        }
+        std::ofstream csv_out(export_sections_csv);
+        if (!csv_out) {
+            std::cerr << "  WARNING: Cannot write CSV: " << export_sections_csv << "\n";
+        } else {
+            csv_out << "Report_Species_Id,Section_Id,Start_Page,Pages\n";
+            for (const auto& s : sections) {
+                csv_out << hdr.report_species_id << ","
+                        << s.section_id << ","
+                        << s.start_page << ","
+                        << s.page_count << "\n";
+            }
+            std::cout << "\n  Sections exported to: " << export_sections_csv << "\n";
         }
     }
 
@@ -1250,6 +1273,7 @@ static void print_help(const char* prog) {
 "  --binary-only         Extract only the binary document (PDF/AFP), skip text pages\n"
 "  --no-binary           Extract only text pages, skip binary objects (PDF/AFP)\n"
 "  --page-concat         Concatenate all text pages into a single file (form-feed separated)\n"
+"  --export-sections <file>  Export section table as CSV (for rpt_file_builder --section-csv)\n"
 "  --help                Show help\n"
 "\n"
 "Examples:\n"
@@ -1284,7 +1308,10 @@ static void print_help(const char* prog) {
 "  " << prog << " --page-concat --pages 1-5 260271NL.RPT\n"
 "\n"
 "  # Custom output directory\n"
-"  " << prog << " --output /tmp/extracted 251110OD.RPT\n";
+"  " << prog << " --output /tmp/extracted 251110OD.RPT\n"
+"\n"
+"  # Export section table to CSV\n"
+"  " << prog << " --info --export-sections sections.csv 260271NL.RPT\n";
 }
 
 // ============================================================================
@@ -1328,6 +1355,7 @@ int main(int argc, char* argv[]) {
     std::vector<uint32_t> section_ids;
     std::string folder;
     std::string output_base = ".";
+    std::string export_sections_csv;
     std::vector<std::string> rpt_files;
 
     for (int i = 1; i < argc; ++i) {
@@ -1348,6 +1376,13 @@ int main(int argc, char* argv[]) {
         }
         else if (arg == "--page-concat") {
             page_concat = true;
+        }
+        else if (arg == "--export-sections") {
+            if (i + 1 >= argc) {
+                std::cerr << "Error: --export-sections requires a file path\n";
+                return 1;
+            }
+            export_sections_csv = argv[++i];
         }
         else if (arg == "--pages") {
             if (i + 1 >= argc) {
@@ -1458,7 +1493,8 @@ int main(int argc, char* argv[]) {
     for (const auto& filepath : rpt_files) {
         auto stats = extract_rpt(filepath, output_base, page_range,
                                  section_ids, info_only,
-                                 binary_only, no_binary, page_concat);
+                                 binary_only, no_binary, page_concat,
+                                 export_sections_csv);
         if (!stats.error.empty()) {
             std::cout << "  ERROR: " << stats.error << "\n";
         }
