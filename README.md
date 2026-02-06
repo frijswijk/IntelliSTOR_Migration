@@ -14,12 +14,13 @@ IntelliSTOR_Migration/
 ├── 1_Migration_Users/                 # User and permission extraction
 ├── 2_LDAP/                           # LDAP/Active Directory integration
 ├── 3_Migration_Report_Species_Folders/# Report species extraction
-├── 4. Migration_Instances/           # Instance extraction from database
-├── 5. TestFileGeneration/            # Test data file generation
-├── 6. ZipEncrypt/                    # Batch encryption and archiving
-├── 7. AFP_Resources/                 # AFP resource analysis and export
+├── 4_Migration_Instances/           # Instance extraction from database
+├── 5_TestFileGeneration/            # Test data file generation
+├── 6_ZipEncrypt/                    # Batch encryption and archiving
+├── 7_AFP_Resources/                 # AFP resource analysis and export
+├── 8_Create_IRPT_File/               # RPT file builder tool
 ├── ACL/                              # Access Control List parsing
-└── Report_TXT_Viewer/                # Report viewer application
+└── 99_Report_TXT_Viewer/             # Report viewer application
 ```
 
 ## Migration Workflow
@@ -89,15 +90,15 @@ cd 1_Migration_Users
 Extract_Users_permissions_SG.bat
 
 # Step 2: Extract instances
-cd ..\4. Migration_Instances
+cd ..\4_Migration_Instances
 Extract_Instances.SG.bat
 
 # Step 3: Generate test files
-cd ..\5. TestFileGeneration
+cd ..\5_TestFileGeneration
 Generate_Test_Files_SG.bat
 
 # Step 4: Encrypt and package
-cd ..\6. ZipEncrypt
+cd ..\6_ZipEncrypt
 Batch_Zip_Encrypt_SG.bat
 ```
 
@@ -133,12 +134,12 @@ Each module has detailed documentation:
 - **LDAP Quick Start**: `2_LDAP/LDAP_QUICKSTART.md`
 - **AD Server Setup**: `2_LDAP/AD_SERVER_LDAPS_SETUP_GUIDE.md`
 - **Report Species**: `3_Migration_Report_Species_Folders/README_Extract_Folder_Species.md`
-- **Instance Extraction**: `4. Migration_Instances/SETUP_GUIDE.md`
-- **Test File Generation**: `5. TestFileGeneration/README_Generate_Test_Files.md`
-- **Zip Encryption**: `6. ZipEncrypt/README_batch_zip_encrypt.md`
-- **AFP Resources**: `7. AFP_Resources/README.md`
+- **Instance Extraction**: `4_Migration_Instances/SETUP_GUIDE.md`
+- **Test File Generation**: `5_TestFileGeneration/README_Generate_Test_Files.md`
+- **Zip Encryption**: `6_ZipEncrypt/README_batch_zip_encrypt.md`
+- **AFP Resources**: `7_AFP_Resources/README.md`
 - **ACL Parsing**: `ACL/README_ACL_Parsing.md`
-- **Report Viewer**: `Report_TXT_Viewer/README.md`
+- **Report Viewer**: `99_Report_TXT_Viewer/Report_Viewer_README.md`
 - **Batch Updates**: `BATCH_FILES_UPDATE_SUMMARY.md`
 
 ## Execution Logs

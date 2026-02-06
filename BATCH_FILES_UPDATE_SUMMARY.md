@@ -76,8 +76,8 @@ rem set ZipEncrypt_7zipPath=C:\Program Files\7-Zip\7z.exe
 
 ---
 
-### 3. 4. Migration_Instances Folder
-**Location**: `C:\Users\freddievr\claude-projects\IntelliSTOR_Migration\4. Migration_Instances\`
+### 3. 4_Migration_Instances Folder
+**Location**: `C:\Users\freddievr\claude-projects\IntelliSTOR_Migration\4_Migration_Instances\`
 
 #### Files Updated:
 - ✅ `Extract_Instances.SG.bat` - Upgraded from simple one-liner
@@ -97,8 +97,8 @@ python Extract_Instances.py --server localhost --database iSTSGUAT --windows-aut
 
 ---
 
-### 4. 5. TestFileGeneration Folder
-**Location**: `C:\Users\freddievr\claude-projects\IntelliSTOR_Migration\5. TestFileGeneration\`
+### 4. 5_TestFileGeneration Folder
+**Location**: `C:\Users\freddievr\claude-projects\IntelliSTOR_Migration\5_TestFileGeneration\`
 
 #### Files Updated:
 - ✅ `Generate_Test_Files_SG.bat` - Upgraded from simple one-liner
@@ -118,8 +118,8 @@ python Generate_Test_Files.py --ReportSpecies D:\python\FolderSpecies-DB\outputS
 
 ---
 
-### 5. 6. ZipEncrypt Folder
-**Location**: `C:\Users\freddievr\claude-projects\IntelliSTOR_Migration\6. ZipEncrypt\`
+### 5. 6_ZipEncrypt Folder
+**Location**: `C:\Users\freddievr\claude-projects\IntelliSTOR_Migration\6_ZipEncrypt\`
 
 #### Files Created:
 - ✅ `Batch_Zip_Encrypt_SG.bat` - NEW (Singapore encryption batch)
@@ -291,19 +291,19 @@ IntelliSTOR_Migration\
 ├── 1_Migration_Users\
 │   └── Extract_Users_permissions_SG.bat  # (Already existed - no changes)
 │
-├── 4. Migration_Instances\
+├── 4_Migration_Instances\
 │   ├── Extract_Instances.SG.bat          # ✅ UPDATED
 │   └── Extract_Instances.MY.bat          # ✅ UPDATED
 │
-├── 5. TestFileGeneration\
+├── 5_TestFileGeneration\
 │   ├── Generate_Test_Files_SG.bat        # ✅ UPDATED
 │   └── Generate_Test_Files_MY.bat        # ✅ UPDATED
 │
-├── 6. ZipEncrypt\
+├── 6_ZipEncrypt\
 │   ├── Batch_Zip_Encrypt_SG.bat          # ✅ CREATED
 │   └── Batch_Zip_Encrypt_MY.bat          # ✅ CREATED
 │
-└── AFP_Resources\
+└── 7_AFP_Resources\
     ├── Analyze_AFP_Resources.py          # ✅ CREATED
     ├── Analyze_AFP_Resources_SG.bat      # ✅ CREATED
     ├── Analyze_AFP_Resources_MY.bat      # ✅ CREATED

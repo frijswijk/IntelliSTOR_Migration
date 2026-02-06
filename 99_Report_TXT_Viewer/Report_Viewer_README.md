@@ -437,11 +437,11 @@ IntelliSTOR RPT files contain:
 
 | Tool | Location | Purpose |
 |------|----------|---------|
-| `rpt_section_reader.py` | `4. Migration_Instances/` | Extract section info from RPT files |
-| `rpt_page_extractor.py` | `4. Migration_Instances/` | Extract and decompress pages (Python) |
-| `rpt_page_extractor.js` | `4. Migration_Instances/` | Extract and decompress pages (Node.js) |
-| `rpt_page_extractor.cpp` | `4. Migration_Instances/` | Extract and decompress pages (C++) |
-| `rpt_file_builder.py` | `8. Create_IRPT_File/` | Create RPT files from text + binary |
+| `rpt_section_reader.py` | `4_Migration_Instances/` | Extract section info from RPT files |
+| `rpt_page_extractor.py` | `4_Migration_Instances/` | Extract and decompress pages (Python) |
+| `rpt_page_extractor.js` | `4_Migration_Instances/` | Extract and decompress pages (Node.js) |
+| `rpt_page_extractor.cpp` | `4_Migration_Instances/` | Extract and decompress pages (C++) |
+| `rpt_file_builder.py` | `8_Create_IRPT_File/` | Create RPT files from text + binary |
 
 ---
 

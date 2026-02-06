@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
 # Add folder 4 to path for shared modules
-_FOLDER_4 = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '4. Migration_Instances')
+_FOLDER_4 = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '4_Migration_Instances')
 if _FOLDER_4 not in sys.path:
     sys.path.insert(0, _FOLDER_4)
 

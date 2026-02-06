@@ -10,14 +10,14 @@ back into a valid `.RPT` binary file that conforms to the IntelliSTOR RPT specif
 
 - Python 3.6+
 - No external dependencies (uses stdlib: `struct`, `zlib`, `argparse`, `datetime`, `dataclasses`, `re`, `glob`)
-- Requires `rpt_section_reader.py` from folder `4. Migration_Instances` (resolved automatically via `sys.path`)
+- Requires `rpt_section_reader.py` from folder `4_Migration_Instances` (resolved automatically via `sys.path`)
 
 ## Installation
 
-Located in: `8. Create_IRPT_File/`
+Located in: `8_Create_IRPT_File/`
 
 No installation needed -- run directly with Python 3. The script automatically adds
-`../4. Migration_Instances/` to the Python path so it can find the shared `rpt_section_reader`
+`../4_Migration_Instances/` to the Python path so it can find the shared `rpt_section_reader`
 module.
 
 ## Quick Start
@@ -181,7 +181,7 @@ Full extract, rebuild, and re-extract workflow:
 
 ```bash
 # 1. Extract pages from the original RPT
-python3 "../4. Migration_Instances/rpt_page_extractor.py" \
+python3 "../4_Migration_Instances/rpt_page_extractor.py" \
   --output ./extracted /path/to/original.RPT
 
 # 2. Rebuild using template metadata
@@ -190,7 +190,7 @@ python3 rpt_file_builder.py --template /path/to/original.RPT \
   -o rebuilt.RPT ./extracted/original/
 
 # 3. Re-extract the rebuilt RPT and verify
-python3 "../4. Migration_Instances/rpt_page_extractor.py" --info rebuilt.RPT
+python3 "../4_Migration_Instances/rpt_page_extractor.py" --info rebuilt.RPT
 ```
 
 The rebuilt file should show the same species, domain, page count, and section
@@ -303,8 +303,8 @@ The primary quality test for the builder is roundtrip fidelity with `rpt_page_ex
 
 ```bash
 # Step 1: Extract all content from the original RPT
-cd "/path/to/8. Create_IRPT_File"
-python3 "../4. Migration_Instances/rpt_page_extractor.py" \
+cd "/path/to/8_Create_IRPT_File"
+python3 "../4_Migration_Instances/rpt_page_extractor.py" \
   --output ./roundtrip_test /path/to/original.RPT
 
 # Step 2: Rebuild using the extracted content
@@ -315,7 +315,7 @@ python3 rpt_file_builder.py \
   ./roundtrip_test/original/
 
 # Step 3: Re-extract the rebuilt RPT
-python3 "../4. Migration_Instances/rpt_page_extractor.py" \
+python3 "../4_Migration_Instances/rpt_page_extractor.py" \
   --output ./roundtrip_test/re-extracted \
   ./roundtrip_test/rebuilt.RPT
 
