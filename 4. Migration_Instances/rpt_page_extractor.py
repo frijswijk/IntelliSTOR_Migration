@@ -13,6 +13,7 @@ Supports:
   - Multi-section:   --section-id 14259 14260 14261 (multiple sections, in order)
   - Folder mode:     --folder <dir> (process all RPT files in a directory)
   - Binary objects:  --binary-only (extract only PDF/AFP), --no-binary (skip binary)
+  - Concatenate:    --page-concat (all text pages into one file, separated by form-feed)
 
 RPT File Layout (reference):
   [0x000] RPTFILEHDR     - Header with domain:species, timestamp
@@ -535,7 +536,8 @@ def extract_rpt(filepath: str, output_base: str,
                 section_ids: Optional[List[int]] = None,
                 info_only: bool = False,
                 binary_only: bool = False,
-                no_binary: bool = False) -> dict:
+                no_binary: bool = False,
+                page_concat: bool = False) -> dict:
     """
     Extract pages from a single RPT file.
 
@@ -552,6 +554,7 @@ def extract_rpt(filepath: str, output_base: str,
         info_only: If True, show info without extracting
         binary_only: If True, extract only the binary document (skip text pages)
         no_binary: If True, extract only text pages (skip binary objects)
+        page_concat: If True, concatenate all text pages into a single file with \f\n separators
 
     Returns:
         dict with extraction statistics
@@ -727,38 +730,64 @@ def extract_rpt(filepath: str, output_base: str,
     # Extract text pages (unless --binary-only)
     # -----------------------------------------------------------------------
     if not binary_only:
-        # Filter out Object Header page when binary objects are present
-        text_selected = selected
-        if binary_entries and object_header and selected:
-            # Object Header is text page 1 — skip it from regular text output
-            text_selected = [e for e in selected if e.page_number != 1]
-            if text_selected != selected:
-                print(f"  Object Header page (page 1) separated from text output")
+        if page_concat:
+            # Concatenate mode: all selected pages (including Object Header) into one file
+            if selected:
+                pages = decompress_pages(filepath, selected)
+                stats['pages_extracted'] = len(pages)
+                stats['bytes_compressed'] = sum(e.compressed_size for e in selected)
+                stats['bytes_decompressed'] = sum(len(content) for _, content in pages)
 
-        if text_selected:
-            pages = decompress_pages(filepath, text_selected)
-            stats['pages_extracted'] = len(pages)
-            stats['bytes_compressed'] = sum(e.compressed_size for e in text_selected)
-            stats['bytes_decompressed'] = sum(len(content) for _, content in pages)
-
-            saved = save_pages(pages, output_dir, page_prefix='page')
-            print(f"  Saved {saved} text pages to {output_dir}/")
-            print(f"  Total decompressed: {stats['bytes_decompressed']:,} bytes")
-
-            # Check for failures
-            failed = len(text_selected) - stats['pages_extracted']
-            if failed > 0:
-                print(f"  WARNING: {failed} pages failed to decompress")
-
-        # Save Object Header as separate file (for reference)
-        if binary_entries and object_header:
-            first_page = decompress_page(filepath, page_entries[0])
-            if first_page:
                 os.makedirs(output_dir, exist_ok=True)
-                oh_path = os.path.join(output_dir, 'object_header.txt')
-                with open(oh_path, 'wb') as f:
-                    f.write(first_page)
-                print(f"  Saved object_header.txt to {output_dir}/")
+                concat_filename = rpt_name + '.txt'
+                concat_path = os.path.join(output_dir, concat_filename)
+                with open(concat_path, 'wb') as f:
+                    for i, (page_num, content) in enumerate(pages):
+                        if i > 0:
+                            f.write(b'\x0c\n')  # form-feed + newline separator
+                        f.write(content)
+
+                print(f"  Saved concatenated text: {concat_filename} ({stats['pages_extracted']} pages) to {output_dir}/")
+                print(f"  Total decompressed: {stats['bytes_decompressed']:,} bytes")
+
+                # Check for failures
+                failed = len(selected) - stats['pages_extracted']
+                if failed > 0:
+                    print(f"  WARNING: {failed} pages failed to decompress")
+        else:
+            # Normal mode: individual page files
+            # Filter out Object Header page when binary objects are present
+            text_selected = selected
+            if binary_entries and object_header and selected:
+                # Object Header is text page 1 — skip it from regular text output
+                text_selected = [e for e in selected if e.page_number != 1]
+                if text_selected != selected:
+                    print(f"  Object Header page (page 1) separated from text output")
+
+            if text_selected:
+                pages = decompress_pages(filepath, text_selected)
+                stats['pages_extracted'] = len(pages)
+                stats['bytes_compressed'] = sum(e.compressed_size for e in text_selected)
+                stats['bytes_decompressed'] = sum(len(content) for _, content in pages)
+
+                saved = save_pages(pages, output_dir, page_prefix='page')
+                print(f"  Saved {saved} text pages to {output_dir}/")
+                print(f"  Total decompressed: {stats['bytes_decompressed']:,} bytes")
+
+                # Check for failures
+                failed = len(text_selected) - stats['pages_extracted']
+                if failed > 0:
+                    print(f"  WARNING: {failed} pages failed to decompress")
+
+            # Save Object Header as separate file (for reference)
+            if binary_entries and object_header:
+                first_page = decompress_page(filepath, page_entries[0])
+                if first_page:
+                    os.makedirs(output_dir, exist_ok=True)
+                    oh_path = os.path.join(output_dir, 'object_header.txt')
+                    with open(oh_path, 'wb') as f:
+                        f.write(first_page)
+                    print(f"  Saved object_header.txt to {output_dir}/")
     else:
         if not binary_entries:
             stats['error'] = 'No binary objects found in this RPT file (--binary-only requires BPAGETBLHDR)'
@@ -835,6 +864,12 @@ Examples:
   # Extract only text pages (skip binary objects)
   python rpt_page_extractor.py --no-binary 260271Q7.RPT
 
+  # Concatenate all pages into a single file (separated by form-feed)
+  python rpt_page_extractor.py --page-concat 260271NL.RPT
+
+  # Concatenate a page range into a single file
+  python rpt_page_extractor.py --page-concat --pages 1-5 260271NL.RPT
+
   # Custom output directory
   python rpt_page_extractor.py --output /tmp/extracted 251110OD.RPT
         """
@@ -880,6 +915,11 @@ Examples:
         action='store_true',
         help='Extract only text pages, skip binary objects (PDF/AFP)'
     )
+    parser.add_argument(
+        '--page-concat',
+        action='store_true',
+        help='Concatenate all text pages into a single file (separated by form-feed)'
+    )
 
     args = parser.parse_args()
 
@@ -892,6 +932,9 @@ Examples:
 
     if args.binary_only and args.no_binary:
         parser.error('Cannot use both --binary-only and --no-binary')
+
+    if args.page_concat and args.binary_only:
+        parser.error('Cannot use both --page-concat and --binary-only (binary-only has no text pages to concatenate)')
 
     # Parse page range
     page_range = None
@@ -931,7 +974,8 @@ Examples:
             section_ids=args.section_id,
             info_only=args.info,
             binary_only=args.binary_only,
-            no_binary=args.no_binary
+            no_binary=args.no_binary,
+            page_concat=args.page_concat
         )
         all_stats.append(stats)
 

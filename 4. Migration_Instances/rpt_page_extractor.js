@@ -15,6 +15,7 @@
  *   - Multi-section:   --section-id 14259 14260 14261 (multiple sections, in order)
  *   - Folder mode:     --folder <dir> (process all RPT files in a directory)
  *   - Binary objects:  --binary-only (extract only PDF/AFP), --no-binary (skip binary)
+ *   - Concatenate:    --page-concat (all text pages into one file, separated by form-feed)
  *
  * RPT File Layout (reference):
  *   [0x000] RPTFILEHDR     - Header with domain:species, timestamp
@@ -767,9 +768,10 @@ function decompressPage(filepath, entry) {
  * @param {boolean} options.infoOnly - Show info without extracting
  * @param {boolean} options.binaryOnly - Extract only the binary document (skip text pages)
  * @param {boolean} options.noBinary - Extract only text pages (skip binary objects)
+ * @param {boolean} options.pageConcat - Concatenate all text pages into one file with \f\n separators
  * @returns {object} Extraction statistics
  */
-function extractRpt(filepath, outputBase, { pageRange = null, sectionIds = null, infoOnly = false, binaryOnly = false, noBinary = false } = {}) {
+function extractRpt(filepath, outputBase, { pageRange = null, sectionIds = null, infoOnly = false, binaryOnly = false, noBinary = false, pageConcat = false } = {}) {
     const stats = {
         file: filepath,
         pagesTotal: 0,
@@ -986,41 +988,73 @@ function extractRpt(filepath, outputBase, { pageRange = null, sectionIds = null,
     // Extract text pages (unless --binary-only)
     // -------------------------------------------------------------------
     if (!binaryOnly) {
-        // Filter out Object Header page when binary objects are present
-        let textSelected = selected;
-        if (binaryEntries.length > 0 && objectHeader && selected.length > 0) {
-            // Object Header is text page 1 -- skip it from regular text output
-            textSelected = selected.filter(e => e.pageNumber !== 1);
-            if (textSelected.length !== selected.length) {
-                console.log(`  Object Header page (page 1) separated from text output`);
-            }
-        }
+        if (pageConcat) {
+            // Concatenate mode: all selected pages (including Object Header) into one file
+            if (selected.length > 0) {
+                const pages = decompressPages(filepath, selected);
+                stats.pagesExtracted = pages.length;
+                stats.bytesCompressed = selected.reduce((sum, e) => sum + e.compressedSize, 0);
+                stats.bytesDecompressed = pages.reduce((sum, p) => sum + p.data.length, 0);
 
-        if (textSelected.length > 0) {
-            const pages = decompressPages(filepath, textSelected);
-            stats.pagesExtracted = pages.length;
-            stats.bytesCompressed = textSelected.reduce((sum, e) => sum + e.compressedSize, 0);
-            stats.bytesDecompressed = pages.reduce((sum, p) => sum + p.data.length, 0);
-
-            const saved = savePages(pages, outputDir, 'page');
-            console.log(`  Saved ${saved} text pages to ${outputDir}/`);
-            console.log(`  Total decompressed: ${formatNumber(stats.bytesDecompressed)} bytes`);
-
-            // Check for failures
-            const failed = textSelected.length - stats.pagesExtracted;
-            if (failed > 0) {
-                console.log(`  WARNING: ${failed} pages failed to decompress`);
-            }
-        }
-
-        // Save Object Header as separate file (for reference)
-        if (binaryEntries.length > 0 && objectHeader) {
-            const firstPage = decompressPage(filepath, pageEntries[0]);
-            if (firstPage) {
                 mkdirp(outputDir);
-                const ohPath = path.join(outputDir, 'object_header.txt');
-                fs.writeFileSync(ohPath, firstPage);
-                console.log(`  Saved object_header.txt to ${outputDir}/`);
+                const concatFilename = rptName + '.txt';
+                const concatPath = path.join(outputDir, concatFilename);
+                const chunks = [];
+                for (let i = 0; i < pages.length; i++) {
+                    if (i > 0) {
+                        chunks.push(Buffer.from('\x0c\n'));  // form-feed + newline separator
+                    }
+                    chunks.push(pages[i].data);
+                }
+                fs.writeFileSync(concatPath, Buffer.concat(chunks));
+
+                console.log(`  Saved concatenated text: ${concatFilename} (${stats.pagesExtracted} pages) to ${outputDir}/`);
+                console.log(`  Total decompressed: ${formatNumber(stats.bytesDecompressed)} bytes`);
+
+                // Check for failures
+                const failed = selected.length - stats.pagesExtracted;
+                if (failed > 0) {
+                    console.log(`  WARNING: ${failed} pages failed to decompress`);
+                }
+            }
+        } else {
+            // Normal mode: individual page files
+            // Filter out Object Header page when binary objects are present
+            let textSelected = selected;
+            if (binaryEntries.length > 0 && objectHeader && selected.length > 0) {
+                // Object Header is text page 1 -- skip it from regular text output
+                textSelected = selected.filter(e => e.pageNumber !== 1);
+                if (textSelected.length !== selected.length) {
+                    console.log(`  Object Header page (page 1) separated from text output`);
+                }
+            }
+
+            if (textSelected.length > 0) {
+                const pages = decompressPages(filepath, textSelected);
+                stats.pagesExtracted = pages.length;
+                stats.bytesCompressed = textSelected.reduce((sum, e) => sum + e.compressedSize, 0);
+                stats.bytesDecompressed = pages.reduce((sum, p) => sum + p.data.length, 0);
+
+                const saved = savePages(pages, outputDir, 'page');
+                console.log(`  Saved ${saved} text pages to ${outputDir}/`);
+                console.log(`  Total decompressed: ${formatNumber(stats.bytesDecompressed)} bytes`);
+
+                // Check for failures
+                const failed = textSelected.length - stats.pagesExtracted;
+                if (failed > 0) {
+                    console.log(`  WARNING: ${failed} pages failed to decompress`);
+                }
+            }
+
+            // Save Object Header as separate file (for reference)
+            if (binaryEntries.length > 0 && objectHeader) {
+                const firstPage = decompressPage(filepath, pageEntries[0]);
+                if (firstPage) {
+                    mkdirp(outputDir);
+                    const ohPath = path.join(outputDir, 'object_header.txt');
+                    fs.writeFileSync(ohPath, firstPage);
+                    console.log(`  Saved object_header.txt to ${outputDir}/`);
+                }
             }
         }
     } else {
@@ -1119,6 +1153,7 @@ Options:
                         (space-separated, in order, skips missing)
   --binary-only         Extract only the binary document (PDF/AFP), skip text pages
   --no-binary           Extract only text pages, skip binary objects (PDF/AFP)
+  --page-concat         Concatenate all text pages into a single file (form-feed separated)
   --folder <dir>        Process all .RPT files in this directory
   --output <dir>        Output base directory (default: ".")
   --help                Show this help message
@@ -1148,6 +1183,12 @@ Examples:
   # Extract only text pages (skip binary objects)
   node rpt_page_extractor.js --no-binary 260271Q7.RPT
 
+  # Concatenate all pages into a single file (separated by form-feed)
+  node rpt_page_extractor.js --page-concat 260271NL.RPT
+
+  # Concatenate a page range into a single file
+  node rpt_page_extractor.js --page-concat --pages 1-5 260271NL.RPT
+
   # Custom output directory
   node rpt_page_extractor.js --output /tmp/extracted 251110OD.RPT`);
 }
@@ -1164,6 +1205,7 @@ function parseArgs(argv) {
         sectionIds: null,
         binaryOnly: false,
         noBinary: false,
+        pageConcat: false,
         folder: null,
         output: '.',
         help: false,
@@ -1219,6 +1261,9 @@ function parseArgs(argv) {
         } else if (arg === '--no-binary') {
             args.noBinary = true;
             i++;
+        } else if (arg === '--page-concat') {
+            args.pageConcat = true;
+            i++;
         } else if (arg === '--output' || arg === '-o') {
             i++;
             if (i >= argv.length) {
@@ -1269,6 +1314,11 @@ function main() {
         process.exit(1);
     }
 
+    if (args.pageConcat && args.binaryOnly) {
+        console.error('Error: Cannot use both --page-concat and --binary-only (binary-only has no text pages to concatenate)');
+        process.exit(1);
+    }
+
     // Parse page range
     let pageRange = null;
     if (args.pages !== null) {
@@ -1312,6 +1362,7 @@ function main() {
             infoOnly: args.info,
             binaryOnly: args.binaryOnly,
             noBinary: args.noBinary,
+            pageConcat: args.pageConcat,
         });
         allStats.push(stats);
 

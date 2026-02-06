@@ -27,6 +27,7 @@ All three versions produce identical output and support the same command-line op
 - **Binary objects** - Extract embedded PDF/AFP documents from RPT files (BPAGETBLHDR)
 - **Binary-only mode** - Extract only the binary document, skip text pages
 - **No-binary mode** - Extract only text pages, skip binary objects
+- **Page concatenation** - Concatenate all text pages into a single file separated by form-feed characters
 
 ---
 
@@ -137,10 +138,12 @@ python3 rpt_page_extractor.py --help
 | `--output DIR` / `-o DIR` | Output base directory (default: current directory) |
 | `--binary-only` | Extract only the binary document (PDF/AFP), skip text pages |
 | `--no-binary` | Extract only text pages, skip binary objects (PDF/AFP) |
+| `--page-concat` | Concatenate all text pages into a single file separated by form-feed characters (`\f`). Output filename is `{RPT_stem}.txt`. Compatible with `--pages` and `--section-id` filters. Cannot be combined with `--binary-only`. |
 
 **Constraints:**
 - `--pages` and `--section-id` are mutually exclusive
 - `--binary-only` and `--no-binary` are mutually exclusive
+- `--page-concat` and `--binary-only` are mutually exclusive
 
 ---
 
@@ -348,7 +351,31 @@ python3 rpt_page_extractor.py --no-binary --output ./extracted 260271Q7.RPT
 
 Produces text pages and object_header.txt, but no binary document.
 
-### 12. Equivalent commands across implementations
+### 12. Concatenate all pages into one file
+
+```bash
+python3 rpt_page_extractor.py --page-concat 260271NL.RPT
+```
+
+Output file: `260271NL/260271NL.txt` — all pages joined with form-feed (`\f`) separators.
+
+### 13. Concatenate only a page range
+
+```bash
+python3 rpt_page_extractor.py --page-concat --pages 1-5 260271NL.RPT
+```
+
+Output file: `260271NL/pages_1-5/260271NL.txt` — only pages 1 through 5, concatenated.
+
+### 14. Concatenate section pages
+
+```bash
+python3 rpt_page_extractor.py --page-concat --section-id 14259 251110OD.RPT
+```
+
+Output file: `251110OD/section_14259/251110OD.txt` — only the pages belonging to section 14259, concatenated.
+
+### 15. Equivalent commands across implementations
 
 ```bash
 # Python
@@ -387,13 +414,19 @@ Options:
   4. Extract pages for one or more sections (by SECTION_ID)
   5. Extract all RPT files in a folder
   6. Show help
-  7. Extract binary objects (PDF/AFP) from an RPT file
+  7. Extract all content (text + PDF/AFP) from an RPT file
+  8. Extract binary objects only (PDF/AFP) from an RPT file
+  9. Extract all pages as single concatenated file
   0. Exit
 ```
 
 **Option 4 (multi-section):** The script first shows the available sections in the file, then prompts for one or more space-separated SECTION_IDs. Missing IDs are skipped automatically.
 
-**Option 7 (binary objects):** Extracts embedded PDF or AFP documents from RPT files that contain binary objects. Uses `--binary-only` mode — only the assembled binary document is saved.
+**Option 7 (all content):** Extracts both text pages and embedded binary documents (PDF/AFP) from RPT files that contain binary objects.
+
+**Option 8 (binary objects only):** Extracts embedded PDF or AFP documents from RPT files that contain binary objects. Uses `--binary-only` mode — only the assembled binary document is saved.
+
+**Option 9 (concatenated file):** Extracts all text pages and concatenates them into a single `.txt` file, with pages separated by form-feed characters. Uses `--page-concat` mode.
 
 ---
 
@@ -422,6 +455,26 @@ When extracting by section or page range, a subdirectory is created:
 
 # Page range
 <output_dir>/<RPT_NAME>/pages_10-20/page_00010.txt ...
+```
+
+### Concatenated output (`--page-concat`)
+
+When `--page-concat` is used, output is a single `.txt` file with pages separated by form-feed (`\f`) + newline. The filename matches the RPT stem:
+
+```
+<output_dir>/
+  <RPT_NAME>/
+    <RPT_NAME>.txt          # e.g., 260271NL.txt — all pages concatenated
+```
+
+When combined with `--pages` or `--section-id`, the subdirectory structure is the same as normal extraction, but containing the single concatenated file instead of individual page files:
+
+```
+# With --pages
+<output_dir>/<RPT_NAME>/pages_10-20/<RPT_NAME>.txt
+
+# With --section-id
+<output_dir>/<RPT_NAME>/section_14259/<RPT_NAME>.txt
 ```
 
 ### RPT files with binary objects (PDF/AFP)
@@ -548,6 +601,7 @@ All binary object chunks concatenate in order to form a single complete document
 | All section IDs not found | Error with list of available section IDs |
 | `--pages` and `--section-id` combined | Rejected with error message |
 | `--binary-only` and `--no-binary` combined | Rejected with error message |
+| `--page-concat` and `--binary-only` combined | Rejected with error message |
 | `--binary-only` on text-only RPT | Error: no binary objects found |
 | Binary object decompression failure | Warning per object, continues with remaining |
 | No BPAGETBLHDR in file | Binary objects silently skipped (text-only RPT) |

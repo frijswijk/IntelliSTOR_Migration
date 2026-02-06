@@ -13,6 +13,7 @@
 //   - Multi-section:   --section-id 14259 14260 14261 (multiple sections, in order)
 //   - Folder mode:     --folder <dir> (process all RPT files in a directory)
 //   - Binary objects:  --binary-only (extract only PDF/AFP), --no-binary (skip binary)
+//   - Concatenate:    --page-concat (all text pages into one file, separated by form-feed)
 //
 // RPT File Layout:
 //   [0x000] RPTFILEHDR     - "RPTFILEHDR\t{domain}:{species}\t{timestamp}" terminated by 0x1A
@@ -804,7 +805,8 @@ static ExtractionStats extract_rpt(
         const std::vector<uint32_t>& section_ids,
         bool info_only,
         bool binary_only,
-        bool no_binary)
+        bool no_binary,
+        bool page_concat)
 {
     ExtractionStats stats;
     stats.file = filepath;
@@ -1071,54 +1073,96 @@ static ExtractionStats extract_rpt(
     // Extract text pages (unless --binary-only)
     // -------------------------------------------------------------------
     if (!binary_only) {
-        // Filter out Object Header page when binary objects are present
-        std::vector<PageTableEntry> text_selected = selected;
-        if (!binary_entries.empty() && object_header && !selected.empty()) {
-            // Object Header is text page 1 -- skip it from regular text output
-            std::vector<PageTableEntry> filtered;
-            for (const auto& e : selected) {
-                if (e.page_number != 1) filtered.push_back(e);
-            }
-            if (filtered.size() != selected.size()) {
-                std::cout << "  Object Header page (page 1) separated from text output\n";
-            }
-            text_selected = std::move(filtered);
-        }
+        if (page_concat) {
+            // Concatenate mode: all selected pages (including Object Header) into one file
+            if (!selected.empty()) {
+                auto pages = decompress_pages(filepath, selected);
+                stats.pages_extracted = static_cast<uint32_t>(pages.size());
+                for (const auto& e : selected) {
+                    stats.bytes_compressed += e.compressed_size;
+                }
+                for (const auto& [pn, content] : pages) {
+                    stats.bytes_decompressed += content.size();
+                }
 
-        if (!text_selected.empty()) {
-            auto pages = decompress_pages(filepath, text_selected);
-            stats.pages_extracted = static_cast<uint32_t>(pages.size());
-            for (const auto& e : text_selected) {
-                stats.bytes_compressed += e.compressed_size;
-            }
-            for (const auto& [pn, content] : pages) {
-                stats.bytes_decompressed += content.size();
-            }
-
-            int saved = save_pages(pages, output_dir);
-            std::cout << "  Saved " << saved << " text pages to " << output_dir << "/\n";
-            std::cout << "  Total decompressed: " << format_number(stats.bytes_decompressed)
-                      << " bytes\n";
-
-            // Check for failures
-            uint32_t failed = static_cast<uint32_t>(text_selected.size()) - stats.pages_extracted;
-            if (failed > 0) {
-                std::cout << "  WARNING: " << failed << " pages failed to decompress\n";
-            }
-        }
-
-        // Save Object Header as separate file (for reference)
-        if (!binary_entries.empty() && object_header) {
-            auto first_page = decompress_single_page(filepath, page_entries[0]);
-            if (first_page) {
                 std::error_code ec;
                 fs::create_directories(output_dir, ec);
-                fs::path oh_path = fs::path(output_dir) / "object_header.txt";
-                std::ofstream oh_out(oh_path, std::ios::binary);
-                if (oh_out) {
-                    oh_out.write(reinterpret_cast<const char*>(first_page->data()),
-                                 static_cast<std::streamsize>(first_page->size()));
-                    std::cout << "  Saved object_header.txt to " << output_dir << "/\n";
+                std::string concat_filename = rpt_name + ".txt";
+                fs::path concat_path = fs::path(output_dir) / concat_filename;
+                std::ofstream out(concat_path, std::ios::binary);
+                if (out) {
+                    for (size_t i = 0; i < pages.size(); ++i) {
+                        if (i > 0) {
+                            out.write("\x0c\n", 2);  // form-feed + newline separator
+                        }
+                        out.write(reinterpret_cast<const char*>(pages[i].second.data()),
+                                  static_cast<std::streamsize>(pages[i].second.size()));
+                    }
+                }
+
+                std::cout << "  Saved concatenated text: " << concat_filename
+                          << " (" << stats.pages_extracted << " pages) to "
+                          << output_dir << "/\n";
+                std::cout << "  Total decompressed: " << format_number(stats.bytes_decompressed)
+                          << " bytes\n";
+
+                // Check for failures
+                uint32_t failed = static_cast<uint32_t>(selected.size()) - stats.pages_extracted;
+                if (failed > 0) {
+                    std::cout << "  WARNING: " << failed << " pages failed to decompress\n";
+                }
+            }
+        } else {
+            // Normal mode: individual page files
+            // Filter out Object Header page when binary objects are present
+            std::vector<PageTableEntry> text_selected = selected;
+            if (!binary_entries.empty() && object_header && !selected.empty()) {
+                // Object Header is text page 1 -- skip it from regular text output
+                std::vector<PageTableEntry> filtered;
+                for (const auto& e : selected) {
+                    if (e.page_number != 1) filtered.push_back(e);
+                }
+                if (filtered.size() != selected.size()) {
+                    std::cout << "  Object Header page (page 1) separated from text output\n";
+                }
+                text_selected = std::move(filtered);
+            }
+
+            if (!text_selected.empty()) {
+                auto pages = decompress_pages(filepath, text_selected);
+                stats.pages_extracted = static_cast<uint32_t>(pages.size());
+                for (const auto& e : text_selected) {
+                    stats.bytes_compressed += e.compressed_size;
+                }
+                for (const auto& [pn, content] : pages) {
+                    stats.bytes_decompressed += content.size();
+                }
+
+                int saved = save_pages(pages, output_dir);
+                std::cout << "  Saved " << saved << " text pages to " << output_dir << "/\n";
+                std::cout << "  Total decompressed: " << format_number(stats.bytes_decompressed)
+                          << " bytes\n";
+
+                // Check for failures
+                uint32_t failed = static_cast<uint32_t>(text_selected.size()) - stats.pages_extracted;
+                if (failed > 0) {
+                    std::cout << "  WARNING: " << failed << " pages failed to decompress\n";
+                }
+            }
+
+            // Save Object Header as separate file (for reference)
+            if (!binary_entries.empty() && object_header) {
+                auto first_page = decompress_single_page(filepath, page_entries[0]);
+                if (first_page) {
+                    std::error_code ec;
+                    fs::create_directories(output_dir, ec);
+                    fs::path oh_path = fs::path(output_dir) / "object_header.txt";
+                    std::ofstream oh_out(oh_path, std::ios::binary);
+                    if (oh_out) {
+                        oh_out.write(reinterpret_cast<const char*>(first_page->data()),
+                                     static_cast<std::streamsize>(first_page->size()));
+                        std::cout << "  Saved object_header.txt to " << output_dir << "/\n";
+                    }
                 }
             }
         }
@@ -1205,6 +1249,7 @@ static void print_help(const char* prog) {
 "  --output <dir>        Output base directory (default: \".\")\n"
 "  --binary-only         Extract only the binary document (PDF/AFP), skip text pages\n"
 "  --no-binary           Extract only text pages, skip binary objects (PDF/AFP)\n"
+"  --page-concat         Concatenate all text pages into a single file (form-feed separated)\n"
 "  --help                Show help\n"
 "\n"
 "Examples:\n"
@@ -1231,6 +1276,12 @@ static void print_help(const char* prog) {
 "\n"
 "  # Extract only text pages (skip binary objects)\n"
 "  " << prog << " --no-binary 260271Q7.RPT\n"
+"\n"
+"  # Concatenate all pages into a single file (separated by form-feed)\n"
+"  " << prog << " --page-concat 260271NL.RPT\n"
+"\n"
+"  # Concatenate a page range into a single file\n"
+"  " << prog << " --page-concat --pages 1-5 260271NL.RPT\n"
 "\n"
 "  # Custom output directory\n"
 "  " << prog << " --output /tmp/extracted 251110OD.RPT\n";
@@ -1272,6 +1323,7 @@ int main(int argc, char* argv[]) {
     bool info_only = false;
     bool binary_only = false;
     bool no_binary = false;
+    bool page_concat = false;
     std::string pages_str;
     std::vector<uint32_t> section_ids;
     std::string folder;
@@ -1293,6 +1345,9 @@ int main(int argc, char* argv[]) {
         }
         else if (arg == "--no-binary") {
             no_binary = true;
+        }
+        else if (arg == "--page-concat") {
+            page_concat = true;
         }
         else if (arg == "--pages") {
             if (i + 1 >= argc) {
@@ -1360,6 +1415,11 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    if (page_concat && binary_only) {
+        std::cerr << "Error: Cannot use both --page-concat and --binary-only (binary-only has no text pages to concatenate)\n";
+        return 1;
+    }
+
     // Parse page range
     std::optional<std::pair<int,int>> page_range;
     if (!pages_str.empty()) {
@@ -1398,7 +1458,7 @@ int main(int argc, char* argv[]) {
     for (const auto& filepath : rpt_files) {
         auto stats = extract_rpt(filepath, output_base, page_range,
                                  section_ids, info_only,
-                                 binary_only, no_binary);
+                                 binary_only, no_binary, page_concat);
         if (!stats.error.empty()) {
             std::cout << "  ERROR: " << stats.error << "\n";
         }

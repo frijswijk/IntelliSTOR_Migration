@@ -23,9 +23,10 @@ echo   5. Extract all RPT files in a folder
 echo   6. Show help
 echo   7. Extract all content (text + PDF/AFP) from an RPT file
 echo   8. Extract binary objects only (PDF/AFP) from an RPT file
+echo   9. Extract all pages as single concatenated file
 echo   0. Exit
 echo.
-set /p OPTION="Select option [0-8]: "
+set /p OPTION="Select option [0-9]: "
 
 if "%OPTION%"=="1" goto INFO
 if "%OPTION%"=="2" goto EXTRACT_ALL
@@ -35,6 +36,7 @@ if "%OPTION%"=="5" goto EXTRACT_FOLDER
 if "%OPTION%"=="6" goto SHOW_HELP
 if "%OPTION%"=="7" goto EXTRACT_ALL_CONTENT
 if "%OPTION%"=="8" goto EXTRACT_BINARY
+if "%OPTION%"=="9" goto EXTRACT_CONCAT
 if "%OPTION%"=="0" goto EXIT
 echo Invalid option
 goto END
@@ -140,6 +142,22 @@ if "%RPT_FILE%"=="" goto END
 if not exist "%RPT_FILE%" set "RPT_FILE=%BROWSE_DIR%\%RPT_FILE%"
 echo.
 python rpt_page_extractor.py --binary-only --output "%OUTPUT_DIR%" "%RPT_FILE%"
+goto END
+
+:EXTRACT_CONCAT
+echo.
+echo --- Extract all pages as single CONCATENATED file ---
+echo.
+echo Available RPT files in %RPT_DIR%:
+dir /b "%RPT_DIR%\*.RPT" 2>nul
+echo.
+set /p RPT_FILE="Enter RPT filename or full path: "
+set /p OUTPUT_DIR="Enter output directory [.\extracted]: "
+if "%OUTPUT_DIR%"=="" set "OUTPUT_DIR=.\extracted"
+if "%RPT_FILE%"=="" goto END
+if not exist "%RPT_FILE%" set "RPT_FILE=%RPT_DIR%\%RPT_FILE%"
+echo.
+python rpt_page_extractor.py --page-concat --output "%OUTPUT_DIR%" "%RPT_FILE%"
 goto END
 
 :EXTRACT_FOLDER
