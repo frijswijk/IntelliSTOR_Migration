@@ -480,14 +480,16 @@ def calculate_year(row, year_from_filename):
         str: Year value (e.g., "2024")
     """
     if year_from_filename:
-        # Extract first 2 characters from filename and concatenate with "20"
-        filename = row.get('FILENAME', '')
-        if filename and len(filename) >= 2:
+        # Extract first 2 characters from basename (strip path) and concatenate with "20"
+        # RPTFILE.FILENAME may contain path prefix (e.g., "MIDASRPT\5\260271NL.RPT")
+        raw_filename = row.get('FILENAME', '')
+        basename = os.path.basename(raw_filename.replace('\\', '/')) if raw_filename else ''
+        if basename and len(basename) >= 2:
             try:
-                year_prefix = filename[:2]
+                year_prefix = basename[:2]
                 return f'20{year_prefix}'
             except:
-                logging.warning(f'Failed to extract year from filename: {filename}')
+                logging.warning(f'Failed to extract year from filename: {raw_filename}')
                 return ''
         return ''
     else:
@@ -680,19 +682,23 @@ def write_output_csv(output_path, results, report_species_name, country, year_fr
                 # Convert AS_OF_TIMESTAMP to UTC
                 utc_timestamp = convert_to_utc(row.get('AS_OF_TIMESTAMP'), source_timezone)
 
-                # RPT_FILENAME = original RPTFILE.FILENAME from database (e.g., "260271NL.RPT")
+                # RPT_FILENAME = original RPTFILE.FILENAME from database
+                # May contain a path prefix (e.g., "MIDASRPT\5\260271NL.RPT" or just "260271NL.RPT")
                 rpt_filename = row.get('FILENAME', '')
 
-                # FILENAME = display name with .RPT extension stripped
-                filename = rpt_filename
+                # Extract basename for display and date parsing (strip path and extension)
+                # "MIDASRPT\5\260271NL.RPT" → basename "260271NL.RPT" → display "260271NL"
+                rpt_basename = os.path.basename(rpt_filename.replace('\\', '/')) if rpt_filename else ''
+                filename = rpt_basename
                 if filename.upper().endswith('.RPT'):
                     filename = filename[:-4]
 
-                # Convert julian date from filename to REPORT_DATE
-                report_date = convert_julian_date(row.get('FILENAME', ''))
+                # Convert julian date from basename (not full path) to REPORT_DATE
+                report_date = convert_julian_date(rpt_basename)
 
                 # SEGMENTS always from RPT file SECTIONHDR (or empty if no --rptfolder)
-                segments = get_rpt_segments(rptfolder, row.get('FILENAME', '')) if rptfolder else ''
+                # Pass basename to get_rpt_segments (RPT files are in a flat folder)
+                segments = get_rpt_segments(rptfolder, rpt_basename) if rptfolder else ''
 
                 # Map database columns to simplified output format
                 output_row = [

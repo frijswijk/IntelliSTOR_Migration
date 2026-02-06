@@ -2,7 +2,7 @@
 
 ## Overview
 
-`extract_instances_sections.py` is a Python script that extracts report instance data from a SQL Server IntelliSTOR database and exports it to CSV files. The script processes report species from a master CSV file, queries the database for report instances, and generates separate CSV files per report with comprehensive segment information.
+`Extract_Instances.py` is a Python script that extracts report instance data from a SQL Server IntelliSTOR database and exports it to CSV files. The script processes report species from a master CSV file, queries the database for report instances, and generates separate CSV files per report. SEGMENTS are populated from RPT file SECTIONHDR binary structures. RPTFILE.FILENAME values are automatically path-stripped for display and date parsing.
 
 **Version**: 3.0 (SEGMENTS from RPT file SECTIONHDR)
 **Database**: SQL Server (STRING_AGG no longer required)
@@ -17,7 +17,7 @@
 3. [Command-Line Arguments](#command-line-arguments)
 4. [Database Schema Requirements](#database-schema-requirements)
 5. [Input/Output Format](#inputoutput-format)
-6. [Map File Integration](#map-file-integration)
+6. [RPT File SECTIONHDR Extraction](#rpt-file-sectionhdr-extraction)
 7. [Usage Examples](#usage-examples)
 8. [Processing Workflow](#processing-workflow)
 9. [Troubleshooting](#troubleshooting)
@@ -45,7 +45,7 @@ When `--rptfolder` is not provided, the SEGMENTS column will be empty.
 ### Performance & Reliability
 - **Progress Tracking**: Saves progress after each report for safe interruption
 - **Connection Pooling**: Efficient database connection management
-- **Caching**: .MAP files cached in memory to avoid repeated disk reads
+- **Caching**: RPT SECTIONHDR results cached in memory per filename
 - **Error Recovery**: Continues processing remaining reports after errors
 
 ### Output Modes
@@ -152,7 +152,7 @@ Contains report file metadata.
 
 **Required Columns:**
 - `RPT_FILE_ID` (int, PRIMARY KEY)
-- `FILENAME` (varchar)
+- `FILENAME` (varchar) — may contain a path prefix (e.g., `MIDASRPT\5\260271NL.RPT`); the script extracts the basename automatically
 
 #### 4. REPORT_INSTANCE_SEGMENT (NO LONGER USED)
 ~~Previously used for segment information. Now known to track ingestion arrival chunks, not section segregation.~~
@@ -204,8 +204,8 @@ Report_Species_Id,Report_Species_Name,Country_Code,In_Use
 | Column | Description | Example |
 |--------|-------------|---------|
 | REPORT_SPECIES_NAME | Report species name from input CSV | Daily_Sales_Report |
-| FILENAME | Display name (RPTFILE.FILENAME with extension stripped) | 260271NL |
-| RPT_FILENAME | Original RPTFILE.FILENAME from database (used for RPT file lookup) | 260271NL.RPT |
+| FILENAME | Display name (basename of RPTFILE.FILENAME with path and extension stripped) | 260271NL |
+| RPT_FILENAME | Original RPTFILE.FILENAME from database (may include path prefix) | MIDASRPT\5\260271NL.RPT |
 | COUNTRY | Country code from input CSV | SG |
 | YEAR | Calculated year (from filename or timestamp) | 2024 |
 | REPORT_DATE | Date derived from julian date in filename | 2024-01-13 |
@@ -243,10 +243,11 @@ database table was found to track ingestion arrival chunks, not section boundari
 ### How It Works
 
 1. The `--rptfolder` argument specifies where RPT files are stored
-2. For each report instance, the FILENAME from the database is used to locate the RPT file
-3. `rpt_section_reader.py` reads the SECTIONHDR binary structure (12-byte triplets)
-4. Each triplet contains: SECTION_ID (uint32), START_PAGE (uint32), PAGE_COUNT (uint32)
-5. Results are cached per filename to avoid re-reading the same RPT file
+2. For each report instance, the FILENAME from the database is path-stripped (`os.path.basename`) to get the RPT filename
+3. The basename is used to locate the RPT file in the flat `--rptfolder` directory
+4. `rpt_section_reader.py` reads the SECTIONHDR binary structure (12-byte triplets)
+5. Each triplet contains: SECTION_ID (uint32), START_PAGE (uint32), PAGE_COUNT (uint32)
+6. Results are cached per basename to avoid re-reading the same RPT file
 
 ### Format
 
@@ -295,7 +296,7 @@ python extract_instances_sections.py \
 
 ---
 
-### Example 3: Custom Timezone and Map Directory
+### Example 3: Custom Timezone and RPT Folder
 
 ```bash
 python extract_instances_sections.py \
@@ -304,13 +305,13 @@ python extract_instances_sections.py \
   --windows-auth \
   --start-year 2024 \
   --timezone "America/New_York" \
-  --map-dir "C:\Users\freddievr\Downloads\RPTnMAP_Files" \
+  --rptfolder "C:\Users\freddievr\Downloads\RPTnMAP_Files" \
   --output-dir "C:\output"
 ```
 
 **Output:**
 - Uses New York timezone for UTC conversion
-- Looks for .MAP files in specified directory
+- Reads RPT files from specified directory for SECTIONHDR extraction
 - Saves results to C:\output
 
 ---
@@ -328,7 +329,8 @@ python extract_instances_sections.py \
 
 **Behavior:**
 - Filename: `24013001.rpt` → YEAR column = `2024`
-- Extracts first 2 characters and prepends "20"
+- Extracts first 2 characters of the basename (path stripped) and prepends "20"
+- Example: `MIDASRPT\5\24013001.RPT` → basename `24013001.RPT` → `2024`
 
 ---
 
@@ -401,9 +403,9 @@ python extract_instances_sections.py \
 └──────────────────┬──────────────────────┘
                    │
 ┌──────────────────▼──────────────────────┐
-│ 6. Initialize MapFileCache               │
-│    - Set map directory                   │
-│    - Prepare cache structures            │
+│ 6. Initialize RPT Segment Cache          │
+│    - Set rptfolder directory (if given)  │
+│    - Prepare SECTIONHDR cache            │
 └──────────────────┬──────────────────────┘
                    │
 ┌──────────────────▼──────────────────────┐
@@ -411,18 +413,17 @@ python extract_instances_sections.py \
 │    ┌────────────────────────────────┐   │
 │    │ 7a. Execute SQL Query           │   │
 │    │     - Apply year filters        │   │
-│    │     - Join all tables           │   │
-│    │     - Aggregate segments        │   │
+│    │     - Join RPTFILE tables       │   │
+│    │     - Get FILENAME, RPT_FILE_ID │   │
 │    └────────────┬───────────────────┘   │
 │                 │                        │
 │    ┌────────────▼───────────────────┐   │
 │    │ 7b. Process Results             │   │
+│    │     - Strip path from FILENAME  │   │
 │    │     - Calculate YEAR column     │   │
 │    │     - Convert timezone to UTC   │   │
-│    │     - Process segments          │   │
-│    │       ├─ Check segment name     │   │
-│    │       ├─ If empty, lookup .MAP  │   │
-│    │       └─ Use 'Unknown' if missing│  │
+│    │     - Extract SEGMENTS from RPT │   │
+│    │       SECTIONHDR (or empty)     │   │
 │    └────────────┬───────────────────┘   │
 │                 │                        │
 │    ┌────────────▼───────────────────┐   │
@@ -462,9 +463,12 @@ python extract_instances_sections.py \
 ```python
 # For each report instance result:
 for row in results:
-    filename = row.get('FILENAME', '')
+    rpt_filename = row.get('FILENAME', '')  # Original from DB (may include path)
+    # Strip path prefix: "MIDASRPT\5\260271NL.RPT" → "260271NL.RPT"
+    rpt_basename = os.path.basename(rpt_filename.replace('\\', '/'))
+    filename = rpt_basename[:-4] if rpt_basename.upper().endswith('.RPT') else rpt_basename
     # SEGMENTS always from RPT file SECTIONHDR (or empty if no --rptfolder)
-    segments = get_rpt_segments(rptfolder, filename) if rptfolder else ''
+    segments = get_rpt_segments(rptfolder, rpt_basename) if rptfolder else ''
     # Example result: "124525#1#110|68102#111#1|14259#117#2204"
 ```
 
@@ -890,6 +894,9 @@ except Exception as e:
 - Simplified SQL query (no STRING_AGG, no GROUP BY)
 - SQL Server 2017+ no longer required
 - --rptfolder provides SECTIONHDR-based SEGMENTS; without it, SEGMENTS is empty
+- Added RPT_FILENAME column (original RPTFILE.FILENAME from database, may include path)
+- FILENAME column now path-stripped (`os.path.basename`) — handles `MIDASRPT\5\260271NL.RPT` → `260271NL`
+- `calculate_year()` now uses basename for year extraction (fixes path-prefixed filenames)
 
 ### Version 2.0
 - Added .MAP file integration for segment name lookups
