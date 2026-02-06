@@ -4,6 +4,7 @@ rpt_page_extractor.py - Decompress and extract pages from IntelliSTOR .RPT files
 
 Extracts page content from RPT files using the PAGETBLHDR for fast random access.
 Pages are decompressed from individual zlib streams and saved as .txt files.
+Also extracts embedded binary objects (PDF/AFP) tracked by the BPAGETBLHDR structure.
 
 Supports:
   - Full extraction: all pages from one or more RPT files
@@ -11,14 +12,19 @@ Supports:
   - Section-based:   --section-id 14259 (extract only pages belonging to that section)
   - Multi-section:   --section-id 14259 14260 14261 (multiple sections, in order)
   - Folder mode:     --folder <dir> (process all RPT files in a directory)
+  - Binary objects:  --binary-only (extract only PDF/AFP), --no-binary (skip binary)
 
 RPT File Layout (reference):
   [0x000] RPTFILEHDR     - Header with domain:species, timestamp
   [0x0F0] RPTINSTHDR     - Instance metadata (base offset for page_offset)
-  [0x1D0] Table Directory - page_count, section_count, offsets
-  [0x200] COMPRESSED DATA - per-page zlib streams (0x78 0x01 header)
+  [0x1D0] Table Directory (3 rows x 12 bytes):
+          Row 0 (0x1D0): type=0x0102  count=page_count    offset → PAGETBLHDR
+          Row 1 (0x1E0): type=0x0101  count=section_count  offset → SECTIONHDR
+          Row 2 (0x1F0): type=0x0103  count=binary_count   offset → BPAGETBLHDR
+  [0x200] COMPRESSED DATA - per-page zlib streams + interleaved binary object streams
   [...]   SECTIONHDR     - section triplets (SECTION_ID, START_PAGE, PAGE_COUNT)
   [...]   PAGETBLHDR     - 24-byte entries per page (offset, size, dimensions)
+  [...]   BPAGETBLHDR    - 16-byte entries per binary object (PDF/AFP, if present)
 
 PAGETBLHDR Entry Format (24 bytes, little-endian):
   [page_offset:4]        - Byte offset relative to RPTINSTHDR (add 0xF0 for absolute)
@@ -28,6 +34,12 @@ PAGETBLHDR Entry Format (24 bytes, little-endian):
   [uncompressed_size:4]  - Decompressed page data size in bytes
   [compressed_size:4]    - zlib stream size in bytes
   [pad:4]                - Reserved (always 0)
+
+BPAGETBLHDR Entry Format (16 bytes, little-endian):
+  [page_offset:4]        - Byte offset relative to RPTINSTHDR (add 0xF0 for absolute)
+  [reserved:4]           - Always 0
+  [uncompressed_size:4]  - Decompressed data size in bytes
+  [compressed_size:4]    - zlib stream size in bytes
 """
 
 import struct
@@ -54,6 +66,20 @@ class PageTableEntry:
     page_offset: int          # Offset relative to RPTINSTHDR
     line_width: int           # Max characters per line
     lines_per_page: int       # Number of lines on this page
+    uncompressed_size: int    # Decompressed data size
+    compressed_size: int      # zlib stream size
+
+    @property
+    def absolute_offset(self) -> int:
+        """Absolute file offset to the start of the zlib stream."""
+        return self.page_offset + RPTINSTHDR_OFFSET
+
+
+@dataclass
+class BinaryObjectEntry:
+    """One BPAGETBLHDR entry — metadata for an embedded binary object (PDF/AFP)."""
+    index: int                # 1-based index
+    page_offset: int          # Offset relative to RPTINSTHDR
     uncompressed_size: int    # Decompressed data size
     compressed_size: int      # zlib stream size
 
@@ -196,6 +222,207 @@ def decompress_pages(filepath: str, entries: List[PageTableEntry]) -> List[Tuple
 
 
 # ============================================================================
+# BPAGETBLHDR Parsing
+# ============================================================================
+
+def read_binary_page_table(filepath: str, count: int) -> List[BinaryObjectEntry]:
+    """
+    Read BPAGETBLHDR entries from an RPT file.
+
+    Scans for the BPAGETBLHDR marker and reads count x 16-byte entries
+    describing embedded binary objects (PDF/AFP documents).
+
+    Args:
+        filepath: Path to .RPT file
+        count: Number of binary objects (from header Table Directory Row 2)
+
+    Returns:
+        List of BinaryObjectEntry objects (1-indexed)
+    """
+    entries = []
+    if count <= 0:
+        return entries
+
+    with open(filepath, 'rb') as f:
+        data = f.read()
+
+    bp_pos = data.find(b'BPAGETBLHDR')
+    if bp_pos == -1:
+        return entries
+
+    # Skip marker (11 bytes) + 2 null padding bytes = 13 bytes
+    entry_start = bp_pos + 13
+    entry_size = 16
+
+    for i in range(count):
+        offset = entry_start + i * entry_size
+        if offset + entry_size > len(data):
+            break
+
+        page_offset = struct.unpack_from('<I', data, offset)[0]
+        # skip reserved at offset+4
+        uncompressed_size = struct.unpack_from('<I', data, offset + 8)[0]
+        compressed_size = struct.unpack_from('<I', data, offset + 12)[0]
+
+        entries.append(BinaryObjectEntry(
+            index=i + 1,
+            page_offset=page_offset,
+            uncompressed_size=uncompressed_size,
+            compressed_size=compressed_size
+        ))
+
+    return entries
+
+
+# ============================================================================
+# Object Header Detection
+# ============================================================================
+
+OBJECT_HEADER_PREFIX = 'StorQM PLUS Object Header Page:'
+
+def parse_object_header(page_content: bytes) -> Optional[dict]:
+    """
+    Parse an Object Header page to extract embedded document metadata.
+
+    Object Header pages start with "StorQM PLUS Object Header Page:" and contain
+    key-value pairs describing the embedded binary document (filename, timestamps,
+    PDF/AFP creator info, etc.).
+
+    Args:
+        page_content: Decompressed text page content
+
+    Returns:
+        dict with metadata key-value pairs, or None if not an Object Header page
+    """
+    try:
+        text = page_content.decode('ascii', errors='replace')
+    except Exception:
+        return None
+
+    if OBJECT_HEADER_PREFIX not in text:
+        return None
+
+    metadata = {}
+    for line in text.splitlines():
+        line = line.strip()
+        if ':' in line and not line.startswith(OBJECT_HEADER_PREFIX):
+            key, _, value = line.partition(':')
+            key = key.strip()
+            value = value.strip()
+            if key and value:
+                metadata[key] = value
+
+    return metadata
+
+
+def detect_binary_type(data: bytes, object_header: Optional[dict] = None) -> str:
+    """
+    Detect the format of a binary object from its magic bytes.
+
+    Args:
+        data: First bytes of the decompressed binary object
+        object_header: Optional Object Header metadata (for filename extension fallback)
+
+    Returns:
+        File extension string (e.g. '.pdf', '.afp', '.bin')
+    """
+    if data[:4] == b'%PDF':
+        return '.pdf'
+
+    # AFP: Begin Structured Field Introducer starts with 0x5A
+    if len(data) >= 1 and data[0] == 0x5A:
+        return '.afp'
+
+    # Fallback: use Object Header's "Object File Name" extension if available
+    if object_header:
+        obj_filename = object_header.get('Object File Name', '')
+        if '.' in obj_filename:
+            ext = obj_filename.rsplit('.', 1)[-1].lower()
+            if ext in ('pdf', 'afp'):
+                return f'.{ext}'
+
+    return '.bin'
+
+
+# ============================================================================
+# Binary Object Decompression and Assembly
+# ============================================================================
+
+def decompress_binary_objects(filepath: str,
+                              entries: List[BinaryObjectEntry]) -> List[Tuple[int, bytes]]:
+    """
+    Decompress binary object zlib streams from the RPT file.
+
+    Opens the file once and reads all binary object entries for efficiency.
+
+    Args:
+        filepath: Path to .RPT file
+        entries: List of BinaryObjectEntry objects to decompress
+
+    Returns:
+        List of (index, decompressed_bytes) tuples
+    """
+    results = []
+    file_size = os.path.getsize(filepath)
+
+    with open(filepath, 'rb') as f:
+        for entry in entries:
+            abs_offset = entry.absolute_offset
+            if abs_offset + entry.compressed_size > file_size:
+                print(f"  WARNING: Binary object {entry.index} offset 0x{abs_offset:X} "
+                      f"exceeds file size {file_size:,}", file=sys.stderr)
+                continue
+
+            f.seek(abs_offset)
+            compressed = f.read(entry.compressed_size)
+
+            try:
+                obj_data = zlib.decompress(compressed)
+                results.append((entry.index, obj_data))
+            except zlib.error as e:
+                print(f"  WARNING: Binary object {entry.index} decompression failed: {e}",
+                      file=sys.stderr)
+
+    return results
+
+
+def assemble_binary_document(objects: List[Tuple[int, bytes]],
+                              object_header: Optional[dict] = None,
+                              rpt_name: str = '') -> Tuple[bytes, str, str]:
+    """
+    Assemble decompressed binary objects into a single document.
+
+    Binary objects from an RPT file concatenate to form a complete document
+    (e.g., a multi-part PDF or AFP file).
+
+    Args:
+        objects: List of (index, decompressed_bytes) tuples, in order
+        object_header: Optional Object Header metadata (for filename and type detection)
+        rpt_name: RPT filename stem (for fallback naming)
+
+    Returns:
+        Tuple of (combined_bytes, output_filename, format_description)
+    """
+    # Concatenate all objects in order
+    combined = b''.join(data for _, data in objects)
+
+    # Detect format from magic bytes
+    ext = detect_binary_type(combined, object_header)
+
+    # Determine filename
+    if object_header and object_header.get('Object File Name'):
+        filename = object_header['Object File Name'].strip()
+    else:
+        filename = f'{rpt_name}_binary{ext}'
+
+    # Format description
+    format_map = {'.pdf': 'PDF', '.afp': 'AFP', '.bin': 'Binary'}
+    format_desc = format_map.get(ext, 'Binary')
+
+    return combined, filename, format_desc
+
+
+# ============================================================================
 # Page Selection
 # ============================================================================
 
@@ -306,9 +533,15 @@ def extract_rpt(filepath: str, output_base: str,
                 page_range: Optional[Tuple[int, int]] = None,
                 section_id: Optional[int] = None,
                 section_ids: Optional[List[int]] = None,
-                info_only: bool = False) -> dict:
+                info_only: bool = False,
+                binary_only: bool = False,
+                no_binary: bool = False) -> dict:
     """
     Extract pages from a single RPT file.
+
+    When the RPT file contains embedded binary objects (PDF/AFP), the default behavior
+    extracts both text pages and the binary document as separate files. Use binary_only
+    or no_binary to control this behavior.
 
     Args:
         filepath: Path to .RPT file
@@ -317,6 +550,8 @@ def extract_rpt(filepath: str, output_base: str,
         section_id: Optional single SECTION_ID to extract (legacy, kept for compatibility)
         section_ids: Optional list of SECTION_IDs to extract (in order, skips missing)
         info_only: If True, show info without extracting
+        binary_only: If True, extract only the binary document (skip text pages)
+        no_binary: If True, extract only text pages (skip binary objects)
 
     Returns:
         dict with extraction statistics
@@ -328,6 +563,9 @@ def extract_rpt(filepath: str, output_base: str,
         'pages_extracted': 0,
         'bytes_compressed': 0,
         'bytes_decompressed': 0,
+        'binary_objects': 0,
+        'binary_filename': None,
+        'binary_size': 0,
         'error': None
     }
 
@@ -351,12 +589,26 @@ def extract_rpt(filepath: str, output_base: str,
     # Read sections (needed for --section-id and info display)
     _, sections = read_sectionhdr(filepath)
 
+    # Read binary object table (if present)
+    binary_entries = []
+    if header.binary_object_count > 0:
+        binary_entries = read_binary_page_table(filepath, header.binary_object_count)
+
+    # Parse Object Header from text page 1 (if binary objects exist)
+    object_header = None
+    if binary_entries and page_entries:
+        first_page = decompress_page(filepath, page_entries[0])
+        if first_page:
+            object_header = parse_object_header(first_page)
+
     # Display info
     print(f"\n{'='*70}")
     print(f"File: {filepath}")
     print(f"  Species: {header.report_species_id}, Domain: {header.domain_id}")
     print(f"  Timestamp: {header.timestamp}")
     print(f"  Pages: {header.page_count}, Sections: {header.section_count}")
+    if header.binary_object_count > 0:
+        print(f"  Binary Objects: {header.binary_object_count}")
 
     total_comp = sum(e.compressed_size for e in page_entries)
     total_uncomp = sum(e.uncompressed_size for e in page_entries)
@@ -395,6 +647,29 @@ def extract_rpt(filepath: str, output_base: str,
                 continue
             print(f"  {e.page_number:>6d}  0x{e.absolute_offset:08X}  {e.line_width:>6d}  "
                   f"{e.lines_per_page:>6d}  {e.uncompressed_size:>8,d}  {e.compressed_size:>8,d}")
+
+        # Show binary object table if present
+        if binary_entries:
+            print(f"\n  Binary Objects ({len(binary_entries)}):  [BPAGETBLHDR]")
+            print(f"  {'INDEX':>7s}  {'OFFSET':>10s}  {'UNCOMP_SIZE':>11s}  {'COMP_SIZE':>10s}")
+            print(f"  {'-'*7}  {'-'*10}  {'-'*11}  {'-'*10}")
+            for be in binary_entries:
+                print(f"  {be.index:>7d}  0x{be.absolute_offset:08X}  "
+                      f"{be.uncompressed_size:>11,d}  {be.compressed_size:>10,d}")
+
+            if object_header:
+                print(f"\n  Object Header:")
+                for key, value in object_header.items():
+                    print(f"    {key}: {value}")
+
+            # Show assembled document info
+            bin_objs = decompress_binary_objects(filepath, binary_entries)
+            if bin_objs:
+                combined, filename, format_desc = assemble_binary_document(
+                    bin_objs, object_header, rpt_name)
+                print(f"\n  Assembled document: {format_desc} ({len(combined):,} bytes)")
+                print(f"  Output filename: {filename}")
+
         return stats
 
     # Select pages to extract
@@ -434,12 +709,6 @@ def extract_rpt(filepath: str, output_base: str,
     else:
         print(f"\n  Extracting all {header.page_count} pages")
 
-    stats['pages_selected'] = len(selected)
-
-    if not selected:
-        stats['error'] = 'No pages to extract'
-        return stats
-
     # Determine output directory
     if effective_section_ids is not None:
         if len(found_ids) == 1:
@@ -452,20 +721,71 @@ def extract_rpt(filepath: str, output_base: str,
     else:
         output_dir = os.path.join(output_base, rpt_name)
 
-    # Decompress and save
-    pages = decompress_pages(filepath, selected)
-    stats['pages_extracted'] = len(pages)
-    stats['bytes_compressed'] = sum(e.compressed_size for e in selected)
-    stats['bytes_decompressed'] = sum(size for _, content in pages for size in [len(content)])
+    stats['pages_selected'] = len(selected)
 
-    saved = save_pages(pages, output_dir, page_prefix='page')
-    print(f"  Saved {saved} pages to {output_dir}/")
-    print(f"  Total decompressed: {stats['bytes_decompressed']:,} bytes")
+    # -----------------------------------------------------------------------
+    # Extract text pages (unless --binary-only)
+    # -----------------------------------------------------------------------
+    if not binary_only:
+        # Filter out Object Header page when binary objects are present
+        text_selected = selected
+        if binary_entries and object_header and selected:
+            # Object Header is text page 1 — skip it from regular text output
+            text_selected = [e for e in selected if e.page_number != 1]
+            if text_selected != selected:
+                print(f"  Object Header page (page 1) separated from text output")
 
-    # Check for failures
-    failed = stats['pages_selected'] - stats['pages_extracted']
-    if failed > 0:
-        print(f"  WARNING: {failed} pages failed to decompress")
+        if text_selected:
+            pages = decompress_pages(filepath, text_selected)
+            stats['pages_extracted'] = len(pages)
+            stats['bytes_compressed'] = sum(e.compressed_size for e in text_selected)
+            stats['bytes_decompressed'] = sum(len(content) for _, content in pages)
+
+            saved = save_pages(pages, output_dir, page_prefix='page')
+            print(f"  Saved {saved} text pages to {output_dir}/")
+            print(f"  Total decompressed: {stats['bytes_decompressed']:,} bytes")
+
+            # Check for failures
+            failed = len(text_selected) - stats['pages_extracted']
+            if failed > 0:
+                print(f"  WARNING: {failed} pages failed to decompress")
+
+        # Save Object Header as separate file (for reference)
+        if binary_entries and object_header:
+            first_page = decompress_page(filepath, page_entries[0])
+            if first_page:
+                os.makedirs(output_dir, exist_ok=True)
+                oh_path = os.path.join(output_dir, 'object_header.txt')
+                with open(oh_path, 'wb') as f:
+                    f.write(first_page)
+                print(f"  Saved object_header.txt to {output_dir}/")
+    else:
+        if not binary_entries:
+            stats['error'] = 'No binary objects found in this RPT file (--binary-only requires BPAGETBLHDR)'
+            print(f"\n  ERROR: {stats['error']}")
+            return stats
+
+    # -----------------------------------------------------------------------
+    # Extract binary objects (unless --no-binary)
+    # -----------------------------------------------------------------------
+    if not no_binary and binary_entries:
+        bin_objs = decompress_binary_objects(filepath, binary_entries)
+        if bin_objs:
+            combined, filename, format_desc = assemble_binary_document(
+                bin_objs, object_header, rpt_name)
+
+            os.makedirs(output_dir, exist_ok=True)
+            bin_path = os.path.join(output_dir, filename)
+            with open(bin_path, 'wb') as f:
+                f.write(combined)
+
+            stats['binary_objects'] = len(bin_objs)
+            stats['binary_filename'] = filename
+            stats['binary_size'] = len(combined)
+
+            print(f"  Saved {format_desc} document: {filename} ({len(combined):,} bytes) to {output_dir}/")
+        else:
+            print(f"  WARNING: Binary objects found but all decompression failed")
 
     return stats
 
@@ -509,6 +829,12 @@ Examples:
   # Process all RPT files in a folder
   python rpt_page_extractor.py --folder /path/to/rpt/files
 
+  # Extract only the binary document (PDF/AFP) from an RPT file
+  python rpt_page_extractor.py --binary-only 260271Q7.RPT
+
+  # Extract only text pages (skip binary objects)
+  python rpt_page_extractor.py --no-binary 260271Q7.RPT
+
   # Custom output directory
   python rpt_page_extractor.py --output /tmp/extracted 251110OD.RPT
         """
@@ -544,6 +870,16 @@ Examples:
         action='store_true',
         help='Show RPT file info and page table without extracting'
     )
+    parser.add_argument(
+        '--binary-only',
+        action='store_true',
+        help='Extract only the binary document (PDF/AFP), skip text pages'
+    )
+    parser.add_argument(
+        '--no-binary',
+        action='store_true',
+        help='Extract only text pages, skip binary objects (PDF/AFP)'
+    )
 
     args = parser.parse_args()
 
@@ -553,6 +889,9 @@ Examples:
 
     if args.pages and args.section_id:
         parser.error('Cannot use both --pages and --section-id')
+
+    if args.binary_only and args.no_binary:
+        parser.error('Cannot use both --binary-only and --no-binary')
 
     # Parse page range
     page_range = None
@@ -590,7 +929,9 @@ Examples:
             output_base=args.output,
             page_range=page_range,
             section_ids=args.section_id,
-            info_only=args.info
+            info_only=args.info,
+            binary_only=args.binary_only,
+            no_binary=args.no_binary
         )
         all_stats.append(stats)
 

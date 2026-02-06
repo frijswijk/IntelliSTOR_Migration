@@ -6,6 +6,7 @@
  *
  * Extracts page content from RPT files using the PAGETBLHDR for fast random access.
  * Pages are decompressed from individual zlib streams and saved as .txt files.
+ * Also extracts embedded binary objects (PDF/AFP) tracked by the BPAGETBLHDR structure.
  *
  * Supports:
  *   - Full extraction: all pages from one or more RPT files
@@ -13,14 +14,19 @@
  *   - Section-based:   --section-id 14259 (extract only pages belonging to that section)
  *   - Multi-section:   --section-id 14259 14260 14261 (multiple sections, in order)
  *   - Folder mode:     --folder <dir> (process all RPT files in a directory)
+ *   - Binary objects:  --binary-only (extract only PDF/AFP), --no-binary (skip binary)
  *
  * RPT File Layout (reference):
  *   [0x000] RPTFILEHDR     - Header with domain:species, timestamp
  *   [0x0F0] RPTINSTHDR     - Instance metadata (base offset for page_offset)
- *   [0x1D0] Table Directory - page_count, section_count, offsets
- *   [0x200] COMPRESSED DATA - per-page zlib streams (0x78 0x01 header)
+ *   [0x1D0] Table Directory (3 rows x 12 bytes):
+ *           Row 0 (0x1D0): type=0x0102  count=page_count    offset -> PAGETBLHDR
+ *           Row 1 (0x1E0): type=0x0101  count=section_count  offset -> SECTIONHDR
+ *           Row 2 (0x1F0): type=0x0103  count=binary_count   offset -> BPAGETBLHDR
+ *   [0x200] COMPRESSED DATA - per-page zlib streams + interleaved binary object streams
  *   [...]   SECTIONHDR     - section triplets (SECTION_ID, START_PAGE, PAGE_COUNT)
  *   [...]   PAGETBLHDR     - 24-byte entries per page (offset, size, dimensions)
+ *   [...]   BPAGETBLHDR    - 16-byte entries per binary object (PDF/AFP, if present)
  *
  * PAGETBLHDR Entry Format (24 bytes, little-endian):
  *   [page_offset:4]        - Byte offset relative to RPTINSTHDR (add 0xF0 for absolute)
@@ -30,6 +36,12 @@
  *   [uncompressed_size:4]  - Decompressed page data size in bytes
  *   [compressed_size:4]    - zlib stream size in bytes
  *   [pad:4]                - Reserved (always 0)
+ *
+ * BPAGETBLHDR Entry Format (16 bytes, little-endian):
+ *   [page_offset:4]        - Byte offset relative to RPTINSTHDR (add 0xF0 for absolute)
+ *   [reserved:4]           - Always 0
+ *   [uncompressed_size:4]  - Decompressed data size in bytes
+ *   [compressed_size:4]    - zlib stream size in bytes
  */
 
 'use strict';
@@ -52,7 +64,7 @@ const RPTINSTHDR_OFFSET = 0xF0; // Base offset for page_offset values
  * Parsed RPT file header metadata.
  */
 class RptHeader {
-    constructor({ domainId, reportSpeciesId, timestamp, pageCount, sectionCount, sectionDataOffset, pageTableOffset }) {
+    constructor({ domainId, reportSpeciesId, timestamp, pageCount, sectionCount, sectionDataOffset, pageTableOffset, binaryObjectCount }) {
         this.domainId = domainId;
         this.reportSpeciesId = reportSpeciesId;
         this.timestamp = timestamp;
@@ -60,6 +72,7 @@ class RptHeader {
         this.sectionCount = sectionCount;
         this.sectionDataOffset = sectionDataOffset;
         this.pageTableOffset = pageTableOffset;
+        this.binaryObjectCount = binaryObjectCount || 0;
     }
 }
 
@@ -83,6 +96,23 @@ class PageTableEntry {
         this.pageOffset = pageOffset;       // Offset relative to RPTINSTHDR
         this.lineWidth = lineWidth;         // Max characters per line
         this.linesPerPage = linesPerPage;   // Number of lines on this page
+        this.uncompressedSize = uncompressedSize;
+        this.compressedSize = compressedSize;
+    }
+
+    /** Absolute file offset to the start of the zlib stream. */
+    get absoluteOffset() {
+        return this.pageOffset + RPTINSTHDR_OFFSET;
+    }
+}
+
+/**
+ * One BPAGETBLHDR entry -- metadata for an embedded binary object (PDF/AFP).
+ */
+class BinaryObjectEntry {
+    constructor({ index, pageOffset, uncompressedSize, compressedSize }) {
+        this.index = index;                 // 1-based index
+        this.pageOffset = pageOffset;       // Offset relative to RPTINSTHDR
         this.uncompressedSize = uncompressedSize;
         this.compressedSize = compressedSize;
     }
@@ -146,12 +176,18 @@ function parseRptHeader(data) {
     let sectionCount = 0;
     let sectionDataOffset = 0;
     let pageTableOffset = 0;
+    let binaryObjectCount = 0;
 
     if (data.length >= 0x1F0) {
         pageCount = data.readUInt32LE(0x1D4);
         sectionCount = data.readUInt32LE(0x1E4);
         const compressedDataEnd = data.readUInt32LE(0x1E8);
         sectionDataOffset = compressedDataEnd; // approximate; actual scan in readSectionhdr
+    }
+
+    // Table Directory Row 2 at 0x1F0: type=0x0103, count=binary_count
+    if (data.length >= 0x200) {
+        binaryObjectCount = data.readUInt32LE(0x1F4);
     }
 
     return new RptHeader({
@@ -162,6 +198,7 @@ function parseRptHeader(data) {
         sectionCount,
         sectionDataOffset,
         pageTableOffset,
+        binaryObjectCount,
     });
 }
 
@@ -384,6 +421,210 @@ function decompressPages(filepath, entries) {
 }
 
 // ============================================================================
+// BPAGETBLHDR Parsing
+// ============================================================================
+
+/**
+ * Read BPAGETBLHDR entries from an RPT file.
+ *
+ * Scans for the BPAGETBLHDR marker and reads count x 16-byte entries
+ * describing embedded binary objects (PDF/AFP documents).
+ *
+ * @param {string} filepath - Path to .RPT file
+ * @param {number} count - Number of binary objects (from header Table Directory Row 2)
+ * @returns {BinaryObjectEntry[]}
+ */
+function readBinaryPageTable(filepath, count) {
+    const entries = [];
+    if (count <= 0) return entries;
+
+    const data = fs.readFileSync(filepath);
+
+    const bpPos = data.indexOf('BPAGETBLHDR', 0, 'ascii');
+    if (bpPos === -1) return entries;
+
+    // Skip marker (11 bytes) + 2 null padding bytes = 13 bytes
+    const entryStart = bpPos + 13;
+    const entrySize = 16;
+
+    for (let i = 0; i < count; i++) {
+        const offset = entryStart + i * entrySize;
+        if (offset + entrySize > data.length) break;
+
+        const pageOffset = data.readUInt32LE(offset);
+        // skip reserved at offset+4
+        const uncompressedSize = data.readUInt32LE(offset + 8);
+        const compressedSize = data.readUInt32LE(offset + 12);
+
+        entries.push(new BinaryObjectEntry({
+            index: i + 1,
+            pageOffset,
+            uncompressedSize,
+            compressedSize,
+        }));
+    }
+
+    return entries;
+}
+
+// ============================================================================
+// Object Header Detection
+// ============================================================================
+
+const OBJECT_HEADER_PREFIX = 'StorQM PLUS Object Header Page:';
+
+/**
+ * Parse an Object Header page to extract embedded document metadata.
+ *
+ * Object Header pages start with "StorQM PLUS Object Header Page:" and contain
+ * key-value pairs describing the embedded binary document (filename, timestamps,
+ * PDF/AFP creator info, etc.).
+ *
+ * @param {Buffer} pageContent - Decompressed text page content
+ * @returns {Object|null} dict with metadata key-value pairs, or null if not an Object Header page
+ */
+function parseObjectHeader(pageContent) {
+    let text;
+    try {
+        text = pageContent.toString('ascii');
+    } catch (e) {
+        return null;
+    }
+
+    if (!text.includes(OBJECT_HEADER_PREFIX)) {
+        return null;
+    }
+
+    const metadata = {};
+    for (const line of text.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (trimmed.includes(':') && !trimmed.startsWith(OBJECT_HEADER_PREFIX)) {
+            const colonIdx = trimmed.indexOf(':');
+            const key = trimmed.slice(0, colonIdx).trim();
+            const value = trimmed.slice(colonIdx + 1).trim();
+            if (key && value) {
+                metadata[key] = value;
+            }
+        }
+    }
+
+    return metadata;
+}
+
+/**
+ * Detect the format of a binary object from its magic bytes.
+ *
+ * @param {Buffer} data - First bytes of the decompressed binary object
+ * @param {Object|null} objectHeader - Optional Object Header metadata (for filename extension fallback)
+ * @returns {string} File extension string (e.g. '.pdf', '.afp', '.bin')
+ */
+function detectBinaryType(data, objectHeader) {
+    // Check for PDF magic bytes
+    if (data.length >= 4 && data.slice(0, 4).toString('ascii') === '%PDF') {
+        return '.pdf';
+    }
+
+    // AFP: Begin Structured Field Introducer starts with 0x5A
+    if (data.length >= 1 && data[0] === 0x5A) {
+        return '.afp';
+    }
+
+    // Fallback: use Object Header's "Object File Name" extension if available
+    if (objectHeader) {
+        const objFilename = objectHeader['Object File Name'] || '';
+        if (objFilename.includes('.')) {
+            const ext = objFilename.split('.').pop().toLowerCase();
+            if (ext === 'pdf' || ext === 'afp') {
+                return `.${ext}`;
+            }
+        }
+    }
+
+    return '.bin';
+}
+
+// ============================================================================
+// Binary Object Decompression and Assembly
+// ============================================================================
+
+/**
+ * Decompress binary object zlib streams from the RPT file.
+ *
+ * Opens the file once and reads all binary object entries for efficiency.
+ *
+ * @param {string} filepath - Path to .RPT file
+ * @param {BinaryObjectEntry[]} entries - Binary object entries to decompress
+ * @returns {{ index: number, data: Buffer }[]}
+ */
+function decompressBinaryObjects(filepath, entries) {
+    const results = [];
+    const fileSize = fs.statSync(filepath).size;
+    const fd = fs.openSync(filepath, 'r');
+
+    try {
+        for (const entry of entries) {
+            const absOffset = entry.absoluteOffset;
+            if (absOffset + entry.compressedSize > fileSize) {
+                process.stderr.write(
+                    `  WARNING: Binary object ${entry.index} offset 0x${absOffset.toString(16).toUpperCase()} ` +
+                    `exceeds file size ${fileSize.toLocaleString()}\n`
+                );
+                continue;
+            }
+
+            const compressed = Buffer.alloc(entry.compressedSize);
+            fs.readSync(fd, compressed, 0, entry.compressedSize, absOffset);
+
+            try {
+                const objData = zlib.inflateSync(compressed);
+                results.push({ index: entry.index, data: objData });
+            } catch (e) {
+                process.stderr.write(
+                    `  WARNING: Binary object ${entry.index} decompression failed: ${e.message}\n`
+                );
+            }
+        }
+    } finally {
+        fs.closeSync(fd);
+    }
+
+    return results;
+}
+
+/**
+ * Assemble decompressed binary objects into a single document.
+ *
+ * Binary objects from an RPT file concatenate to form a complete document
+ * (e.g., a multi-part PDF or AFP file).
+ *
+ * @param {{ index: number, data: Buffer }[]} objects - Decompressed binary objects, in order
+ * @param {Object|null} objectHeader - Optional Object Header metadata (for filename and type detection)
+ * @param {string} rptName - RPT filename stem (for fallback naming)
+ * @returns {{ combined: Buffer, filename: string, formatDesc: string }}
+ */
+function assembleBinaryDocument(objects, objectHeader, rptName) {
+    // Concatenate all objects in order
+    const combined = Buffer.concat(objects.map(o => o.data));
+
+    // Detect format from magic bytes
+    const ext = detectBinaryType(combined, objectHeader);
+
+    // Determine filename
+    let filename;
+    if (objectHeader && objectHeader['Object File Name']) {
+        filename = objectHeader['Object File Name'].trim();
+    } else {
+        filename = `${rptName}_binary${ext}`;
+    }
+
+    // Format description
+    const formatMap = { '.pdf': 'PDF', '.afp': 'AFP', '.bin': 'Binary' };
+    const formatDesc = formatMap[ext] || 'Binary';
+
+    return { combined, filename, formatDesc };
+}
+
+// ============================================================================
 // Page Selection
 // ============================================================================
 
@@ -479,7 +720,44 @@ function formatNumber(n) {
 // ============================================================================
 
 /**
+ * Decompress a single page from the RPT file (for Object Header detection).
+ *
+ * @param {string} filepath - Path to .RPT file
+ * @param {PageTableEntry} entry - PageTableEntry with offset and size info
+ * @returns {Buffer|null} Decompressed page content, or null on error
+ */
+function decompressPage(filepath, entry) {
+    const absOffset = entry.absoluteOffset;
+    const fd = fs.openSync(filepath, 'r');
+
+    try {
+        const compressed = Buffer.alloc(entry.compressedSize);
+        fs.readSync(fd, compressed, 0, entry.compressedSize, absOffset);
+
+        try {
+            return zlib.inflateSync(compressed);
+        } catch (e) {
+            // Try with extra bytes
+            const fileSize = fs.statSync(filepath).size;
+            const extraBuf = Buffer.alloc(Math.min(entry.compressedSize + 64, fileSize - absOffset));
+            fs.readSync(fd, extraBuf, 0, extraBuf.length, absOffset);
+            try {
+                return zlib.inflateSync(extraBuf);
+            } catch (e2) {
+                return null;
+            }
+        }
+    } finally {
+        fs.closeSync(fd);
+    }
+}
+
+/**
  * Extract pages from a single RPT file.
+ *
+ * When the RPT file contains embedded binary objects (PDF/AFP), the default behavior
+ * extracts both text pages and the binary document as separate files. Use binaryOnly
+ * or noBinary to control this behavior.
  *
  * @param {string} filepath - Path to .RPT file
  * @param {string} outputBase - Base directory for output
@@ -487,9 +765,11 @@ function formatNumber(n) {
  * @param {[number,number]|null} options.pageRange - [start, end] page range (1-based, inclusive)
  * @param {number[]|null} options.sectionIds - SECTION_IDs to extract (in order, skips missing)
  * @param {boolean} options.infoOnly - Show info without extracting
+ * @param {boolean} options.binaryOnly - Extract only the binary document (skip text pages)
+ * @param {boolean} options.noBinary - Extract only text pages (skip binary objects)
  * @returns {object} Extraction statistics
  */
-function extractRpt(filepath, outputBase, { pageRange = null, sectionIds = null, infoOnly = false } = {}) {
+function extractRpt(filepath, outputBase, { pageRange = null, sectionIds = null, infoOnly = false, binaryOnly = false, noBinary = false } = {}) {
     const stats = {
         file: filepath,
         pagesTotal: 0,
@@ -497,6 +777,9 @@ function extractRpt(filepath, outputBase, { pageRange = null, sectionIds = null,
         pagesExtracted: 0,
         bytesCompressed: 0,
         bytesDecompressed: 0,
+        binaryObjects: 0,
+        binaryFilename: null,
+        binarySize: 0,
         error: null,
     };
 
@@ -528,6 +811,21 @@ function extractRpt(filepath, outputBase, { pageRange = null, sectionIds = null,
     // Read sections (needed for --section-id and info display)
     const { sections } = readSectionhdr(filepath);
 
+    // Read binary object table (if present)
+    let binaryEntries = [];
+    if (header.binaryObjectCount > 0) {
+        binaryEntries = readBinaryPageTable(filepath, header.binaryObjectCount);
+    }
+
+    // Parse Object Header from text page 1 (if binary objects exist)
+    let objectHeader = null;
+    if (binaryEntries.length > 0 && pageEntries.length > 0) {
+        const firstPage = decompressPage(filepath, pageEntries[0]);
+        if (firstPage) {
+            objectHeader = parseObjectHeader(firstPage);
+        }
+    }
+
     // Display info
     console.log('');
     console.log('='.repeat(70));
@@ -535,6 +833,9 @@ function extractRpt(filepath, outputBase, { pageRange = null, sectionIds = null,
     console.log(`  Species: ${header.reportSpeciesId}, Domain: ${header.domainId}`);
     console.log(`  Timestamp: ${header.timestamp}`);
     console.log(`  Pages: ${header.pageCount}, Sections: ${header.sectionCount}`);
+    if (header.binaryObjectCount > 0) {
+        console.log(`  Binary Objects: ${header.binaryObjectCount}`);
+    }
 
     const totalComp = pageEntries.reduce((sum, e) => sum + e.compressedSize, 0);
     const totalUncomp = pageEntries.reduce((sum, e) => sum + e.uncompressedSize, 0);
@@ -581,6 +882,37 @@ function extractRpt(filepath, outputBase, { pageRange = null, sectionIds = null,
                 `${String(e.linesPerPage).padStart(6)}  ${formatNumber(e.uncompressedSize).padStart(8)}  ${formatNumber(e.compressedSize).padStart(8)}`
             );
         }
+
+        // Show binary object table if present
+        if (binaryEntries.length > 0) {
+            console.log(`\n  Binary Objects (${binaryEntries.length}):  [BPAGETBLHDR]`);
+            console.log(`  ${'INDEX'.padStart(7)}  ${'OFFSET'.padStart(10)}  ${'UNCOMP_SIZE'.padStart(11)}  ${'COMP_SIZE'.padStart(10)}`);
+            console.log(`  ${'-'.repeat(7)}  ${'-'.repeat(10)}  ${'-'.repeat(11)}  ${'-'.repeat(10)}`);
+            for (const be of binaryEntries) {
+                const offsetHex = '0x' + be.absoluteOffset.toString(16).toUpperCase().padStart(8, '0');
+                console.log(
+                    `  ${String(be.index).padStart(7)}  ${offsetHex}  ` +
+                    `${formatNumber(be.uncompressedSize).padStart(11)}  ${formatNumber(be.compressedSize).padStart(10)}`
+                );
+            }
+
+            if (objectHeader) {
+                console.log(`\n  Object Header:`);
+                for (const [key, value] of Object.entries(objectHeader)) {
+                    console.log(`    ${key}: ${value}`);
+                }
+            }
+
+            // Show assembled document info
+            const binObjs = decompressBinaryObjects(filepath, binaryEntries);
+            if (binObjs.length > 0) {
+                const { combined, filename, formatDesc } = assembleBinaryDocument(
+                    binObjs, objectHeader, rptName);
+                console.log(`\n  Assembled document: ${formatDesc} (${formatNumber(combined.length)} bytes)`);
+                console.log(`  Output filename: ${filename}`);
+            }
+        }
+
         return stats;
     }
 
@@ -633,13 +965,6 @@ function extractRpt(filepath, outputBase, { pageRange = null, sectionIds = null,
         console.log(`\n  Extracting all ${header.pageCount} pages`);
     }
 
-    stats.pagesSelected = selected.length;
-
-    if (selected.length === 0) {
-        stats.error = 'No pages to extract';
-        return stats;
-    }
-
     // Determine output directory
     let outputDir;
     if (sectionIds !== null && foundIds !== null && foundIds.length > 0) {
@@ -655,20 +980,78 @@ function extractRpt(filepath, outputBase, { pageRange = null, sectionIds = null,
         outputDir = path.join(outputBase, rptName);
     }
 
-    // Decompress and save
-    const pages = decompressPages(filepath, selected);
-    stats.pagesExtracted = pages.length;
-    stats.bytesCompressed = selected.reduce((sum, e) => sum + e.compressedSize, 0);
-    stats.bytesDecompressed = pages.reduce((sum, p) => sum + p.data.length, 0);
+    stats.pagesSelected = selected.length;
 
-    const saved = savePages(pages, outputDir, 'page');
-    console.log(`  Saved ${saved} pages to ${outputDir}/`);
-    console.log(`  Total decompressed: ${formatNumber(stats.bytesDecompressed)} bytes`);
+    // -------------------------------------------------------------------
+    // Extract text pages (unless --binary-only)
+    // -------------------------------------------------------------------
+    if (!binaryOnly) {
+        // Filter out Object Header page when binary objects are present
+        let textSelected = selected;
+        if (binaryEntries.length > 0 && objectHeader && selected.length > 0) {
+            // Object Header is text page 1 -- skip it from regular text output
+            textSelected = selected.filter(e => e.pageNumber !== 1);
+            if (textSelected.length !== selected.length) {
+                console.log(`  Object Header page (page 1) separated from text output`);
+            }
+        }
 
-    // Check for failures
-    const failed = stats.pagesSelected - stats.pagesExtracted;
-    if (failed > 0) {
-        console.log(`  WARNING: ${failed} pages failed to decompress`);
+        if (textSelected.length > 0) {
+            const pages = decompressPages(filepath, textSelected);
+            stats.pagesExtracted = pages.length;
+            stats.bytesCompressed = textSelected.reduce((sum, e) => sum + e.compressedSize, 0);
+            stats.bytesDecompressed = pages.reduce((sum, p) => sum + p.data.length, 0);
+
+            const saved = savePages(pages, outputDir, 'page');
+            console.log(`  Saved ${saved} text pages to ${outputDir}/`);
+            console.log(`  Total decompressed: ${formatNumber(stats.bytesDecompressed)} bytes`);
+
+            // Check for failures
+            const failed = textSelected.length - stats.pagesExtracted;
+            if (failed > 0) {
+                console.log(`  WARNING: ${failed} pages failed to decompress`);
+            }
+        }
+
+        // Save Object Header as separate file (for reference)
+        if (binaryEntries.length > 0 && objectHeader) {
+            const firstPage = decompressPage(filepath, pageEntries[0]);
+            if (firstPage) {
+                mkdirp(outputDir);
+                const ohPath = path.join(outputDir, 'object_header.txt');
+                fs.writeFileSync(ohPath, firstPage);
+                console.log(`  Saved object_header.txt to ${outputDir}/`);
+            }
+        }
+    } else {
+        if (binaryEntries.length === 0) {
+            stats.error = 'No binary objects found in this RPT file (--binary-only requires BPAGETBLHDR)';
+            console.log(`\n  ERROR: ${stats.error}`);
+            return stats;
+        }
+    }
+
+    // -------------------------------------------------------------------
+    // Extract binary objects (unless --no-binary)
+    // -------------------------------------------------------------------
+    if (!noBinary && binaryEntries.length > 0) {
+        const binObjs = decompressBinaryObjects(filepath, binaryEntries);
+        if (binObjs.length > 0) {
+            const { combined, filename, formatDesc } = assembleBinaryDocument(
+                binObjs, objectHeader, rptName);
+
+            mkdirp(outputDir);
+            const binPath = path.join(outputDir, filename);
+            fs.writeFileSync(binPath, combined);
+
+            stats.binaryObjects = binObjs.length;
+            stats.binaryFilename = filename;
+            stats.binarySize = combined.length;
+
+            console.log(`  Saved ${formatDesc} document: ${filename} (${formatNumber(combined.length)} bytes) to ${outputDir}/`);
+        } else {
+            console.log(`  WARNING: Binary objects found but all decompression failed`);
+        }
     }
 
     return stats;
@@ -734,6 +1117,8 @@ Options:
   --pages <range>       Page range to extract (e.g., "10-20", "5") -- 1-based, inclusive
   --section-id <id...>  Extract pages belonging to one or more SECTION_IDs
                         (space-separated, in order, skips missing)
+  --binary-only         Extract only the binary document (PDF/AFP), skip text pages
+  --no-binary           Extract only text pages, skip binary objects (PDF/AFP)
   --folder <dir>        Process all .RPT files in this directory
   --output <dir>        Output base directory (default: ".")
   --help                Show this help message
@@ -757,6 +1142,12 @@ Examples:
   # Process all RPT files in a folder
   node rpt_page_extractor.js --folder /path/to/rpt/files
 
+  # Extract only the binary document (PDF/AFP) from an RPT file
+  node rpt_page_extractor.js --binary-only 260271Q7.RPT
+
+  # Extract only text pages (skip binary objects)
+  node rpt_page_extractor.js --no-binary 260271Q7.RPT
+
   # Custom output directory
   node rpt_page_extractor.js --output /tmp/extracted 251110OD.RPT`);
 }
@@ -771,6 +1162,8 @@ function parseArgs(argv) {
         info: false,
         pages: null,
         sectionIds: null,
+        binaryOnly: false,
+        noBinary: false,
         folder: null,
         output: '.',
         help: false,
@@ -820,6 +1213,12 @@ function parseArgs(argv) {
             }
             args.folder = argv[i];
             i++;
+        } else if (arg === '--binary-only') {
+            args.binaryOnly = true;
+            i++;
+        } else if (arg === '--no-binary') {
+            args.noBinary = true;
+            i++;
         } else if (arg === '--output' || arg === '-o') {
             i++;
             if (i >= argv.length) {
@@ -865,6 +1264,11 @@ function main() {
         process.exit(1);
     }
 
+    if (args.binaryOnly && args.noBinary) {
+        console.error('Error: Cannot use both --binary-only and --no-binary');
+        process.exit(1);
+    }
+
     // Parse page range
     let pageRange = null;
     if (args.pages !== null) {
@@ -906,6 +1310,8 @@ function main() {
             pageRange,
             sectionIds: args.sectionIds,
             infoOnly: args.info,
+            binaryOnly: args.binaryOnly,
+            noBinary: args.noBinary,
         });
         allStats.push(stats);
 

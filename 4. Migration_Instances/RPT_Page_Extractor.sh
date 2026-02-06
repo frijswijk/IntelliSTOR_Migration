@@ -35,9 +35,11 @@ echo "  3. Extract page range from an RPT file"
 echo "  4. Extract pages for one or more sections (by SECTION_ID)"
 echo "  5. Extract all RPT files in a folder"
 echo "  6. Show help"
+echo "  7. Extract all content (text + PDF/AFP) from an RPT file"
+echo "  8. Extract binary objects only (PDF/AFP) from an RPT file"
 echo "  0. Exit"
 echo ""
-read -p "Select option [0-6]: " OPTION
+read -p "Select option [0-8]: " OPTION
 
 case $OPTION in
     1)
@@ -127,6 +129,48 @@ case $OPTION in
     6)
         echo ""
         python3 rpt_page_extractor.py --help
+        ;;
+    7)
+        echo ""
+        echo "--- Extract ALL content (text pages + binary PDF/AFP) ---"
+        echo ""
+        read -p "Enter folder containing RPT files [${RPT_DIR}]: " BROWSE_DIR
+        BROWSE_DIR="${BROWSE_DIR:-${RPT_DIR}}"
+        echo ""
+        echo "Available RPT files in ${BROWSE_DIR}:"
+        ls -1 "${BROWSE_DIR}"/*.RPT 2>/dev/null | xargs -I {} basename {}
+        echo ""
+        read -p "Enter RPT filename or full path: " RPT_FILE
+        read -p "Enter output directory [./extracted]: " OUTPUT_DIR
+        OUTPUT_DIR="${OUTPUT_DIR:-./extracted}"
+        if [ -n "$RPT_FILE" ]; then
+            if [ ! -f "$RPT_FILE" ]; then
+                RPT_FILE="${BROWSE_DIR}/${RPT_FILE}"
+            fi
+            echo ""
+            python3 rpt_page_extractor.py --output "$OUTPUT_DIR" "$RPT_FILE"
+        fi
+        ;;
+    8)
+        echo ""
+        echo "--- Extract BINARY objects only (PDF/AFP) ---"
+        echo ""
+        read -p "Enter folder containing RPT files [${RPT_DIR}]: " BROWSE_DIR
+        BROWSE_DIR="${BROWSE_DIR:-${RPT_DIR}}"
+        echo ""
+        echo "Available RPT files in ${BROWSE_DIR}:"
+        ls -1 "${BROWSE_DIR}"/*.RPT 2>/dev/null | xargs -I {} basename {}
+        echo ""
+        read -p "Enter RPT filename or full path: " RPT_FILE
+        read -p "Enter output directory [./extracted]: " OUTPUT_DIR
+        OUTPUT_DIR="${OUTPUT_DIR:-./extracted}"
+        if [ -n "$RPT_FILE" ]; then
+            if [ ! -f "$RPT_FILE" ]; then
+                RPT_FILE="${BROWSE_DIR}/${RPT_FILE}"
+            fi
+            echo ""
+            python3 rpt_page_extractor.py --binary-only --output "$OUTPUT_DIR" "$RPT_FILE"
+        fi
         ;;
     0)
         echo "Exiting..."

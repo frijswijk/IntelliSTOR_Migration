@@ -8,10 +8,14 @@ Returns (SECTION_ID, START_PAGE, PAGE_COUNT) triplets.
 RPT File Layout:
   [0x000] RPTFILEHDR    - "RPTFILEHDR\t{domain}:{species}\t{timestamp}"
   [0x0F0] RPTINSTHDR    - Instance metadata
-  [0x1D0] Table Directory - page_count, section_count, offsets
-  [0x200] COMPRESSED DATA - per-page zlib streams
+  [0x1D0] Table Directory (3 rows x 12 bytes):
+          Row 0 (0x1D0): type=0x0102  count=page_count    offset → PAGETBLHDR
+          Row 1 (0x1E0): type=0x0101  count=section_count  offset → SECTIONHDR
+          Row 2 (0x1F0): type=0x0103  count=binary_count   offset → BPAGETBLHDR
+  [0x200] COMPRESSED DATA - per-page zlib streams (text + interleaved binary objects)
   [...]   SECTIONHDR    - section triplets (SECTION_ID, START_PAGE, PAGE_COUNT)
-  [...]   PAGETBLHDR    - page table entries
+  [...]   PAGETBLHDR    - 24-byte entries per text page
+  [...]   BPAGETBLHDR   - 16-byte entries per binary object (PDF/AFP, if present)
 """
 
 import struct
@@ -31,6 +35,7 @@ class RptHeader:
     section_count: int
     section_data_offset: int
     page_table_offset: int
+    binary_object_count: int = 0  # Table Directory Row 2 (0x1F4): BPAGETBLHDR entry count
 
 
 @dataclass
@@ -84,15 +89,15 @@ def parse_rpt_header(data: bytes) -> Optional[RptHeader]:
     if len(parts) >= 3:
         timestamp = parts[2].strip()
 
-    # Table Directory at 0x1D0 (verified across multiple RPT files):
-    #   0x1D4: page_count (uint32)
-    #   0x1D8: page_table_data_offset (uint32) - offset to raw page table data
-    #   0x1E4: section_count (uint32)
-    #   0x1E8: compressed_data_end_offset (uint32) - end of compressed page data
+    # Table Directory at 0x1D0 — three 12-byte rows:
+    #   Row 0 (0x1D0): type=0x0102 | 0x1D4: page_count | 0x1D8: page_table_data_offset
+    #   Row 1 (0x1E0): type=0x0101 | 0x1E4: section_count | 0x1E8: compressed_data_end
+    #   Row 2 (0x1F0): type=0x0103 | 0x1F4: binary_object_count | 0x1F8: binary_table_offset
     page_count = 0
     section_count = 0
     section_data_offset = 0
     page_table_offset = 0
+    binary_object_count = 0
 
     if len(data) >= 0x1F0:
         page_count = struct.unpack_from('<I', data, 0x1D4)[0]
@@ -104,6 +109,10 @@ def parse_rpt_header(data: bytes) -> Optional[RptHeader]:
         # SECTIONHDR marker is near compressed_data_end (within ~1KB after it)
         section_data_offset = compressed_data_end  # approximate; actual scan in read_sectionhdr
 
+    # Row 2: binary object count (PDF/AFP embedded documents)
+    if len(data) >= 0x200:
+        binary_object_count = struct.unpack_from('<I', data, 0x1F4)[0]
+
     return RptHeader(
         domain_id=domain_id,
         report_species_id=species_id,
@@ -111,7 +120,8 @@ def parse_rpt_header(data: bytes) -> Optional[RptHeader]:
         page_count=page_count,
         section_count=section_count,
         section_data_offset=section_data_offset,
-        page_table_offset=page_table_offset
+        page_table_offset=page_table_offset,
+        binary_object_count=binary_object_count
     )
 
 

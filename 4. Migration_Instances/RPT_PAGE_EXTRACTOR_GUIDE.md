@@ -2,7 +2,7 @@
 
 ## Overview
 
-The RPT Page Extractor decompresses and extracts pages from IntelliSTOR `.RPT` binary files. It uses the PAGETBLHDR for fast random-access decompression of individual zlib page streams, saving each page as a `.txt` file.
+The RPT Page Extractor decompresses and extracts pages from IntelliSTOR `.RPT` binary files. It uses the PAGETBLHDR for fast random-access decompression of individual zlib page streams, saving each page as a `.txt` file. It also extracts embedded binary objects (PDF/AFP documents) tracked by the BPAGETBLHDR structure.
 
 Available in three implementations (identical CLI interface):
 
@@ -18,12 +18,15 @@ All three versions produce identical output and support the same command-line op
 
 ## Features
 
-- **File info** - Display RPT file metadata, section table, and page table without extracting
+- **File info** - Display RPT file metadata, section table, page table, and binary object table without extracting
 - **Full extraction** - Decompress all pages from one or more RPT files
 - **Page range** - Extract a specific page range (e.g., pages 10-20)
 - **Section-based** - Extract pages belonging to one or more SECTION_IDs
 - **Multi-section** - Provide multiple SECTION_IDs; pages are collected in the order given, missing IDs are silently skipped
 - **Batch/folder mode** - Process all `.RPT` files in a directory recursively
+- **Binary objects** - Extract embedded PDF/AFP documents from RPT files (BPAGETBLHDR)
+- **Binary-only mode** - Extract only the binary document, skip text pages
+- **No-binary mode** - Extract only text pages, skip binary objects
 
 ---
 
@@ -127,13 +130,17 @@ python3 rpt_page_extractor.py --help
 
 | Option | Description |
 |--------|-------------|
-| `--info` | Show RPT file info (sections, page table, compression) without extracting |
+| `--info` | Show RPT file info (sections, page table, binary objects) without extracting |
 | `--pages RANGE` | Page range to extract, e.g. `10-20` or `5` (1-based, inclusive) |
 | `--section-id ID [ID ...]` | Extract pages for one or more SECTION_IDs (in order, skips missing) |
 | `--folder DIR` | Process all `.RPT` files in the given directory recursively |
 | `--output DIR` / `-o DIR` | Output base directory (default: current directory) |
+| `--binary-only` | Extract only the binary document (PDF/AFP), skip text pages |
+| `--no-binary` | Extract only text pages, skip binary objects (PDF/AFP) |
 
-**Constraints:** `--pages` and `--section-id` are mutually exclusive.
+**Constraints:**
+- `--pages` and `--section-id` are mutually exclusive
+- `--binary-only` and `--no-binary` are mutually exclusive
 
 ---
 
@@ -259,7 +266,89 @@ Processes all `.RPT` files recursively, shows per-file results and a summary:
 SUMMARY: 12 files, 1,847 pages extracted, 15,234,560 bytes decompressed, 0 errors
 ```
 
-### 8. Equivalent commands across implementations
+### 8. Show info for RPT file with binary objects (PDF/AFP)
+
+```bash
+python3 rpt_page_extractor.py --info 260271Q7.RPT
+```
+
+**Output:**
+```
+======================================================================
+File: 260271Q7.RPT
+  Species: 52759, Domain: 1
+  Timestamp: 2028/03/09 09:15:22.120
+  Pages: 2, Sections: 1
+  Binary Objects: 2
+  Compressed: 514 bytes -> Uncompressed: 980 bytes (1.9x)
+
+  Sections (1):
+    SECTION_ID  START_PAGE  PAGE_COUNT
+  ------------  ----------  ----------
+             0           1           2
+
+  Page Table (first 5 / last 5):
+    PAGE      OFFSET   WIDTH   LINES    UNCOMP      COMP
+       1  0x00000200      11      89       359       262
+       2  0x00004E41      20     123       621       252
+
+  Binary Objects (2):  [BPAGETBLHDR]
+    INDEX      OFFSET  UNCOMP_SIZE   COMP_SIZE
+  -------  ----------  -----------  ----------
+        1  0x00000306       19,462      19,259
+        2  0x00004F3D       19,463      18,386
+
+  Object Header:
+    Object File Name: HKCIF001_016_20280309.PDF
+    Object File Timestamp: 20260127090844
+    PDF Creator: JasperReports Library version 7.0.1
+    PDF Producer: OpenPDF 1.3.32
+
+  Assembled document: PDF (38,925 bytes)
+  Output filename: HKCIF001_016_20280309.PDF
+```
+
+### 9. Extract all (text + binary) from RPT with embedded PDF
+
+```bash
+python3 rpt_page_extractor.py --output ./extracted 260271Q7.RPT
+```
+
+**Output:**
+```
+  Extracting all 2 pages
+  Object Header page (page 1) separated from text output
+  Saved 1 text pages to ./extracted/260271Q7/
+  Total decompressed: 621 bytes
+  Saved object_header.txt to ./extracted/260271Q7/
+  Saved PDF document: HKCIF001_016_20280309.PDF (38,925 bytes) to ./extracted/260271Q7/
+```
+
+**Output files:**
+```
+./extracted/260271Q7/
+  object_header.txt              # Object Header metadata (page 1)
+  page_00002.txt                 # Report text page
+  HKCIF001_016_20280309.PDF      # Assembled PDF document
+```
+
+### 10. Extract only the binary document (PDF/AFP)
+
+```bash
+python3 rpt_page_extractor.py --binary-only --output ./extracted 260271Q7.RPT
+```
+
+Produces only the assembled binary document (no text pages, no object_header.txt).
+
+### 11. Extract only text pages (skip binary objects)
+
+```bash
+python3 rpt_page_extractor.py --no-binary --output ./extracted 260271Q7.RPT
+```
+
+Produces text pages and object_header.txt, but no binary document.
+
+### 12. Equivalent commands across implementations
 
 ```bash
 # Python
@@ -298,14 +387,19 @@ Options:
   4. Extract pages for one or more sections (by SECTION_ID)
   5. Extract all RPT files in a folder
   6. Show help
+  7. Extract binary objects (PDF/AFP) from an RPT file
   0. Exit
 ```
 
 **Option 4 (multi-section):** The script first shows the available sections in the file, then prompts for one or more space-separated SECTION_IDs. Missing IDs are skipped automatically.
 
+**Option 7 (binary objects):** Extracts embedded PDF or AFP documents from RPT files that contain binary objects. Uses `--binary-only` mode — only the assembled binary document is saved.
+
 ---
 
 ## Output Structure
+
+### Text-only RPT files
 
 Extracted pages are saved as text files with zero-padded page numbers:
 
@@ -330,6 +424,23 @@ When extracting by section or page range, a subdirectory is created:
 <output_dir>/<RPT_NAME>/pages_10-20/page_00010.txt ...
 ```
 
+### RPT files with binary objects (PDF/AFP)
+
+When an RPT file contains embedded binary objects (BPAGETBLHDR), the default extraction produces both text pages and the assembled binary document:
+
+```
+<output_dir>/
+  <RPT_NAME>/
+    object_header.txt              # Object Header page (metadata about the binary object)
+    page_00002.txt                 # Report text page(s) — page 1 (Object Header) is separated
+    HKCIF001_016_20280309.PDF      # Assembled binary document (filename from Object Header)
+```
+
+- **Object Header** (text page 1) is treated as metadata, not a regular text page. It is saved as `object_header.txt` for reference.
+- **Binary document** filename comes from the Object Header's "Object File Name" field. Fallback: `<RPT_NAME>_binary.<ext>`.
+- **`--binary-only`** produces only the binary document (no text files).
+- **`--no-binary`** produces only text pages + object_header.txt (no binary document).
+
 ---
 
 ## RPT File Binary Format (Reference)
@@ -339,14 +450,23 @@ Offset    Structure          Description
 -------   -----------------  ------------------------------------------
 0x000     RPTFILEHDR         "RPTFILEHDR\t{domain}:{species}\t{timestamp}"
 0x0F0     RPTINSTHDR         Instance metadata (base for page offsets)
-0x1D0     Table Directory    page_count, section_count, offsets
-  0x1D4     page_count       uint32 LE - number of pages
-  0x1D8     page_tbl_offset  uint32 LE - page table data offset
-  0x1E4     section_count    uint32 LE - number of sections
-  0x1E8     comp_data_end    uint32 LE - end of compressed data area
-0x200     COMPRESSED DATA    Per-page zlib streams (0x78 0x01 header)
+0x1D0     Table Directory    3 rows x 12 bytes:
+  Row 0 (0x1D0):
+    0x1D0   type             uint32 LE - 0x0102 (PAGETBLHDR)
+    0x1D4   page_count       uint32 LE - number of text pages
+    0x1D8   page_tbl_offset  uint32 LE - offset to PAGETBLHDR marker
+  Row 1 (0x1E0):
+    0x1E0   type             uint32 LE - 0x0101 (SECTIONHDR)
+    0x1E4   section_count    uint32 LE - number of sections
+    0x1E8   comp_data_end    uint32 LE - end of compressed data area
+  Row 2 (0x1F0):
+    0x1F0   type             uint32 LE - 0x0103 (BPAGETBLHDR)
+    0x1F4   binary_count     uint32 LE - number of binary objects (0 = text-only)
+    0x1F8   binary_tbl_off   uint32 LE - offset to BPAGETBLHDR marker
+0x200     COMPRESSED DATA    Per-page zlib streams + interleaved binary objects
 ...       SECTIONHDR         Marker + 12-byte triplets per section
 ...       PAGETBLHDR         Marker + 24-byte entries per page
+...       BPAGETBLHDR        Marker + 16-byte entries per binary object (if present)
 ```
 
 ### PAGETBLHDR Entry (24 bytes, little-endian)
@@ -369,6 +489,52 @@ Offset    Structure          Description
 | 4 | 4 | start_page | First page of this section (1-based) |
 | 8 | 4 | page_count | Number of pages in this section |
 
+### BPAGETBLHDR Entry (16 bytes, little-endian)
+
+| Offset | Size | Field | Description |
+|--------|------|-------|-------------|
+| 0 | 4 | page_offset | Byte offset relative to RPTINSTHDR (add 0xF0) |
+| 4 | 4 | (reserved) | Always 0 |
+| 8 | 4 | uncompressed_size | Decompressed data size (bytes) |
+| 12 | 4 | compressed_size | zlib stream size (bytes) |
+
+### Binary Object Format Detection (magic bytes)
+
+| Format | Magic Bytes | Extension | Description |
+|--------|-------------|-----------|-------------|
+| PDF | `%PDF` (0x25 0x50 0x44 0x46) | `.pdf` | Portable Document Format |
+| AFP | `0x5A` (Begin Structured Field) | `.afp` | Advanced Function Presentation |
+| Unknown | — | `.bin` | Fallback (or uses Object Header filename) |
+
+### Object Header Page
+
+When binary objects are present, text page 1 is typically a "StorQM PLUS Object Header Page" containing metadata about the embedded binary document:
+
+```
+StorQM PLUS Object Header Page:
+Object File Name: HKCIF001_016_20280309.PDF
+Object File Timestamp: 20260127090844
+PDF Creator: JasperReports Library version 7.0.1
+PDF Producer: OpenPDF 1.3.32
+PDF CreationDate: D:20260126174224+08'00'
+```
+
+This page is NOT a regular report page — the extractor separates it as `object_header.txt`.
+
+### Interleaved Data Layout (Binary RPT files)
+
+In RPT files with binary objects, the compressed data area contains text pages and binary objects interleaved:
+
+```
+0x200     Text page 1 zlib stream    (Object Header)
+          Binary object 1 zlib stream (PDF/AFP part 1)
+          Text page 2 zlib stream    (Report page)
+          Binary object 2 zlib stream (PDF/AFP part 2)
+          ...
+```
+
+All binary object chunks concatenate in order to form a single complete document (e.g., a multi-page PDF).
+
 ---
 
 ## Error Handling
@@ -381,6 +547,11 @@ Offset    Structure          Description
 | Section ID not found | Silently skipped, reported in "Skipped" line |
 | All section IDs not found | Error with list of available section IDs |
 | `--pages` and `--section-id` combined | Rejected with error message |
+| `--binary-only` and `--no-binary` combined | Rejected with error message |
+| `--binary-only` on text-only RPT | Error: no binary objects found |
+| Binary object decompression failure | Warning per object, continues with remaining |
+| No BPAGETBLHDR in file | Binary objects silently skipped (text-only RPT) |
+| No Object Header detected | Binary objects still extracted; fallback filename used |
 
 ---
 
@@ -416,3 +587,9 @@ The zlib stream for that page may be corrupt. Remaining pages are still extracte
 
 **All: `ERROR: None of the requested section IDs found`**
 Use `--info` first to see available SECTION_IDs in the file.
+
+**All: `ERROR: No binary objects found in this RPT file`**
+The `--binary-only` flag was used but the RPT file has no BPAGETBLHDR (it is text-only). Use `--info` to check if the file contains binary objects (look for "Binary Objects:" in the output).
+
+**All: Output PDF/AFP file is corrupted**
+The binary objects may have been partially decompressed. Check for `WARNING: Binary object N decompression failed` messages. The assembled document requires all parts to be valid.
