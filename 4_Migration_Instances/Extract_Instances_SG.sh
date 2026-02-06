@@ -27,11 +27,25 @@ echo "Output Folder: ${Instances_Output_SG}"
 echo "Start Year: ${Instances_StartYear_SG}"
 echo "-----------------------------------------------------------------------"
 
+# Prompt for RPT folder (mandatory - SEGMENTS come from RPT file SECTIONHDR)
+while true; do
+    echo ""
+    read -p "Enter RPT folder path (contains .RPT files for SEGMENTS extraction): " RPT_FOLDER
+    if [ -z "${RPT_FOLDER}" ]; then
+        echo "ERROR: RPT folder is required for SEGMENTS extraction."
+    elif [ ! -d "${RPT_FOLDER}" ]; then
+        echo "ERROR: Directory does not exist: ${RPT_FOLDER}"
+    else
+        echo "RPT Folder: ${RPT_FOLDER}"
+        break
+    fi
+done
+
 # Create output directory if it doesn't exist
 mkdir -p "${Instances_Output_SG}"
 
 # Run the Extract_Instances script
-python3 Extract_Instances.py --server "${SQLServer}" --database "${SQL_SG_Database}" --user "${SQLUser}" --password "${SQLPassword}" --input "${Instances_Input_SG}" --output "${Instances_Output_SG}" --start-year "${Instances_StartYear_SG}" --quiet
+python3 Extract_Instances.py --server "${SQLServer}" --database "${SQL_SG_Database}" --user "${SQLUser}" --password "${SQLPassword}" --input "${Instances_Input_SG}" --output "${Instances_Output_SG}" --start-year "${Instances_StartYear_SG}" --rptfolder "${RPT_FOLDER}" --quiet
 
 # --- 2. Capture End Time and Calculate Duration ---
 echo "-----------------------------------------------------------------------"
