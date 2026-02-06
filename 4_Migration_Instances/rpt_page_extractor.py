@@ -13,7 +13,8 @@ Supports:
   - Multi-section:   --section-id 14259 14260 14261 (multiple sections, in order)
   - Folder mode:     --folder <dir> (process all RPT files in a directory)
   - Binary objects:  --binary-only (extract only PDF/AFP), --no-binary (skip binary)
-  - Concatenate:    --page-concat (all text pages into one file, separated by form-feed)
+  - Concatenate:     --page-concat (all text pages into one file, separated by form-feed)
+  - CSV export:      --export-sections <file.csv> (export section table as CSV for rpt_file_builder)
 
 RPT File Layout (reference):
   [0x000] RPTFILEHDR     - Header with domain:species, timestamp
@@ -537,7 +538,8 @@ def extract_rpt(filepath: str, output_base: str,
                 info_only: bool = False,
                 binary_only: bool = False,
                 no_binary: bool = False,
-                page_concat: bool = False) -> dict:
+                page_concat: bool = False,
+                export_sections_csv: Optional[str] = None) -> dict:
     """
     Extract pages from a single RPT file.
 
@@ -633,6 +635,17 @@ def extract_rpt(filepath: str, output_base: str,
         for s in sections:
             marker = " <--" if s.section_id in requested_sids else ""
             print(f"  {s.section_id:>12d}  {s.start_page:>10d}  {s.page_count:>10d}{marker}")
+
+    # Export sections as CSV if requested
+    if export_sections_csv and sections:
+        csv_dir = os.path.dirname(export_sections_csv)
+        if csv_dir:
+            os.makedirs(csv_dir, exist_ok=True)
+        with open(export_sections_csv, 'w') as csvfile:
+            csvfile.write('Report_Species_Id,Section_Id,Start_Page,Pages\n')
+            for s in sections:
+                csvfile.write(f'{header.report_species_id},{s.section_id},{s.start_page},{s.page_count}\n')
+        print(f"\n  Sections exported to: {export_sections_csv}")
 
     if info_only:
         # Show page table sample
@@ -920,6 +933,11 @@ Examples:
         action='store_true',
         help='Concatenate all text pages into a single file (separated by form-feed)'
     )
+    parser.add_argument(
+        '--export-sections',
+        metavar='CSV_FILE',
+        help='Export section table as CSV file (Report_Species_Id,Section_Id,Start_Page,Pages)'
+    )
 
     args = parser.parse_args()
 
@@ -975,7 +993,8 @@ Examples:
             info_only=args.info,
             binary_only=args.binary_only,
             no_binary=args.no_binary,
-            page_concat=args.page_concat
+            page_concat=args.page_concat,
+            export_sections_csv=args.export_sections
         )
         all_stats.append(stats)
 

@@ -9,7 +9,7 @@ back into a valid `.RPT` binary file that conforms to the IntelliSTOR RPT specif
 ## Requirements
 
 - Python 3.6+
-- No external dependencies (uses stdlib: `struct`, `zlib`, `argparse`, `datetime`, `dataclasses`, `re`, `glob`)
+- No external dependencies (uses stdlib: `struct`, `zlib`, `csv`, `argparse`, `datetime`, `dataclasses`, `re`, `glob`)
 - Requires `rpt_section_reader.py` from folder `4_Migration_Instances` (resolved automatically via `sys.path`)
 
 ## Installation
@@ -37,6 +37,10 @@ python3 rpt_file_builder.py --species 52759 --domain 1 \
 # Roundtrip: rebuild from extracted content using original as template
 python3 rpt_file_builder.py --template original.RPT \
   --species 49626 -o rebuilt.RPT ./extracted/original/
+
+# Build with sections from a CSV file (exported by rpt_page_extractor --export-sections)
+python3 rpt_file_builder.py --section-csv sections.csv \
+  -o output.RPT ./extracted/260271NL/
 ```
 ## CLI Reference
 
@@ -44,7 +48,8 @@ python3 rpt_file_builder.py --template original.RPT \
 usage: rpt_file_builder.py [-h] -o OUTPUT [--species SPECIES]
                            [--domain DOMAIN] [--timestamp TIMESTAMP]
                            [--binary BINARY] [--object-header OBJECT_HEADER]
-                           [--section SEC_SPEC] [--line-width LINE_WIDTH]
+                           [--section SEC_SPEC] [--section-csv CSV_FILE]
+                           [--line-width LINE_WIDTH]
                            [--lines-per-page LINES_PER_PAGE]
                            [--template TEMPLATE] [--info] [--verbose]
                            input_files [input_files ...]
@@ -68,6 +73,9 @@ options:
                         Path to text file for Object Header page (page 1)
   --section SEC_SPEC    Section spec: "SECTION_ID:START_PAGE:PAGE_COUNT" (can
                         repeat)
+  --section-csv CSV_FILE
+                        CSV file with sections (Report_Species_Id,Section_Id,
+                        Start_Page,Pages). Alternative to repeating --section.
   --line-width LINE_WIDTH
                         Override line width for all pages
   --lines-per-page LINES_PER_PAGE
@@ -97,6 +105,10 @@ Examples:
   python3 rpt_file_builder.py --species 12345 \
     --section 14259:1:10 --section 14260:11:5 \
     -o output.RPT page_*.txt
+
+  # Build RPT with sections from CSV (exported by rpt_page_extractor --export-sections)
+  python3 rpt_file_builder.py --section-csv sections.csv \
+    -o output.RPT ./extracted/260271NL/
 ```
 
 ### Options Summary
@@ -111,6 +123,7 @@ Examples:
 | `--binary` | path | none | PDF or AFP file to embed as binary object |
 | `--object-header` | path | none | Custom Object Header text file (page 1) |
 | `--section` | string | auto | Section spec `SECTION_ID:START_PAGE:PAGE_COUNT` (repeatable) |
+| `--section-csv` | path | none | CSV file with sections (alternative to `--section`, mutually exclusive) |
 | `--line-width` | int | auto | Override line width for all pages |
 | `--lines-per-page` | int | auto | Override lines per page for all pages |
 | `--template` | path | none | Reference .RPT file to copy RPTINSTHDR metadata from |
@@ -175,7 +188,25 @@ Each `--section` flag defines a section with format `SECTION_ID:START_PAGE:PAGE_
 If no `--section` flags are given, a single default section (ID=0) covering all pages
 is created automatically.
 
-### Example 6: Roundtrip verification
+### Example 6: Build RPT with sections from CSV
+
+Export sections from an existing RPT, then use the CSV to rebuild:
+
+```bash
+# Step 1: Export sections from the original RPT
+python3 "../4_Migration_Instances/rpt_page_extractor.py" \
+  --info --export-sections sections.csv /path/to/original.RPT
+
+# Step 2: Build new RPT using the sections CSV (species auto-detected from CSV)
+python3 rpt_file_builder.py --section-csv sections.csv \
+  -o output.RPT ./extracted/original/
+```
+
+The CSV format is: `Report_Species_Id,Section_Id,Start_Page,Pages`. When
+`--species` is not provided (defaults to 0), the species ID is automatically
+read from the first row of the CSV.
+
+### Example 7: Roundtrip verification
 
 Full extract, rebuild, and re-extract workflow:
 
@@ -196,7 +227,7 @@ python3 "../4_Migration_Instances/rpt_page_extractor.py" --info rebuilt.RPT
 The rebuilt file should show the same species, domain, page count, and section
 structure as the original. Text page content is byte-identical after roundtrip.
 
-### Example 7: Dry run (preview)
+### Example 8: Dry run (preview)
 
 ```bash
 python3 rpt_file_builder.py --species 49626 --domain 1 \
@@ -280,6 +311,10 @@ and `read_sectionhdr()` to confirm the output is a valid RPT file.
 | Object header file not found | `ERROR: Object header file not found: <path>` -- exits with code 1 |
 | Template file not found | `ERROR: Template file not found: <path>` -- exits with code 1 |
 | Invalid section spec format | `ERROR: Invalid section spec: <spec>` -- exits with code 1 |
+| Section CSV file not found | `error: Section CSV file not found: <path>` -- exits with code 2 |
+| Both `--section` and `--section-csv` | `error: Cannot use both --section and --section-csv` -- exits with code 2 |
+| CSV missing required columns | `ERROR: CSV missing required columns: <cols>` -- exits with code 1 |
+| No sections in CSV file | `ERROR: No sections found in CSV: <path>` -- exits with code 1 |
 | Non-ASCII text content | Characters replaced with `?` (no error, silent replacement) |
 | No `page_*.txt` in directory | `ERROR: No page_*.txt files found in <dir>` -- exits with code 1 |
 | Verification fails after build | `VERIFY FAIL` warning printed to stderr |

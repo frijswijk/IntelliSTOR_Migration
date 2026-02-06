@@ -24,9 +24,10 @@ echo   6. Show help
 echo   7. Extract all content (text + PDF/AFP) from an RPT file
 echo   8. Extract binary objects only (PDF/AFP) from an RPT file
 echo   9. Extract all pages as single concatenated file
+echo  10. Export sections as CSV file
 echo   0. Exit
 echo.
-set /p OPTION="Select option [0-9]: "
+set /p OPTION="Select option [0-10]: "
 
 if "%OPTION%"=="1" goto INFO
 if "%OPTION%"=="2" goto EXTRACT_ALL
@@ -37,6 +38,7 @@ if "%OPTION%"=="6" goto SHOW_HELP
 if "%OPTION%"=="7" goto EXTRACT_ALL_CONTENT
 if "%OPTION%"=="8" goto EXTRACT_BINARY
 if "%OPTION%"=="9" goto EXTRACT_CONCAT
+if "%OPTION%"=="10" goto EXPORT_CSV
 if "%OPTION%"=="0" goto EXIT
 echo Invalid option
 goto END
@@ -168,6 +170,22 @@ set /p OUTPUT_DIR="Enter output directory [.\extracted]: "
 if "%OUTPUT_DIR%"=="" set "OUTPUT_DIR=.\extracted"
 echo.
 python rpt_page_extractor.py --folder "%FOLDER%" --output "%OUTPUT_DIR%"
+goto END
+
+:EXPORT_CSV
+echo.
+echo --- Export sections as CSV file ---
+echo.
+echo Available RPT files in %RPT_DIR%:
+dir /b "%RPT_DIR%\*.RPT" 2>nul
+echo.
+set /p RPT_FILE="Enter RPT filename or full path: "
+set /p CSV_FILE="Enter output CSV file path [.\sections.csv]: "
+if "%CSV_FILE%"=="" set "CSV_FILE=.\sections.csv"
+if "%RPT_FILE%"=="" goto END
+if not exist "%RPT_FILE%" set "RPT_FILE=%RPT_DIR%\%RPT_FILE%"
+echo.
+python rpt_page_extractor.py --info --export-sections "%CSV_FILE%" "%RPT_FILE%"
 goto END
 
 :SHOW_HELP

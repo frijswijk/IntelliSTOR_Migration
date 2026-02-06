@@ -38,9 +38,10 @@ echo "  6. Show help"
 echo "  7. Extract all content (text + PDF/AFP) from an RPT file"
 echo "  8. Extract binary objects only (PDF/AFP) from an RPT file"
 echo "  9. Extract all pages as single concatenated file"
+echo " 10. Export sections as CSV file"
 echo "  0. Exit"
 echo ""
-read -p "Select option [0-9]: " OPTION
+read -p "Select option [0-10]: " OPTION
 
 case $OPTION in
     1)
@@ -189,6 +190,24 @@ case $OPTION in
             fi
             echo ""
             python3 rpt_page_extractor.py --page-concat --output "$OUTPUT_DIR" "$RPT_FILE"
+        fi
+        ;;
+    10)
+        echo ""
+        echo "--- Export sections as CSV file ---"
+        echo ""
+        echo "Available RPT files in ${RPT_DIR}:"
+        ls -1 "${RPT_DIR}"/*.RPT 2>/dev/null | xargs -I {} basename {}
+        echo ""
+        read -p "Enter RPT filename or full path: " RPT_FILE
+        read -p "Enter output CSV file path [./sections.csv]: " CSV_FILE
+        CSV_FILE="${CSV_FILE:-./sections.csv}"
+        if [ -n "$RPT_FILE" ]; then
+            if [ ! -f "$RPT_FILE" ]; then
+                RPT_FILE="${RPT_DIR}/${RPT_FILE}"
+            fi
+            echo ""
+            python3 rpt_page_extractor.py --info --export-sections "$CSV_FILE" "$RPT_FILE"
         fi
         ;;
     0)

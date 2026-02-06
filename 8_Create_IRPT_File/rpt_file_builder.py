@@ -23,6 +23,7 @@ import struct
 import zlib
 import os
 import sys
+import csv
 import argparse
 import re
 import glob as globmod
@@ -214,6 +215,43 @@ def collect_inputs(args) -> BuildSpec:
                 print(f"ERROR: Invalid section spec values: {sec_spec}", file=sys.stderr)
                 sys.exit(1)
             spec.sections.append(SectionDef(section_id=sid, start_page=sp, page_count=pc))
+    elif args.section_csv:
+        # Import sections from CSV (exported by rpt_page_extractor --export-sections)
+        try:
+            with open(args.section_csv, 'r', newline='') as csvfile:
+                reader = csv.DictReader(csvfile)
+                # Validate required columns
+                required = {'Section_Id', 'Start_Page', 'Pages'}
+                if not required.issubset(set(reader.fieldnames or [])):
+                    missing = required - set(reader.fieldnames or [])
+                    print(f"ERROR: CSV missing required columns: {missing}", file=sys.stderr)
+                    print(f"  Expected: Report_Species_Id,Section_Id,Start_Page,Pages", file=sys.stderr)
+                    sys.exit(1)
+                for row_num, row in enumerate(reader, start=2):
+                    try:
+                        sid = int(row['Section_Id'])
+                        sp = int(row['Start_Page'])
+                        pc = int(row['Pages'])
+                    except (ValueError, KeyError) as e:
+                        print(f"ERROR: Invalid CSV row {row_num}: {e}", file=sys.stderr)
+                        sys.exit(1)
+                    spec.sections.append(SectionDef(section_id=sid, start_page=sp, page_count=pc))
+                    # Auto-override species from first row if species is at default (0)
+                    if row_num == 2 and spec.species_id == 0 and 'Report_Species_Id' in row:
+                        try:
+                            csv_species = int(row['Report_Species_Id'])
+                            if csv_species != 0:
+                                spec.species_id = csv_species
+                                print(f"  Using species {csv_species} from CSV")
+                        except ValueError:
+                            pass  # Non-numeric species in CSV, ignore
+        except Exception as e:
+            print(f"ERROR: Failed to read section CSV: {e}", file=sys.stderr)
+            sys.exit(1)
+        if not spec.sections:
+            print(f"ERROR: No sections found in CSV: {args.section_csv}", file=sys.stderr)
+            sys.exit(1)
+        print(f"  Loaded {len(spec.sections)} sections from {args.section_csv}")
     else:
         # Default: single section covering all pages
         total_pages = len(text_pages)
@@ -898,6 +936,10 @@ Examples:
   python3 rpt_file_builder.py --species 12345 \\
     --section 14259:1:10 --section 14260:11:5 \\
     -o output.RPT page_*.txt
+
+  # Build RPT with sections from CSV (exported by rpt_page_extractor --export-sections)
+  python3 rpt_file_builder.py --section-csv sections.csv \\
+    -o output.RPT ./extracted/260271NL/
         """
     )
 
@@ -942,6 +984,12 @@ Examples:
         help='Section spec: "SECTION_ID:START_PAGE:PAGE_COUNT" (can repeat)'
     )
     parser.add_argument(
+        '--section-csv',
+        metavar='CSV_FILE',
+        help='CSV file with sections (Report_Species_Id,Section_Id,Start_Page,Pages). '
+             'Alternative to repeating --section.'
+    )
+    parser.add_argument(
         '--line-width',
         type=int,
         help='Override line width for all pages'
@@ -967,6 +1015,12 @@ Examples:
     )
 
     args = parser.parse_args()
+
+    # Validate mutually exclusive section options
+    if args.section and args.section_csv:
+        parser.error('Cannot use both --section and --section-csv')
+    if args.section_csv and not os.path.exists(args.section_csv):
+        parser.error(f'Section CSV file not found: {args.section_csv}')
 
     # Collect inputs
     spec = collect_inputs(args)
