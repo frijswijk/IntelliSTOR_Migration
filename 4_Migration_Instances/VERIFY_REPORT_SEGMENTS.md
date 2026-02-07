@@ -1,6 +1,37 @@
 # Report Segment Verification Guide
 
-## Purpose
+> **DEPRECATED (2026-02-07)**
+>
+> This document was written for `extract_instances_sections.py` v2.0, which used
+> MAP files as a fallback for segment name lookups. This approach was based on an
+> **incorrect assumption** that MAP files contain section/segment definitions.
+>
+> **Correct understanding:**
+> - **Section segregation** comes from RPT file SECTIONHDR binary structures (`rpt_section_reader.py`)
+> - **MAP files** are field-value search indices (ACCOUNT_NO indexing), NOT section definitions
+> - **REPORT_INSTANCE_SEGMENT** tracks ingestion arrival chunks, NOT section page ranges
+>
+> **Current tools for segment verification:**
+> ```bash
+> # Inspect RPT file sections directly
+> python rpt_section_reader.py /path/to/specific_file.RPT
+>
+> # Scan all RPT files in a folder
+> python rpt_section_reader.py --scan /path/to/rptfolder/
+>
+> # Extract instances with SEGMENTS from RPT SECTIONHDR
+> python Extract_Instances.py ... --rptfolder /path/to/rptfolder/
+> ```
+>
+> See `SECTION_SEGMENT_WORKFLOW.md` for the authoritative specification.
+
+---
+
+*The content below is preserved as historical reference only.*
+
+---
+
+## Purpose (DEPRECATED)
 This guide explains how to verify that report segments are correctly identified and extracted using the `extract_instances_sections.py` script with .MAP file integration.
 
 ---

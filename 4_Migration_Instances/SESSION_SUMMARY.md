@@ -135,7 +135,7 @@ FRX16.txt: Form Feed format, 10 pages ✓
 
 1. **Binary segments ≠ Database segments**
    - Binary **ME segments organize index data by LINE_ID/FIELD_ID
-   - Database REPORT_INSTANCE_SEGMENT tracks page ranges per section (branch)
+   - Database REPORT_INSTANCE_SEGMENT tracks ingestion arrival chunks (concatenation segments)
 
 2. **The MAP file does NOT store the actual field values directly searchable**
    - Instead, it provides a lookup: given (LINE_ID, FIELD_ID, value) → page number

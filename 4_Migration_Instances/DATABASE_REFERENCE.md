@@ -97,16 +97,17 @@ Spool file metadata.
 | LOCATION_ID | int | Storage location |
 
 ### REPORT_INSTANCE_SEGMENT
-Page ranges per section (branch) in a report instance.
+Ingestion arrival chunks (concatenation segments from spool arrivals) per report instance.
+**Note:** This table does NOT define section segregation. Section segregation comes from RPT file SECTIONHDR.
 
 | Column | Type | Description |
 |--------|------|-------------|
 | DOMAIN_ID | int | Domain identifier |
 | REPORT_SPECIES_ID | int | Report type identifier |
 | AS_OF_TIMESTAMP | datetime | Timestamp |
-| SEGMENT_NUMBER | int | Segment index (positional) |
-| START_PAGE_NUMBER | int | First page of segment |
-| NUMBER_OF_PAGES | int | Page count in segment |
+| SEGMENT_NUMBER | int | Sequential arrival chunk index (0, 1, 2...) |
+| START_PAGE_NUMBER | int | First page of this arrival chunk in concatenated spool |
+| NUMBER_OF_PAGES | int | Page count in this arrival chunk |
 
 ### LINE
 Line definitions for report structure.
@@ -267,7 +268,7 @@ REPORT_INSTANCE
     │
     ├── RPTFILE_INSTANCE ──► RPTFILE (spool file)
     │
-    └── REPORT_INSTANCE_SEGMENT (page ranges per section)
+    └── REPORT_INSTANCE_SEGMENT (ingestion arrival chunks)
 
 REPORT_SPECIES_NAME ──► REPORT_SPECIES_ID
 

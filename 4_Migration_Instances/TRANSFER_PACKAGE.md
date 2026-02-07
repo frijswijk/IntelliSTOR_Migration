@@ -129,6 +129,8 @@ After completing the plan:
 - Binary MAP files are NOT text files - they use UTF-16LE encoding
 - Segment count is reliably at bytes 18-19 (little-endian 16-bit unsigned)
 - Section names are in the database, not in binary MAP files
+- MAP files are field-value search indices (ACCOUNT_NO indexing), NOT section/segment definitions
+- Section segregation comes from RPT file SECTIONHDR — see `SECTION_SEGMENT_WORKFLOW.md`
 - Some MAP files may have 0 segments (empty)
 - Total MAP files: 26,724
 

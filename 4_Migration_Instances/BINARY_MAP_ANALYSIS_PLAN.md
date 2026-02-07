@@ -2,9 +2,13 @@
 
 ## Executive Summary
 
-We are analyzing 26,724 binary MAP files from an IntelliSTOR system. These MAP files serve two purposes:
-1. **Segment/Section definitions** - Identifying sections within reports
+We are analyzing 26,724 binary MAP files from an IntelliSTOR system. These MAP files serve as:
+1. **Field-value search indices** - Enabling lookup of IS_INDEXED field values (e.g., ACCOUNT_NO) to find which page(s) contain a given value
 2. **Multi-row column extraction rules** - Metadata for extracting tabular data from report pages
+
+> **CORRECTION (2026-02-07):** MAP files do NOT define sections or segments for page segregation.
+> Section segregation comes exclusively from **RPT file SECTIONHDR** binary structures.
+> See `SECTION_SEGMENT_WORKFLOW.md` Sections 7-8 for the authoritative specification.
 
 ## Current Progress
 
@@ -46,27 +50,27 @@ Located in: `C:\Users\freddievr\claude-projects\IntelliSTOR_Migration\4. Migrati
 - Contains section names like "501 49", "503 00", etc.
 - SECTION_ID ranges from 0, 1, 669, 670...
 
-### KEY INSIGHT: REPORT_INSTANCE_SEGMENT Table
+### CORRECTED INSIGHT: REPORT_INSTANCE_SEGMENT Table
 
-**Critical Discovery** (User hypothesis - needs verification):
+> **CORRECTION (2026-02-07):** The original hypothesis below was **incorrect**.
+> `REPORT_INSTANCE_SEGMENT` tracks **ingestion arrival chunks** (concatenation segments
+> from spool arrivals), NOT MAP file binary segment positions. See `SECTION_SEGMENT_WORKFLOW.md`
+> Section 3.2 for the correct explanation.
 
-The `REPORT_INSTANCE_SEGMENT` table likely provides the missing link:
-- `SEGMENT_NUMBER` field corresponds to the position in the binary MAP file (0, 1, 2...)
-- This matches the `**ME` marker index in the binary structure
-- `SECTION_ID` field links to the SECTION table for actual segment names
+**What REPORT_INSTANCE_SEGMENT actually tracks:**
+- `SEGMENT_NUMBER` = sequential arrival chunk index (0, 1, 2...) for spool concatenation
+- `START_PAGE_NUMBER` / `NUMBER_OF_PAGES` = where that arrival chunk's pages land in the concatenated spool
+- This table is about **ingestion logistics**, NOT section/page segregation
 
-**Relationship Chain:**
-```
-Binary MAP File (25001001.MAP)
-  └─ Segment at position 0 (first **ME marker)
-      └─ REPORT_INSTANCE_SEGMENT.SEGMENT_NUMBER = 0
-          └─ REPORT_INSTANCE_SEGMENT.SECTION_ID = 669
-              └─ SECTION.NAME = "501 49"
-```
+**What MAP file binary segments actually represent:**
+- Each `**ME` marker organizes index data by (LINE_ID, FIELD_ID) combination
+- Segment 0 = lookup/directory table mapping fields to segment numbers
+- Segments 1-N = sorted field-value index entries for IS_INDEXED fields
+- See `SESSION_SUMMARY.md` and `SECTION_SEGMENT_WORKFLOW.md` Section 6
 
-This means segment names are NOT stored in the binary MAP files themselves, but rather:
-1. Binary MAP files define the STRUCTURE (how many segments, their positions)
-2. Database stores the MEANING (which section each segment number refers to)
+**Section segregation** (which pages belong to which branch) comes from:
+- **RPT file SECTIONHDR** binary structures (12-byte triplets: SECTION_ID, START_PAGE, PAGE_COUNT)
+- Implemented in `rpt_section_reader.py`
 
 ## Phase 1: Database Schema Analysis
 
@@ -87,9 +91,9 @@ SELECT COUNT(*) AS total_segments FROM SEGMENT_SPEC_TYPE;
 SELECT TOP 10 * FROM SECTION;
 SELECT COUNT(*) AS total_sections FROM SECTION;
 
--- 4. REPORT_INSTANCE_SEGMENT table - KEY TABLE for linking!
--- HYPOTHESIS: segment_number corresponds to position in binary MAP file (0,1,2...)
---             and links to SECTION_ID for the actual section name
+-- 4. REPORT_INSTANCE_SEGMENT table - tracks ingestion arrival chunks
+-- NOTE: SEGMENT_NUMBER = arrival chunk index, NOT MAP binary segment position
+--       See SECTION_SEGMENT_WORKFLOW.md Section 3.2
 SELECT TOP 20 * FROM REPORT_INSTANCE_SEGMENT;
 SELECT COUNT(*) AS total_instance_segments FROM REPORT_INSTANCE_SEGMENT;
 
@@ -218,86 +222,64 @@ ORDER BY mf.MAP_FILE_ID, ris.SEGMENT_NUMBER;
 ### Goal
 Determine how the binary MAP file structure correlates with database records.
 
-### HYPOTHESIS (User Insight - HIGH PRIORITY TO VERIFY)
+### CORRECTED UNDERSTANDING (2026-02-07)
 
-**REPORT_INSTANCE_SEGMENT table is the key linking mechanism:**
+> The original hypothesis that REPORT_INSTANCE_SEGMENT links MAP binary segments to SECTION names
+> was **incorrect**. REPORT_INSTANCE_SEGMENT tracks ingestion arrival chunks, not MAP structure.
+
+**Correct correlation for MAP binary segments:**
+
+MAP `**ME` segments correspond to **indexed field definitions** (LINE_ID, FIELD_ID from FIELD table where IS_INDEXED=1):
 
 ```
-Binary MAP File Position (0, 1, 2...)
+Binary MAP File Segment N (at **ME marker #N)
     ↓
-REPORT_INSTANCE_SEGMENT.SEGMENT_NUMBER
+Contains index entries for field: (LINE_ID, FIELD_ID)
     ↓
-REPORT_INSTANCE_SEGMENT.SECTION_ID
-    ↓
-SECTION.NAME (actual segment name like "501 49")
+FIELD table: FIELD.NAME (e.g., "ACCOUNT_NO")
 ```
 
-**Key Assumption:**
-- `SEGMENT_NUMBER` in REPORT_INSTANCE_SEGMENT corresponds to the segment index in the binary MAP file
-- The `**ME` marker at position 0 = SEGMENT_NUMBER 0
-- The `**ME` marker at position 1 = SEGMENT_NUMBER 1, etc.
-- The SECTION_ID links to the SECTION table to get the actual name
-
-**Verification Query:**
-```sql
--- For a specific MAP file, compare:
--- 1. Binary segment count (from bytes 18-19)
--- 2. Database segment count (from REPORT_INSTANCE_SEGMENT)
-
-SELECT
-    ri.REPORT_INSTANCE_ID,
-    mf.FILENAME AS MAP_FILENAME,
-    COUNT(DISTINCT ris.SEGMENT_NUMBER) AS db_segment_count,
-    STRING_AGG(CAST(ris.SEGMENT_NUMBER AS VARCHAR), ',') AS segment_numbers,
-    STRING_AGG(s.NAME, ' | ') AS segment_names
-FROM REPORT_INSTANCE ri
-JOIN MAPFILE mf ON mf.MAP_FILE_ID = ri.MAP_FILE_ID
-JOIN REPORT_INSTANCE_SEGMENT ris ON ris.REPORT_INSTANCE_ID = ri.REPORT_INSTANCE_ID
-JOIN SECTION s ON s.SECTION_ID = ris.SECTION_ID
-WHERE mf.FILENAME = '25001001.MAP'
-GROUP BY ri.REPORT_INSTANCE_ID, mf.FILENAME;
-```
+**Segment 0** is special — it's a directory/lookup table mapping (LINE_ID, FIELD_ID) to segment numbers.
 
 ### Tasks
 
-1. **Verify the hypothesis**:
-   - Pick 5-10 MAP files where we know the binary segment count
-   - Query REPORT_INSTANCE_SEGMENT for those MAP files
-   - Verify: Binary segment count = MAX(SEGMENT_NUMBER) + 1
-   - Verify: SEGMENT_NUMBER values are 0, 1, 2... (sequential)
+1. **Correlate MAP segments with FIELD definitions**:
+   - For each MAP file, read Segment 0 (directory) to extract (LINE_ID, FIELD_ID) mappings
+   - Join to FIELD table to get field names
+   - Verify: number of `**ME` markers matches number of IS_INDEXED fields + 1 (for Segment 0)
 
-2. **Compare segment counts**:
+2. **Compare binary segment count with field count**:
    - Binary MAP files: Read segment count from bytes 18-19
-   - Database: Count segments per MAP_FILE_ID via REPORT_INSTANCE_SEGMENT
-   - Verify they match
+   - Database: Count IS_INDEXED fields for the report species
+   - Expected: binary segment count = IS_INDEXED field count + 1 (Segment 0)
 
-3. **Identify segment ordering**:
-   - Binary MAP files have segments at specific `**ME` marker positions (0, 1, 2...)
-   - REPORT_INSTANCE_SEGMENT has SEGMENT_NUMBER (likely 0, 1, 2...)
-   - Verify: Binary position index = SEGMENT_NUMBER
-
-3. **Create lookup table** (based on verified hypothesis):
+3. **Create field-to-segment lookup table**:
    ```python
-   # map_file_lookup.json
+   # map_field_lookup.json
    {
        "25001001.MAP": {
            "map_file_id": 12345,
-           "binary_segment_count": 3,
+           "binary_segment_count": 9,
            "segments": [
                {
-                   "segment_number": 0,      # Position in binary MAP (at **ME marker #0)
-                   "section_id": 669,        # From REPORT_INSTANCE_SEGMENT
-                   "section_name": "501 49"  # From SECTION table
+                   "segment_index": 0,       # Segment 0 = directory/lookup table
+                   "type": "directory"
                },
                {
-                   "segment_number": 1,      # Position in binary MAP (at **ME marker #1)
-                   "section_id": 670,
-                   "section_name": "503 00"
+                   "segment_index": 1,       # First indexed field
+                   "line_id": 4,
+                   "field_id": 2,
+                   "field_name": "ACCOUNT_NO",
+                   "field_width": 55,
+                   "entry_count": 13
                },
                {
-                   "segment_number": 2,      # Position in binary MAP (at **ME marker #2)
-                   "section_id": 671,
-                   "section_name": "504 00"
+                   "segment_index": 2,       # Second indexed field
+                   "line_id": 5,
+                   "field_id": 3,
+                   "field_name": "CUSTOMER_NAME",
+                   "field_width": 18,
+                   "entry_count": 13
                }
            ]
        }
@@ -312,11 +294,11 @@ GROUP BY ri.REPORT_INSTANCE_ID, mf.FILENAME;
 #!/usr/bin/env python3
 """
 Complete Binary MAP File Parser
-Extracts all segment information using database lookups
+Extracts field-value index structure with database field definitions
 
 Requires:
-    - map_file_lookup.json (from Phase 2)
-    - Database connection OR CSV exports
+    - map_field_lookup.json (from Phase 2)
+    - Database connection OR CSV exports (FIELD table)
 
 Usage:
     python parse_binary_map_complete.py <map_file_path>
@@ -326,24 +308,31 @@ Usage:
 import struct
 import json
 
-def parse_binary_map_with_db(map_file_path, lookup_data):
+def parse_binary_map_with_fields(map_file_path, field_definitions):
     """
-    Parse binary MAP file and enrich with database information
+    Parse binary MAP file and correlate with FIELD table definitions
 
     Returns:
         {
             'filename': '25001001.MAP',
-            'segment_count': 3,
+            'segment_count': 9,
             'segments': [
                 {
                     'index': 0,
-                    'segment_id': 850,
-                    'segment_name': 'Header Section',
-                    'section_id': 669,
-                    'section_name': '501 49',
+                    'type': 'directory',
                     'me_marker_position': 90,
-                    'next_offset': 386,
-                    'metadata': {...}
+                    'entries': [(line_id, field_id, segment_num), ...]
+                },
+                {
+                    'index': 1,
+                    'type': 'field_index',
+                    'line_id': 4,
+                    'field_id': 2,
+                    'field_name': 'ACCOUNT_NO',
+                    'field_width': 55,
+                    'entry_count': 13,
+                    'me_marker_position': 482,
+                    'next_offset': 748
                 }
             ]
         }
@@ -352,12 +341,12 @@ def parse_binary_map_with_db(map_file_path, lookup_data):
     pass
 ```
 
-### Create: `batch_extract_all_segments.py`
+### Create: `batch_extract_all_fields.py`
 
 Batch process all 26,724 MAP files and create:
-- **segments_complete.csv** - All segments with names
-- **segments_summary.json** - Summary statistics
-- **missing_segments.txt** - MAP files with missing data
+- **map_fields_complete.csv** - All MAP segments with field definitions
+- **map_field_statistics.json** - Summary statistics
+- **missing_fields.txt** - MAP files with unresolved field definitions
 
 ## Phase 4: Multi-Row Column Extraction Rules
 
@@ -386,20 +375,20 @@ Some MAP files contain rules for extracting multi-row/column data from report pa
 
 ## Phase 5: Output Deliverables
 
-### 1. Complete Segment Mapping
+### 1. Complete Field-to-Segment Mapping
 
-**File: `map_segments_complete.csv`**
+**File: `map_fields_complete.csv`**
 
 Columns:
 ```
-MAP_FILENAME, MAP_FILE_ID, SEGMENT_INDEX, SEGMENT_ID, SEGMENT_NAME, SECTION_ID, SECTION_NAME, REPORT_SPECIES_ID, DOMAIN_ID
+MAP_FILENAME, MAP_FILE_ID, SEGMENT_INDEX, LINE_ID, FIELD_ID, FIELD_NAME, FIELD_WIDTH, ENTRY_COUNT, REPORT_SPECIES_ID, DOMAIN_ID
 ```
 
 Example:
 ```csv
-25001001.MAP,12345,0,850,"Header Section",669,"501 49",0,1
-25001001.MAP,12345,1,851,"Detail Section",670,"503 00",0,1
-25001001.MAP,12345,2,852,"Footer Section",671,"504 00",0,1
+25001001.MAP,12345,0,0,0,"(directory)",0,20,45279,1
+25001001.MAP,12345,1,4,2,"ACCOUNT_NO",55,13,45279,1
+25001001.MAP,12345,2,5,3,"CUSTOMER_NAME",18,13,45279,1
 ```
 
 ### 2. MAP File Statistics
@@ -422,7 +411,7 @@ Example:
     "files_with_column_rules": 1500,
     "missing_data": {
         "files_without_db_match": 10,
-        "segments_without_names": 5
+        "segments_without_field_defs": 5
     }
 }
 ```
@@ -434,20 +423,24 @@ Example:
 ```python
 """
 IntelliSTOR Binary MAP File Parser
-Reusable module for parsing binary MAP files with database lookups
+Reusable module for parsing binary MAP files and extracting field-value indices
 """
 
 class MapFileParser:
-    def __init__(self, db_connection=None, lookup_file=None):
-        """Initialize with database connection or lookup JSON"""
+    def __init__(self, db_connection=None, field_lookup_file=None):
+        """Initialize with database connection or field lookup JSON"""
         pass
 
     def parse_file(self, map_file_path):
-        """Parse single MAP file"""
+        """Parse single MAP file binary structure"""
         pass
 
-    def get_segment_names(self, map_file_path):
-        """Get list of segment names for MAP file"""
+    def get_indexed_fields(self, map_file_path):
+        """Get list of indexed fields (LINE_ID, FIELD_ID, FIELD_NAME) from MAP file"""
+        pass
+
+    def search_field_value(self, map_file_path, line_id, field_id, value):
+        """Search for a field value and return matching page numbers"""
         pass
 
     def get_column_rules(self, map_file_path):
@@ -455,26 +448,30 @@ class MapFileParser:
         pass
 ```
 
-## Phase 6: Integration with Existing Scripts
+## Phase 6: Integration with Migration
 
-Update existing scripts to use the new MAP parser:
+> **NOTE (2026-02-07):** `Extract_Instances.py` v3.0 already uses RPT file SECTIONHDR for
+> section data (via `rpt_section_reader.py`). MAP file parsing is NOT needed for section extraction.
 
-1. **extract_instances_sections.py**:
-   - Replace text MAP file parsing with binary MAP parser
-   - Use database-backed segment name lookups
+MAP binary parsing is relevant for:
 
-2. **Extract_Instances.py**:
-   - Add segment name resolution
-   - Integrate column extraction rules
+1. **Account-index migration** — migrating ACCOUNT_NO search functionality to the new system
+   - See `SECTION_SEGMENT_WORKFLOW.md` Section 12.2B (INSTANCE_ACCOUNT_INDEX table)
+   - Extract field-value → page mappings from MAP files
+   - Build new database index tables for the replacement system
+
+2. **Column extraction rules** — understanding how multi-row/column tabular data is defined
+   - MAP file metadata may contain column position/width definitions
+   - Useful for automating data extraction from spool pages
 
 ## Success Criteria
 
 - [ ] All 26,724 MAP files successfully parsed
-- [ ] Segment counts match between binary files and database
-- [ ] All segment names resolved from database
+- [ ] MAP binary segment count matches IS_INDEXED field count per report species
+- [ ] All MAP segments correlated with FIELD table definitions (LINE_ID, FIELD_ID, FIELD_NAME)
 - [ ] Column extraction rules identified and documented
-- [ ] Reusable Python module created
-- [ ] Existing migration scripts updated
+- [ ] Reusable Python module created for field-value index extraction
+- [ ] Account-index migration deliverables produced (field-value → page mappings)
 
 ## Questions to Answer
 
@@ -549,5 +546,6 @@ Original analysis performed on Windows machine:
 ---
 
 *Plan created: 2026-02-03*
+*Updated: 2026-02-07 (corrected MAP file purpose — field-value search indices, not section definitions)*
 *For: IntelliSTOR to new system migration*
-*Binary MAP file analysis and segment extraction*
+*Binary MAP file analysis and field-value index extraction*

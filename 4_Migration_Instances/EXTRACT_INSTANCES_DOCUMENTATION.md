@@ -903,6 +903,7 @@ except Exception as e:
 - Added MapFileCache class with intelligent caching
 - Added --map-dir command-line argument
 - Enhanced segment processing with fallback logic
+- *(Superseded in v3.0 — MAP files are not used for segment lookups; see v3.0 notes above)*
 
 ### Version 1.0
 - Initial release
