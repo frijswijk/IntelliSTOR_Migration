@@ -223,6 +223,9 @@ Each batch file creates its own log file with execution history:
 | Analyze_AFP_Resources_SG.bat | Analyze_AFP_Resources_SG_LOG.txt |
 | Batch_Zip_Encrypt_SG.bat | Batch_Zip_Encrypt_SG_LOG.txt |
 | *(same pattern for MY)* | *(same pattern for MY)* |
+| Cleanup_Report_Instances.bat/.command | Cleanup_Report_Instances_LOG.txt |
+| Cleanup_Old_Signatures.bat/.command | Cleanup_Old_Signatures_LOG.txt |
+| Cleanup_Orphaned_Files.bat/.command | Cleanup_Orphaned_Files_LOG.txt |
 
 **Log Format**:
 ```
@@ -303,11 +306,27 @@ IntelliSTOR_Migration\
 │   ├── Batch_Zip_Encrypt_SG.bat          # ✅ CREATED
 │   └── Batch_Zip_Encrypt_MY.bat          # ✅ CREATED
 │
-└── 7_AFP_Resources\
-    ├── Analyze_AFP_Resources.py          # ✅ CREATED
-    ├── Analyze_AFP_Resources_SG.bat      # ✅ CREATED
-    ├── Analyze_AFP_Resources_MY.bat      # ✅ CREATED
-    └── README.md                          # ✅ CREATED
+├── 7_AFP_Resources\
+│   ├── Analyze_AFP_Resources.py          # ✅ CREATED
+│   ├── Analyze_AFP_Resources_SG.bat      # ✅ CREATED
+│   ├── Analyze_AFP_Resources_MY.bat      # ✅ CREATED
+│   └── README.md                          # ✅ CREATED
+│
+└── 98_Cleanup_DB\
+    ├── cleanup_report_instances.py        # ✅ MOVED from root
+    ├── cleanup_old_signatures.py          # ✅ MOVED from root
+    ├── cleanup_orphaned_files.py          # ✅ MOVED from root
+    ├── verify_signature_relationships.py  # ✅ MOVED from root
+    ├── Cleanup_Report_Instances.bat       # ✅ MOVED from root
+    ├── Cleanup_Report_Instances.command   # ✅ MOVED from root
+    ├── Cleanup_Old_Signatures.bat         # ✅ MOVED from root
+    ├── Cleanup_Old_Signatures.command     # ✅ MOVED from root
+    ├── Cleanup_Orphaned_Files.bat         # ✅ MOVED from root
+    ├── Cleanup_Orphaned_Files.command     # ✅ MOVED from root
+    ├── DELETE_FUTURE_INSTANCES.bat        # ✅ MOVED from root
+    ├── DELETE_FUTURE_INSTANCES.command     # ✅ MOVED from root
+    ├── SIGNATURE_CLEANUP_ANALYSIS.md      # ✅ MOVED from root
+    └── SIGNATURE_CLEANUP_README.md        # ✅ MOVED from root
 ```
 
 ---
@@ -322,7 +341,8 @@ When migrating to a new machine:
 4. ☐ Test Generate_Test_Files_XX.bat
 5. ☐ Test Analyze_AFP_Resources_XX.bat
 6. ☐ Test Batch_Zip_Encrypt_XX.bat
-7. ☐ Verify all log files are created
+7. ☐ Test Cleanup_Report_Instances.bat/.command (in 98_Cleanup_DB)
+8. ☐ Verify all log files are created
 8. ☐ Verify output directories are created automatically
 9. ☐ Check execution logs for duration tracking
 
