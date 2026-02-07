@@ -1,0 +1,76 @@
+REPORT ID: OC_ITH_DETDINAC02   Oversea-Chinese Banking Corporation Limited, Thailand Branch              850-OCBC Bangkok Branch                        RUN DATE: 26-01-2026 19:03
+OCBC       Inactive and Unclaimed Time Report                                                                                                           REPORT DATE:26-01-2026
+                      TOTAL RECORDS:  24                                                                                                                PAGE NO: 1
+CUSTOMER      CUSTOMER                                            DEAL TYPE/  DEAL    VALUE    MATURITY  CCY               AMOUNT                ORIG VALUE  STATUS
+NUMBER        NAME                                                SUBTYPE     NUMBER  DATE     DATE                                              DATE
+------------  --------------------------------------------------  ----------  ------  -------- --------  ---  ---------------------------------  ----------  ------------
+A/C OFFICER: 04-Chayanon Wannathepsakul
+100321        SNAM100321                                          TD          954068  24/05/24 26/05/25  THB                               0.00  24/05/16    INACTIVE
+100321        SNAM100321                                          TD          954258  16/09/24 16/09/25  THB                      10,000,000.00  09/06/10    UNCLAIMED
+400003        SNAM400003                                          TD          954430  16/12/24 16/06/25  THB                       1,753,459.01  12/12/18    INACTIVE
+400003        SNAM400003                                          TD          954531  03/02/25 04/08/25  THB                         516,123.19  28/01/19    INACTIVE
+400003        SNAM400003                                          TD          954538  13/02/25 13/05/25  THB                         324,762.93  09/11/20    INACTIVE
+400003        SNAM400003                                          TD          954565  10/03/25 10/09/25  THB                       3,893,020.30  06/11/14    UNCLAIMED
+400003        SNAM400003                                          TD          954581  18/03/25 18/09/25  THB                         314,301.47  14/03/17    INACTIVE
+A/C OFFICER: 05-Nantinee Yuktanand
+400031        SNAM400031                                          TD          954290  30/09/24 30/06/25  THB                   1,000,000,000.00  11/05/20    INACTIVE
+107946        SNAM107946                                          TD          954328  17/10/24 17/07/25  THB                       2,000,000.00  09/05/17    INACTIVE
+107946        SNAM107946                                          TD          954329  17/10/24 17/07/25  THB                       2,000,000.00  09/05/17    INACTIVE
+403022        SNAM403022                                          TD          954396  27/11/24 27/08/25  THB                     100,000,000.00  26/11/21    INACTIVE
+403022        SNAM403022                                          TD          954399  29/11/24 29/08/25  THB                      20,000,000.00  29/11/21    INACTIVE
+403022        SNAM403022                                          TD          954411  02/12/24 02/09/25  THB                     170,000,000.00  30/11/21    INACTIVE
+A/C OFFICER: 06-Patcharaporn Kree-Ngern
+400047        SNAM400047                                          TD          954312  09/10/24 18/04/25  THB                      58,675,449.51  04/09/17    INACTIVE
+400045        SNAM400045                                          TD          954472  06/01/25 06/01/26  THB                       5,209,929.53  29/12/17    INACTIVE
+400046        SNAM400046                                          TD          954473  06/01/25 06/01/26  THB                       2,604,964.77  29/12/17    INACTIVE
+A/C OFFICER: 11-Tarisa Payakkapan
+108969        SNAM108969                                          TD          954466  03/01/25 03/04/25  THB                         216,900.00  28/06/18    INACTIVE
+403576        SNAM403576                                          TD          954511  24/01/25 24/04/25  THB                     206,116,732.82  11/05/21    INACTIVE
+108779        SNAM108779                                          TD          954588  24/03/25 28/04/25  THB                     108,178,634.42  21/02/18    INACTIVE
+108779        SNAM108779                                          TD          954589  24/03/25 28/04/25  THB                     180,910,304.54  17/04/19    INACTIVE
+108779        SNAM108779                                          TD          954591  24/03/25 28/04/25  THB                     107,619,100.03  01/02/17    INACTIVE
+A/C OFFICER: 15-Apicha Chandanabodhi
+403550        SNAM403550                                          TD          954263  16/09/24 16/09/25  USD                       2,692,321.46  07/09/12    UNCLAIMED
+403840        SNAM403840                                          TD          954269  18/09/24 18/09/25  THB                       2,000,000.00  14/09/18    INACTIVE
+403840        SNAM403840                                          TD          954417  04/12/24 04/12/25  THB                       4,072,062.59  02/12/19    INACTIVE
+REPORT ID: OC_ITH_DETDINAC02   Oversea-Chinese Banking Corporation Limited, Thailand Branch              850-OCBC Bangkok Branch                        RUN DATE: 26-01-2026 19:03
+OCBC       Inactive and Unclaimed Time Report                                                                                                           REPORT DATE:26-01-2026
+                      TOTAL RECORDS:  24                                                                                                                PAGE NO: 2
+CUSTOMER      CUSTOMER                                            DEAL TYPE/  DEAL    VALUE    MATURITY  CCY               AMOUNT                ORIG VALUE  STATUS
+NUMBER        NAME                                                SUBTYPE     NUMBER  DATE     DATE                                              DATE
+------------  --------------------------------------------------  ----------  ------  -------- --------  ---  ---------------------------------  ----------  ------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                          TOTAL NUMBER OF INACTIVE  :21
+                                          TOTAL NUMBER OF UNCLAIMED :3
+                                          TOTAL NUMBER OF DEALS     :24
+
+
+
+                                       *** END OF REPORT ***
+

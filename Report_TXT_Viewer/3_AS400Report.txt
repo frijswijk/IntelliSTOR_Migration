@@ -1,0 +1,95 @@
+1
+ DATE PRINTED: 22/04/20    0:58:13
+ TEST BANK                              BRANCH: 631                                                           ZZZ530P     PAGE    1
+                                                                                                            PROCESS DATE :  21/04/20
+ BRANCH: 631 TEST Bank                                                                                      PROCESS THRU :  21/04/20
+-DCEC/SFRP Account with all COIs Fully Payoff and Balance >= 0
+-    CIF NUMBER                           NRIC                                       CUSTOMER NAME
+     ACCOUNT NUMBER                       ACCOUNT STS                                PRODUCT
+ 01           2000497773                  S1823215D                                  TESTCOVID02
+ 02  631-011087-001                       ACTIVE                                     D1-SFRP (Unsecured)
+     HOLDCODE/REMARKS
+ 03
+ 04
+ 05
+ 06
+ 07
+ 08
+ 09
+ 10
+ 11
+ 12
+     CIF NUMBER                           NRIC                                       CUSTOMER NAME
+     ACCOUNT NUMBER                       ACCOUNT STS                                PRODUCT
+ 01           2000497783                  S9433668F                                  TESTCOVID08
+ 02  631-011103-001                       ACTIVE                                     D1-SFRP (Unsecured)
+     HOLDCODE/REMARKS
+ 03
+ 04
+ 05
+ 06
+ 07
+ 08
+ 09
+ 10
+ 11
+ 12
+1
+ DATE PRINTED: 22/04/20    0:58:13
+ TEST BANK                              BRANCH: 631                                                           ZZZ530P     PAGE    2
+                                                                                                            PROCESS DATE :  21/04/20
+ BRANCH: 631 TEST Bank                                                                                      PROCESS THRU :  21/04/20
+-DCEC/SFRP Account with all COIs Fully Payoff and Balance >= 0
+-    CIF NUMBER                           NRIC                                       CUSTOMER NAME
+     ACCOUNT NUMBER                       ACCOUNT STS                                PRODUCT
+ 01           2000497771                  S2821954G                                  TESTCOVID01
+ 02  631-011459-001                       ACTIVE                                     D0-DEBT CONSOLIDATION
+     HOLDCODE/REMARKS
+ 03
+ 04
+ 05
+ 06
+ 07
+ 08
+ 09
+ 10
+ 11
+ 12
+     CIF NUMBER                           NRIC                                       CUSTOMER NAME
+     ACCOUNT NUMBER                       ACCOUNT STS                                PRODUCT
+ 01           2000493583                  S4231496Z                                  TESTNOAI
+ 02  631-011509-001                       ACTIVE                                     D0-DEBT CONSOLIDATION
+     HOLDCODE/REMARKS
+ 03
+ 04
+ 05
+ 06
+ 07
+ 08
+ 09
+ 10
+ 11
+ 12
+1
+ DATE PRINTED: 22/04/20    0:58:13
+ TEST BANK                              BRANCH: 634                                                           ZZZ530P     PAGE    3
+                                                                                                            PROCESS DATE :  21/04/20
+ BRANCH: 634 TEST Bank                                                                                      PROCESS THRU :  21/04/20
+-DCEC/SFRP Account with all COIs Fully Payoff and Balance >= 0
+-    CIF NUMBER                           NRIC                                       CUSTOMER NAME
+     ACCOUNT NUMBER                       ACCOUNT STS                                PRODUCT
+ 01           2000494348                  S5456534H                                  TESTING1207201901
+ 02  634-000673-001                       ACTIVE                                     D0-DEBT CONSOLIDATION
+     HOLDCODE/REMARKS
+ 03
+ 04
+ 05
+ 06
+ 07
+ 08
+ 09
+ 10
+ 11
+ 12
+ TOTAL NUMBER OF ACCOUNT :      5
+0                                                 ** End of report **       Reviewed by:                Date:

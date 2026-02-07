@@ -46,6 +46,9 @@ Migration_data/
 TestFiles*/
 EncryptedArchives*/
 AFP_Resources/
+extracted_test*/
+concat_test/
+roundtrip_test/
 
 # Database
 *.db
@@ -68,7 +71,18 @@ secrets.json
 *.temp
 nul
 
+# Test outputs
+test_output.txt
+test_output.pdf
+test_all_pages.txt
+test_all_pages.pdf
+test.rpt
+rebuilt*.RPT
+test_sections.RPT
+
 # Windows
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+.claude/settings.local.json

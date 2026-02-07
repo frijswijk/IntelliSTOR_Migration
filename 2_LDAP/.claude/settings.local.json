@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "WebSearch",
-      "Bash(python ldap_integration.py:*)",
-      "Bash(pip install:*)"
-    ]
-  }
-}

@@ -1,0 +1,13 @@
+1DATE PRINTED 23/01/25    18:00:00
+ UAT-UA BANK                            BRANCH:866                                                                                                                                 IG2350P   PAGE    1
+ BRANCH:866 Account Services                                                                                                                                                   PROCESS DATE :  2/12/24
+ Giro Form Management Daily Reject Report                                                                                                                                      PROCESS THRU :  2/12/24
+ MAKER ID                :
+0ORIGINATING ACCOUNT NO.                        ORIG ACCOUNT NAME    RECEIVING ACCOUNT NO.                          REC ACCOUNT NAME     DDA REFERENCE NO                    RPT STAT   REJ CODE
+ UPD DT   CHECKER ID  REJECT REASON
+0TOTAL RECORD BY                         :
+ TOTAL RECORD BY ALL MAKERS              :
+                                                ** No record found **
+-
+                                                                                  REVIEWED BY :             DATE :
+-                                                     * End of Report *

@@ -22,6 +22,7 @@
 // to RPTINSTHDR at absolute position 0xF0.
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <cstring>
@@ -1286,6 +1287,42 @@ static std::vector<SectionDef> parse_section_csv(const std::string& csv_path,
 }
 
 // ============================================================================
+// Utility: Split concatenated file by form-feed characters
+// ============================================================================
+
+static std::vector<std::vector<uint8_t>> split_by_formfeed(const std::vector<uint8_t>& data) {
+    std::vector<std::vector<uint8_t>> pages;
+
+    size_t start = 0;
+    for (size_t i = 0; i < data.size(); ++i) {
+        // Check for form-feed character (0x0C or '\f')
+        if (data[i] == 0x0C || data[i] == '\f') {
+            // Extract page from start to current position (excluding form-feed)
+            if (i > start) {
+                std::vector<uint8_t> page(data.begin() + start, data.begin() + i);
+                pages.push_back(std::move(page));
+            }
+            // Skip form-feed and any following newline
+            start = i + 1;
+            if (start < data.size() && (data[start] == '\n' || data[start] == '\r')) {
+                start++;
+                if (start < data.size() && data[start - 1] == '\r' && data[start] == '\n') {
+                    start++; // Skip CRLF
+                }
+            }
+        }
+    }
+
+    // Add remaining content as last page
+    if (start < data.size()) {
+        std::vector<uint8_t> page(data.begin() + start, data.end());
+        pages.push_back(std::move(page));
+    }
+
+    return pages;
+}
+
+// ============================================================================
 // Input Collection
 // ============================================================================
 
@@ -1383,8 +1420,41 @@ static BuildSpec collect_inputs(
             auto data = read_file(pf);
             text_pages.push_back(std::move(data));
         }
+    } else if (input_files.size() == 1 && !fs::is_directory(input_files[0])) {
+        // Single file mode: check if it's a concatenated file with form-feeds
+        const auto& fpath = input_files[0];
+        if (!fs::exists(fpath)) {
+            std::cerr << "ERROR: Input file not found: " << fpath << "\n";
+            std::exit(1);
+        }
+        std::string ext = fs::path(fpath).extension().string();
+        std::string ext_lower;
+        for (char c : ext) ext_lower += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+
+        if (ext_lower == ".txt") {
+            auto data = read_file(fpath);
+
+            // Check if file contains form-feed characters
+            bool has_formfeed = false;
+            for (const auto& byte : data) {
+                if (byte == 0x0C || byte == '\f') {
+                    has_formfeed = true;
+                    break;
+                }
+            }
+
+            if (has_formfeed) {
+                // Split by form-feed
+                text_pages = split_by_formfeed(data);
+                std::cout << "  Detected concatenated file with form-feeds: split into "
+                          << text_pages.size() << " pages\n";
+            } else {
+                // Single page file
+                text_pages.push_back(std::move(data));
+            }
+        }
     } else {
-        // Individual file mode: collect .txt files in order
+        // Multiple file mode: collect .txt files in order
         for (const auto& fpath : input_files) {
             if (!fs::exists(fpath)) {
                 std::cerr << "ERROR: Input file not found: " << fpath << "\n";
