@@ -4,8 +4,8 @@ REM Windows batch wrapper for cleanup_report_instances.py
 
 cls
 
-REM Change to script directory
-cd /d "%~dp0"
+REM Change to project root (scripts live in 98_Cleanup_DB subfolder)
+cd /d "%~dp0\.."
 
 REM Load environment variables
 call Migration_Environment.bat

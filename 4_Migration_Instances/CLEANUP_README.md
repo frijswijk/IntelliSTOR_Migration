@@ -9,7 +9,7 @@ The cleanup tool allows you to safely delete report instances and their associat
 
 ## Files
 
-All cleanup files are now located in the **root directory** (parent of this folder):
+All cleanup files are located in the **`98_Cleanup_DB`** folder (sibling of this folder):
 
 - **`cleanup_report_instances.py`** - Main Python script
 - **`Cleanup_Report_Instances.command`** - macOS launcher (double-click to run)
@@ -45,19 +45,19 @@ The script safely removes:
 
 ```bash
 # Activate virtual environment first
-source ../venv/bin/activate
+source ../venv/bin/activate  # venv is in the project root
 
 # Dry run - delete up to a date
-python3 ../cleanup_report_instances.py --end-date 2024-12-31 --dry-run
+python3 ../98_Cleanup_DB/cleanup_report_instances.py --end-date 2024-12-31 --dry-run
 
 # Dry run - delete from a date onwards (e.g., test data)
-python3 ../cleanup_report_instances.py --start-date 2026-01-01 --dry-run
+python3 ../98_Cleanup_DB/cleanup_report_instances.py --start-date 2026-01-01 --dry-run
 
 # Dry run - delete within a date range
-python3 ../cleanup_report_instances.py --start-date 2024-01-01 --end-date 2024-12-31 --dry-run
+python3 ../98_Cleanup_DB/cleanup_report_instances.py --start-date 2024-01-01 --end-date 2024-12-31 --dry-run
 
 # Actually delete (requires typing 'DELETE' to confirm)
-python3 ../cleanup_report_instances.py --start-date 2026-01-01
+python3 ../98_Cleanup_DB/cleanup_report_instances.py --start-date 2026-01-01
 ```
 
 ## Safety Features
@@ -86,26 +86,26 @@ Every execution is logged with:
 
 ### Example 1: Remove Old Data (Before 2024)
 ```bash
-python3 ../cleanup_report_instances.py --end-date 2023-12-31 --dry-run
+python3 ../98_Cleanup_DB/cleanup_report_instances.py --end-date 2023-12-31 --dry-run
 ```
 
 ### Example 2: Remove Future Test Data
 ```bash
 # Check what test instances exist in the future
-python3 ../cleanup_report_instances.py --start-date 2026-01-01 --dry-run
+python3 ../98_Cleanup_DB/cleanup_report_instances.py --start-date 2026-01-01 --dry-run
 
 # Delete them
-python3 ../cleanup_report_instances.py --start-date 2026-01-01
+python3 ../98_Cleanup_DB/cleanup_report_instances.py --start-date 2026-01-01
 ```
 
 ### Example 3: Remove Specific Year
 ```bash
-python3 ../cleanup_report_instances.py --start-date 2024-01-01 --end-date 2024-12-31 --dry-run
+python3 ../98_Cleanup_DB/cleanup_report_instances.py --start-date 2024-01-01 --end-date 2024-12-31 --dry-run
 ```
 
 ### Example 4: Remove Everything (USE WITH CAUTION!)
 ```bash
-python3 ../cleanup_report_instances.py --start-date 1900-01-01 --end-date 2099-12-31 --dry-run
+python3 ../98_Cleanup_DB/cleanup_report_instances.py --start-date 1900-01-01 --end-date 2099-12-31 --dry-run
 ```
 
 ## Output Example
@@ -182,4 +182,4 @@ Ensure the IntelliSTOR database is running and accessible at localhost:1433
 
 ## Database Schema Reference
 
-For more details on the database structure, see `database_reference.md` in the parent directory.
+For more details on the database structure, see `DATABASE_REFERENCE.md` in this folder.

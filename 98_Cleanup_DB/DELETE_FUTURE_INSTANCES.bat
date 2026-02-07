@@ -3,7 +3,8 @@ REM Quick script to delete future test instances (2026 onwards)
 
 cls
 
-cd /d "%~dp0"
+REM Change to project root (scripts live in 98_Cleanup_DB subfolder)
+cd /d "%~dp0\.."
 
 REM Load environment
 call Migration_Environment.bat

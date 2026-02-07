@@ -4,15 +4,15 @@
 
 clear
 
-# Change to script directory (important when launched from Finder)
+# Change to project root (scripts live in 98_Cleanup_DB subfolder)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "${SCRIPT_DIR}"
+cd "${SCRIPT_DIR}/.."
 
 # Source environment variables
-source "${SCRIPT_DIR}/Migration_Environment.sh"
+source "${SCRIPT_DIR}/../Migration_Environment.sh"
 
 # Activate virtual environment
-source "${SCRIPT_DIR}/venv/bin/activate"
+source "${SCRIPT_DIR}/../venv/bin/activate"
 
 # --- Display Header ---
 echo "========================================================================"

@@ -4,11 +4,11 @@
 clear
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "${SCRIPT_DIR}"
+cd "${SCRIPT_DIR}/.."
 
-# Source environment
-source "${SCRIPT_DIR}/Migration_Environment.sh"
-source "${SCRIPT_DIR}/venv/bin/activate"
+# Source environment (from project root)
+source "${SCRIPT_DIR}/../Migration_Environment.sh"
+source "${SCRIPT_DIR}/../venv/bin/activate"
 
 echo "========================================================================"
 echo "DELETE FUTURE TEST INSTANCES (2026 onwards)"
