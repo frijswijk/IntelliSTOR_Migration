@@ -3,15 +3,15 @@ CLS
 call ..\Migration_Environment.bat
 :: --- 1. Capture Start Time ---
 set "START_TIME=%TIME%"
-set "LOG_FILE=Extract_Instances_SG_LOG.txt"
+set "LOG_FILE=Extract_Instances_CPP_LOG.txt"
 
-echo Extract_Instances_SG Script started at: %DATE% %START_TIME%
-echo -----------------------------------------------------------------------
+echo Extract Instances (C++) started at: %DATE% %START_TIME%
+echo ---------------------------------------------------------------------------
 echo Database: %SQL-SG-Database%
 echo Input CSV: %Instances_Input_SG%
 echo Output Folder: %Instances_Output_SG%
 echo Start Year: %Instances_StartYear_SG%
-echo -----------------------------------------------------------------------
+echo ---------------------------------------------------------------------------
 
 rem Prompt for RPT folder (mandatory - SEGMENTS come from RPT file SECTIONHDR)
 :ask_rptfolder_sg
@@ -30,11 +30,11 @@ echo RPT Folder: %RPT_FOLDER%
 rem Create output directory if it doesn't exist
 if not exist "%Instances_Output_SG%" mkdir "%Instances_Output_SG%"
 
-rem Run the Extract_Instances script (Python)
-python Extract_Instances.py --server %SQLServer% --database %SQL-SG-Database% --windows-auth --input "%Instances_Input_SG%" --output "%Instances_Output_SG%" --start-year %Instances_StartYear_SG% --rptfolder "%RPT_FOLDER%" --quiet
+rem Run the Extract_Instances script (C++)
+papyrus_extract_instances.exe --server %SQLServer% --database %SQL-SG-Database% --windows-auth --input "%Instances_Input_SG%" --output-dir "%Instances_Output_SG%" --start-year %Instances_StartYear_SG% --rptfolder "%RPT_FOLDER%"
 
 :: --- 2. Capture End Time and Calculate Duration ---
-echo -----------------------------------------------------------------------
+echo ---------------------------------------------------------------------------
 set "END_TIME=%TIME%"
 echo Script finished at: %DATE% %END_TIME%
 
@@ -43,8 +43,7 @@ for /f "tokens=*" %%i in ('powershell -command "$start = [datetime]('%START_TIME
 
 echo Total Time Elapsed: %DURATION%
 :: --- 3. Logging Section ---
-:: We use ^| to tell Batch these are literal characters, not command pipes.
-echo [%DATE% %START_TIME%] Country: SG ^| DB: %SQL-SG-Database% ^| Start Year: %Instances_StartYear_SG% ^| Duration: %DURATION% >> "%LOG_FILE%"
+echo [%DATE% %START_TIME%] Country: SG ^| DB: %SQL-SG-Database% ^| Start Year: %Instances_StartYear_SG% ^| Duration: %DURATION% >> %LOG_FILE%
 
 echo Log updated in %LOG_FILE%
 pause
