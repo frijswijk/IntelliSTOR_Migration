@@ -58,4 +58,49 @@ if %ERRORLEVEL% equ 0 (
     exit /b 1
 )
 
+echo.
+echo.
+echo ======================================================================
+echo Compiling Extract Unique RIDs
+echo ======================================================================
+
+REM Source and output files for extract_unique_rids
+set CPP_FILE2=%~dp0extract_unique_rids.cpp
+set OUTPUT2=%~dp0extract_unique_rids.exe
+
+echo Source: %CPP_FILE2%
+echo Output: %OUTPUT2%
+echo Compiler: %MINGW%\g++.exe
+echo.
+
+REM Compilation command for extract_unique_rids
+REM Flags:
+REM   -std=c++17       : Use C++17 standard (for filesystem support)
+REM   -O2              : Optimize for performance
+REM   -static          : Static linking (no external DLLs needed)
+
+"%MINGW%\g++.exe" -std=c++17 -O2 -static ^
+  -o "%OUTPUT2%" ^
+  "%CPP_FILE2%"
+
+REM Check compilation result
+if %ERRORLEVEL% equ 0 (
+    echo.
+    echo ======================================================================
+    echo SUCCESS: Executable created
+    echo ======================================================================
+    echo File: %OUTPUT2%
+    dir "%OUTPUT2%" | find ".exe"
+    echo.
+    echo You can now run: %OUTPUT2% --help
+    echo.
+) else (
+    echo.
+    echo ======================================================================
+    echo ERROR: Compilation failed with error code %ERRORLEVEL%
+    echo ======================================================================
+    echo.
+    exit /b 1
+)
+
 endlocal
