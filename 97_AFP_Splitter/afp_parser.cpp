@@ -435,8 +435,28 @@ bool AFPSplitter::extractPagesWithResources(const std::vector<PageRange>& ranges
     //
     // The Length field does NOT include the 0x5A introducer byte.
     // Total record size = 1 + Length bytes.
-    // Between records there is a 0x0D 0x0A (CR/LF) separator.
+    // Between records there MAY be a 0x0D 0x0A (CR/LF) separator (varies by file).
     // Bytes 7-8 (relative to 0x5A) are the sequence counter (big-endian).
+
+    // Detect CRLF convention: check after the first AFP record in the source
+    bool useCRLF = false;
+    {
+        size_t pos = 0;
+        while (pos + 8 <= rawData.size()) {
+            if (rawData[pos] == 0x5A && pos + 3 < rawData.size() && rawData[pos + 3] == 0xD3) {
+                uint16_t recLen = AFPUtil::readUInt16BE(&rawData[pos + 1]);
+                if (recLen >= 8 && pos + 1 + recLen <= rawData.size()) {
+                    size_t afterRec = pos + 1 + recLen;
+                    if (afterRec + 1 < rawData.size() &&
+                        rawData[afterRec] == 0x0D && rawData[afterRec + 1] == 0x0A) {
+                        useCRLF = true;
+                    }
+                    break; // Only check first record
+                }
+            }
+            pos++;
+        }
+    }
 
     // Derive document name from input filename:
     // Strip path and extension, convert to uppercase EBCDIC, pad to 8 chars
@@ -469,11 +489,9 @@ bool AFPSplitter::extractPagesWithResources(const std::vector<PageRange>& ranges
     AFPUtil::writeUInt16BE(&beginDocument[7], seqCounter++);
     out.write(reinterpret_cast<const char*>(beginDocument), sizeof(beginDocument));
 
-    // Write inter-record separator (CR/LF)
     uint8_t crlf[2] = {0x0D, 0x0A};
-    out.write(reinterpret_cast<const char*>(crlf), 2);
 
-    // Write each requested page with renumbered sequence counters
+    // Write each requested page with inter-page data and renumbered sequences
     for (int pageNum : pageNumbers) {
         const AFPPage* page = parser_->getPage(pageNum);
         if (!page) {
@@ -481,7 +499,44 @@ bool AFPSplitter::extractPagesWithResources(const std::vector<PageRange>& ranges
             return false;
         }
 
-        // Copy page data to a mutable buffer for sequence renumbering.
+        // Inter-page data: records between previous page's EPG and this page's BPG.
+        // For pages 2+, page->startOffset = last byte of previous EPG.
+        // page->actualPageStart = offset of this page's BPG (0x5A).
+        // The gap contains MPS (Map Page Segment) records and source separators.
+        size_t interStart = page->startOffset + 1;
+        size_t interEnd = page->actualPageStart;
+
+        if (interEnd > interStart) {
+            // There is inter-page data (MPS records, source CRLF separators, etc.)
+            std::vector<uint8_t> interData(rawData.begin() + interStart,
+                                            rawData.begin() + interEnd);
+
+            // Renumber sequence counters in inter-page records
+            size_t pos = 0;
+            while (pos + 9 <= interData.size()) {
+                if (interData[pos] == 0x5A && interData[pos + 3] == 0xD3) {
+                    uint16_t recLen = AFPUtil::readUInt16BE(&interData[pos + 1]);
+                    if (recLen >= 8 && pos + 1 + recLen <= interData.size()) {
+                        AFPUtil::writeUInt16BE(&interData[pos + 7], seqCounter++);
+                        pos += 1 + recLen;
+                        while (pos < interData.size() && (interData[pos] == 0x0D || interData[pos] == 0x0A)) {
+                            pos++;
+                        }
+                    } else {
+                        pos++;
+                    }
+                } else {
+                    pos++;
+                }
+            }
+
+            out.write(reinterpret_cast<const char*>(interData.data()), interData.size());
+        } else if (useCRLF) {
+            // No inter-page data (e.g. page 1 in source) but source uses CRLF
+            out.write(reinterpret_cast<const char*>(crlf), 2);
+        }
+
+        // Copy page data (BPG through EPG) to a mutable buffer for sequence renumbering.
         // endOffset points to the last byte of the EPG record, so +1 for size.
         size_t pageSize = page->endOffset + 1 - page->actualPageStart;
         std::vector<uint8_t> pageData(rawData.begin() + page->actualPageStart,
@@ -490,27 +545,31 @@ bool AFPSplitter::extractPagesWithResources(const std::vector<PageRange>& ranges
         // Walk through page data records and renumber sequence counters.
         // Check for 0x5A introducer AND 0xD3 MO:DCA class code at pos+3
         // to avoid false matches on 0x5A bytes within record data.
-        size_t pos = 0;
-        while (pos + 9 <= pageData.size()) {
-            if (pageData[pos] == 0x5A && pageData[pos + 3] == 0xD3) {
-                uint16_t recLen = AFPUtil::readUInt16BE(&pageData[pos + 1]);
-                if (recLen >= 8 && pos + 1 + recLen <= pageData.size()) {
-                    // Set sequence counter at bytes 7-8 (relative to 0x5A)
-                    AFPUtil::writeUInt16BE(&pageData[pos + 7], seqCounter++);
-                    pos += 1 + recLen; // Skip past record (1 for 0x5A + recLen)
-                    // Skip CR/LF separators between records
-                    while (pos < pageData.size() && (pageData[pos] == 0x0D || pageData[pos] == 0x0A)) {
+        {
+            size_t pos = 0;
+            while (pos + 9 <= pageData.size()) {
+                if (pageData[pos] == 0x5A && pageData[pos + 3] == 0xD3) {
+                    uint16_t recLen = AFPUtil::readUInt16BE(&pageData[pos + 1]);
+                    if (recLen >= 8 && pos + 1 + recLen <= pageData.size()) {
+                        AFPUtil::writeUInt16BE(&pageData[pos + 7], seqCounter++);
+                        pos += 1 + recLen;
+                        while (pos < pageData.size() && (pageData[pos] == 0x0D || pageData[pos] == 0x0A)) {
+                            pos++;
+                        }
+                    } else {
                         pos++;
                     }
                 } else {
                     pos++;
                 }
-            } else {
-                pos++;
             }
         }
 
         out.write(reinterpret_cast<const char*>(pageData.data()), pageData.size());
+    }
+
+    // Write separator before EDT if source uses CRLF convention
+    if (useCRLF) {
         out.write(reinterpret_cast<const char*>(crlf), 2);
     }
 
@@ -522,7 +581,11 @@ bool AFPSplitter::extractPagesWithResources(const std::vector<PageRange>& ranges
     memcpy(&endDocument[9], docName, 8);
     AFPUtil::writeUInt16BE(&endDocument[7], seqCounter++);
     out.write(reinterpret_cast<const char*>(endDocument), sizeof(endDocument));
-    out.write(reinterpret_cast<const char*>(crlf), 2);
+
+    // Write trailing CRLF after EDT if source uses CRLF convention
+    if (useCRLF) {
+        out.write(reinterpret_cast<const char*>(crlf), 2);
+    }
 
     out.close();
     return true;
