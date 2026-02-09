@@ -124,6 +124,23 @@ struct WatermarkConfig {
         return !image_path.empty() && fs::exists(image_path);
     }
 
+    // Convert position enum to ImageMagick gravity string
+    static std::string position_to_gravity(WatermarkPosition pos) {
+        switch (pos) {
+            case WatermarkPosition::CENTER:        return "center";
+            case WatermarkPosition::TOP_LEFT:      return "northwest";
+            case WatermarkPosition::TOP_CENTER:    return "north";
+            case WatermarkPosition::TOP_RIGHT:     return "northeast";
+            case WatermarkPosition::MIDDLE_LEFT:   return "west";
+            case WatermarkPosition::MIDDLE_RIGHT:  return "east";
+            case WatermarkPosition::BOTTOM_LEFT:   return "southwest";
+            case WatermarkPosition::BOTTOM_CENTER: return "south";
+            case WatermarkPosition::BOTTOM_RIGHT:  return "southeast";
+            case WatermarkPosition::REPEAT:        return "center"; // Repeat uses tiling, not gravity
+            default:                               return "center";
+        }
+    }
+
     static WatermarkPosition parse_position(const std::string& pos_str) {
         std::string pos_lower = pos_str;
         std::transform(pos_lower.begin(), pos_lower.end(), pos_lower.begin(), ::tolower);
@@ -134,9 +151,9 @@ struct WatermarkConfig {
         if (pos_lower == "topright") return WatermarkPosition::TOP_RIGHT;
         if (pos_lower == "middleleft") return WatermarkPosition::MIDDLE_LEFT;
         if (pos_lower == "middleright") return WatermarkPosition::MIDDLE_RIGHT;
-        if (pos_lower == "bottomleft") return WatermarkPosition::BOTTOM_LEFT;
+        if (pos_lower == "bottomleft" || pos_lower == "leftbottom") return WatermarkPosition::BOTTOM_LEFT;
         if (pos_lower == "bottomcenter") return WatermarkPosition::BOTTOM_CENTER;
-        if (pos_lower == "bottomright") return WatermarkPosition::BOTTOM_RIGHT;
+        if (pos_lower == "bottomright" || pos_lower == "rightbottom") return WatermarkPosition::BOTTOM_RIGHT;
         if (pos_lower == "repeat") return WatermarkPosition::REPEAT;
 
         return WatermarkPosition::CENTER; // default
@@ -733,12 +750,17 @@ static bool apply_watermark_simple(const std::string& qpdf_exe,
     std::string abs_image = fs::absolute(config.image_path).string();
 
     // Build command to call the batch wrapper
+    // Parameters: input.pdf output.pdf watermark.png rotation opacity gravity scale_percent
+    std::string gravity = WatermarkConfig::position_to_gravity(config.position);
+    int scale_percent = static_cast<int>(config.scale * 100); // Convert 2.0 -> 200, 0.5 -> 50
     std::string cmd = "\"" + abs_wrapper + "\" "
                     + "\"" + abs_input + "\" "
                     + "\"" + abs_output + "\" "
                     + "\"" + abs_image + "\" "
                     + std::to_string(config.rotation) + " "
-                    + std::to_string(config.opacity);
+                    + std::to_string(config.opacity) + " "
+                    + gravity + " "
+                    + std::to_string(scale_percent);
 
     std::cout << "Executing watermark command...\n";
     std::cout << "Command: " << cmd << "\n";
