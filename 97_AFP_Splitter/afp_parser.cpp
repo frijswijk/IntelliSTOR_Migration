@@ -4,6 +4,7 @@
 #include <sstream>
 #include <algorithm>
 #include <cstring>
+#include <set>
 
 // ============================================================================
 // AFPStructuredField Implementation
@@ -265,6 +266,7 @@ AFPSplitter::~AFPSplitter() {
 }
 
 bool AFPSplitter::loadFile(const std::string& filename) {
+    inputFilename_ = filename;
     parser_ = std::make_unique<AFPParser>();
     if (!parser_->parse(filename)) {
         lastError_ = parser_->getLastError();
@@ -420,23 +422,58 @@ bool AFPSplitter::extractPagesWithResources(const std::vector<PageRange>& ranges
         return false;
     }
 
+    const auto& rawData = parser_->getRawData();
+
     std::ofstream out(outputFile, std::ios::binary);
     if (!out.is_open()) {
         lastError_ = "Failed to open output file: " + outputFile;
         return false;
     }
 
-    const auto& rawData = parser_->getRawData();
-    const auto& preamble = parser_->getPreamble();
-    const auto& postamble = parser_->getPostamble();
+    // AFP Record Format:
+    //   [5A] [Length(2B)] [D3 TT CC] [Flags(1B)] [Seq(2B)] [Data...]
+    //
+    // The Length field does NOT include the 0x5A introducer byte.
+    // Total record size = 1 + Length bytes.
+    // Between records there is a 0x0D 0x0A (CR/LF) separator.
+    // Bytes 7-8 (relative to 0x5A) are the sequence counter (big-endian).
 
-    // Write preamble (everything before first page - contains document header and resources)
-    if (!preamble.empty()) {
-        out.write(reinterpret_cast<const char*>(preamble.data()), preamble.size());
+    // Derive document name from input filename:
+    // Strip path and extension, convert to uppercase EBCDIC, pad to 8 chars
+    uint8_t docName[8] = {0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40};
+    {
+        std::string basename = inputFilename_;
+        size_t lastSlash = basename.find_last_of("/\\");
+        if (lastSlash != std::string::npos) {
+            basename = basename.substr(lastSlash + 1);
+        }
+        size_t lastDot = basename.find_last_of('.');
+        if (lastDot != std::string::npos) {
+            basename = basename.substr(0, lastDot);
+        }
+        size_t nameLen = std::min(basename.length(), (size_t)8);
+        for (size_t i = 0; i < nameLen; i++) {
+            docName[i] = AFPUtil::asciiToEbcdic(toupper(basename[i]));
+        }
     }
 
-    // Write ONLY the requested pages (not previous pages)
-    // Include inter-page structures (Begin Page Group, etc.)
+    // Sequential counter for all records in the output (starts at 1)
+    uint16_t seqCounter = 1;
+
+    // Write Begin Document (BDT) - 17 bytes (5A + length=16)
+    uint8_t beginDocument[17] = {
+        0x5A, 0x00, 0x10, 0xD3, 0xA8, 0xA8, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    };
+    memcpy(&beginDocument[9], docName, 8);
+    AFPUtil::writeUInt16BE(&beginDocument[7], seqCounter++);
+    out.write(reinterpret_cast<const char*>(beginDocument), sizeof(beginDocument));
+
+    // Write inter-record separator (CR/LF)
+    uint8_t crlf[2] = {0x0D, 0x0A};
+    out.write(reinterpret_cast<const char*>(crlf), 2);
+
+    // Write each requested page with renumbered sequence counters
     for (int pageNum : pageNumbers) {
         const AFPPage* page = parser_->getPage(pageNum);
         if (!page) {
@@ -444,16 +481,48 @@ bool AFPSplitter::extractPagesWithResources(const std::vector<PageRange>& ranges
             return false;
         }
 
-        // Write from startOffset (includes inter-page gap) to endOffset (after End Page)
-        // This includes Begin Page Group and other structures needed between pages
-        size_t pageContentSize = page->endOffset - page->startOffset;
-        out.write(reinterpret_cast<const char*>(&rawData[page->startOffset]), pageContentSize);
+        // Copy page data to a mutable buffer for sequence renumbering.
+        // endOffset points to the last byte of the EPG record, so +1 for size.
+        size_t pageSize = page->endOffset + 1 - page->actualPageStart;
+        std::vector<uint8_t> pageData(rawData.begin() + page->actualPageStart,
+                                       rawData.begin() + page->actualPageStart + pageSize);
+
+        // Walk through page data records and renumber sequence counters.
+        // Check for 0x5A introducer AND 0xD3 MO:DCA class code at pos+3
+        // to avoid false matches on 0x5A bytes within record data.
+        size_t pos = 0;
+        while (pos + 9 <= pageData.size()) {
+            if (pageData[pos] == 0x5A && pageData[pos + 3] == 0xD3) {
+                uint16_t recLen = AFPUtil::readUInt16BE(&pageData[pos + 1]);
+                if (recLen >= 8 && pos + 1 + recLen <= pageData.size()) {
+                    // Set sequence counter at bytes 7-8 (relative to 0x5A)
+                    AFPUtil::writeUInt16BE(&pageData[pos + 7], seqCounter++);
+                    pos += 1 + recLen; // Skip past record (1 for 0x5A + recLen)
+                    // Skip CR/LF separators between records
+                    while (pos < pageData.size() && (pageData[pos] == 0x0D || pageData[pos] == 0x0A)) {
+                        pos++;
+                    }
+                } else {
+                    pos++;
+                }
+            } else {
+                pos++;
+            }
+        }
+
+        out.write(reinterpret_cast<const char*>(pageData.data()), pageData.size());
+        out.write(reinterpret_cast<const char*>(crlf), 2);
     }
 
-    // Write postamble (document closing structures)
-    if (!postamble.empty()) {
-        out.write(reinterpret_cast<const char*>(postamble.data()), postamble.size());
-    }
+    // Write End Document (EDT) - 17 bytes (5A + length=16)
+    uint8_t endDocument[17] = {
+        0x5A, 0x00, 0x10, 0xD3, 0xA9, 0xA8, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+    };
+    memcpy(&endDocument[9], docName, 8);
+    AFPUtil::writeUInt16BE(&endDocument[7], seqCounter++);
+    out.write(reinterpret_cast<const char*>(endDocument), sizeof(endDocument));
+    out.write(reinterpret_cast<const char*>(crlf), 2);
 
     out.close();
     return true;
@@ -504,6 +573,21 @@ std::string trim(const std::string& str) {
     if (first == std::string::npos) return "";
     size_t last = str.find_last_not_of(" \t\n\r");
     return str.substr(first, (last - first + 1));
+}
+
+uint8_t asciiToEbcdic(char c) {
+    if (c >= 'A' && c <= 'I') return 0xC1 + (c - 'A');
+    if (c >= 'J' && c <= 'R') return 0xD1 + (c - 'J');
+    if (c >= 'S' && c <= 'Z') return 0xE2 + (c - 'S');
+    if (c >= 'a' && c <= 'i') return 0xC1 + (c - 'a');
+    if (c >= 'j' && c <= 'r') return 0xD1 + (c - 'j');
+    if (c >= 's' && c <= 'z') return 0xE2 + (c - 's');
+    if (c >= '0' && c <= '9') return 0xF0 + (c - '0');
+    if (c == ' ') return 0x40;
+    if (c == '-') return 0x60;
+    if (c == '_') return 0x6D;
+    if (c == '.') return 0x4B;
+    return 0x40; // Default to EBCDIC space
 }
 
 } // namespace AFPUtil

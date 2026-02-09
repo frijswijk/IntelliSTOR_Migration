@@ -130,6 +130,7 @@ public:
 private:
     std::unique_ptr<AFPParser> parser_;
     std::string lastError_;
+    std::string inputFilename_;
 
     // Expand page ranges to list of page numbers
     std::vector<int> expandPageRanges(const std::vector<PageRange>& ranges);
@@ -151,6 +152,9 @@ namespace AFPUtil {
 
     // Trim whitespace from string
     std::string trim(const std::string& str);
+
+    // Convert ASCII character to EBCDIC (Code Page 037/500)
+    uint8_t asciiToEbcdic(char c);
 }
 
 #endif // AFP_PARSER_H
