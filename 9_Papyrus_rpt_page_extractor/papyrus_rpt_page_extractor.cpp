@@ -19,7 +19,7 @@
 //   --WatermarkImage <path>       - Path to watermark image (PNG, JPG, etc.)
 //   --WatermarkPosition <pos>     - Position: Center, TopLeft, TopCenter, TopRight,
 //                                   MiddleLeft, MiddleRight, BottomLeft, BottomCenter,
-//                                   BottomRight, Repeat (default: Center)
+//                                   BottomRight, Repeat, Tiling (default: Center)
 //   --WatermarkRotation <degrees> - Rotation angle: -180 to 180 degrees (default: 0)
 //   --WatermarkOpacity <percent>  - Opacity: 0 to 100% (default: 30)
 //   --WatermarkScale <scale>      - Scale factor: 0.5 to 2.0 (default: 1.0)
@@ -66,6 +66,7 @@
 #include <string>
 #include <vector>
 
+#include <process.h>  // _getpid() for parallel-safe temp file naming
 #include <zlib.h>
 
 // QPDF library headers
@@ -110,7 +111,8 @@ enum class WatermarkPosition {
     BOTTOM_LEFT,
     BOTTOM_CENTER,
     BOTTOM_RIGHT,
-    REPEAT
+    REPEAT,
+    TILING
 };
 
 struct WatermarkConfig {
@@ -137,6 +139,7 @@ struct WatermarkConfig {
             case WatermarkPosition::BOTTOM_CENTER: return "south";
             case WatermarkPosition::BOTTOM_RIGHT:  return "southeast";
             case WatermarkPosition::REPEAT:        return "center"; // Repeat uses tiling, not gravity
+            case WatermarkPosition::TILING:        return "tiling"; // Grid pattern
             default:                               return "center";
         }
     }
@@ -155,6 +158,7 @@ struct WatermarkConfig {
         if (pos_lower == "bottomcenter") return WatermarkPosition::BOTTOM_CENTER;
         if (pos_lower == "bottomright" || pos_lower == "rightbottom") return WatermarkPosition::BOTTOM_RIGHT;
         if (pos_lower == "repeat") return WatermarkPosition::REPEAT;
+        if (pos_lower == "tiling") return WatermarkPosition::TILING;
 
         return WatermarkPosition::CENTER; // default
     }
@@ -713,7 +717,8 @@ static bool apply_watermark_simple(const std::string& input_pdf,
 
     auto now = std::chrono::steady_clock::now();
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
-    std::string temp_wm_pdf = (output_dir / ("_wm_" + std::to_string(ms) + ".pdf")).string();
+    auto pid = static_cast<long>(_getpid());
+    std::string temp_wm_pdf = (output_dir / ("_wm_" + std::to_string(pid) + "_" + std::to_string(ms) + ".pdf")).string();
 
     // Read actual page dimensions from input PDF
     PageSize pg = get_pdf_page_size(input_pdf);
@@ -788,6 +793,49 @@ static bool apply_watermark_simple(const std::string& input_pdf,
 }
 
 // ============================================================================
+// PDF Document Properties
+// ============================================================================
+
+static bool set_pdf_metadata(const std::string& pdf_path) {
+    std::string temp = pdf_path + ".meta.tmp";
+    try {
+        QPDF qpdf;
+        qpdf.processFile(pdf_path.c_str());
+
+        // Get or create /Info dictionary
+        auto trailer = qpdf.getTrailer();
+        QPDFObjectHandle info;
+        if (trailer.hasKey("/Info") && trailer.getKey("/Info").isDictionary()) {
+            info = trailer.getKey("/Info");
+        } else {
+            info = qpdf.makeIndirectObject(QPDFObjectHandle::newDictionary());
+            trailer.replaceKey("/Info", info);
+        }
+
+        info.replaceKey("/Producer", QPDFObjectHandle::newString("ISIS Papyrus"));
+        info.replaceKey("/Creator", QPDFObjectHandle::newString("Papyrus Content Governance"));
+
+        QPDFWriter writer(qpdf, temp.c_str());
+        writer.write();
+
+        // Replace original with metadata-stamped version
+        std::error_code ec;
+        fs::remove(pdf_path, ec);
+        fs::rename(temp, pdf_path, ec);
+        if (ec) {
+            fs::copy(temp, pdf_path, fs::copy_options::overwrite_existing);
+            fs::remove(temp, ec);
+        }
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "WARNING: Could not set PDF metadata: " << e.what() << "\n";
+        std::error_code ec;
+        fs::remove(temp, ec);
+        return false;
+    }
+}
+
+// ============================================================================
 // Main PDF Processing with Watermark Options
 // ============================================================================
 
@@ -818,6 +866,9 @@ static bool process_pdf_with_watermark(const std::string& input_pdf,
             fs::remove(temp_extracted);
         }
     }
+
+    // Step 3: Set document properties (Application + Producer)
+    set_pdf_metadata(output_pdf);
 
     return true;
 }

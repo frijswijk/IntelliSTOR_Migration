@@ -51,7 +51,9 @@ MiddleLeft     Center           MiddleRight
 BottomLeft     BottomCenter     BottomRight
 ```
 
-Additionally, `Repeat` tiles the watermark across the entire page.
+Additionally:
+- `Repeat` — single centered watermark repeated on every page
+- `Tiling` — grid pattern filling the entire page with evenly spaced watermark copies
 
 ## Examples
 
@@ -116,6 +118,16 @@ compile.bat
 ```
 
 This produces a single fully-static executable with no external DLL dependencies.
+
+## PDF Document Properties
+
+Output PDFs are automatically stamped with:
+- **Application (Creator):** Papyrus Content Governance
+- **PDF Producer:** ISIS Papyrus
+
+## Parallel Execution
+
+The executable is fully safe for parallel invocation. Each call runs as an independent OS process with its own memory — no shared state, no locks, no serialization. Multiple threads from a calling application can launch instances simultaneously, as long as each call writes to a different output file path.
 
 ## Source Files
 

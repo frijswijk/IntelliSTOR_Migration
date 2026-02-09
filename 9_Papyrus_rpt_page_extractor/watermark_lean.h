@@ -182,27 +182,30 @@ inline bool generate_watermark_pdf(const std::string& png_path,
     unsigned char* img_data = stbi_load(png_path.c_str(), &width, &height, &channels, 4);
     if (!img_data) return false;
 
-    // Calculate position
+    // Calculate position(s)
+    bool is_tiling = (position == "tiling");
     int x = 0, y = 0;
-    if (position == "center") {
-        x = (page_width - width) / 2;
-        y = (page_height - height) / 2;
-    } else if (position == "northwest") {
-        x = 0; y = page_height - height;
-    } else if (position == "north") {
-        x = (page_width - width) / 2; y = page_height - height;
-    } else if (position == "northeast") {
-        x = page_width - width; y = page_height - height;
-    } else if (position == "west") {
-        x = 0; y = (page_height - height) / 2;
-    } else if (position == "east") {
-        x = page_width - width; y = (page_height - height) / 2;
-    } else if (position == "southwest") {
-        x = 0; y = 0;
-    } else if (position == "south") {
-        x = (page_width - width) / 2; y = 0;
-    } else if (position == "southeast") {
-        x = page_width - width; y = 0;
+    if (!is_tiling) {
+        if (position == "center") {
+            x = (page_width - width) / 2;
+            y = (page_height - height) / 2;
+        } else if (position == "northwest") {
+            x = 0; y = page_height - height;
+        } else if (position == "north") {
+            x = (page_width - width) / 2; y = page_height - height;
+        } else if (position == "northeast") {
+            x = page_width - width; y = page_height - height;
+        } else if (position == "west") {
+            x = 0; y = (page_height - height) / 2;
+        } else if (position == "east") {
+            x = page_width - width; y = (page_height - height) / 2;
+        } else if (position == "southwest") {
+            x = 0; y = 0;
+        } else if (position == "south") {
+            x = (page_width - width) / 2; y = 0;
+        } else if (position == "southeast") {
+            x = page_width - width; y = 0;
+        }
     }
 
     // Separate RGB and Alpha
@@ -241,7 +244,27 @@ inline bool generate_watermark_pdf(const std::string& png_path,
     pdf << "   /Contents 4 0 R /Resources << /XObject << /Im1 5 0 R >> >> >>\nendobj\n";
 
     std::stringstream content;
-    content << "q\n" << width << " 0 0 " << height << " " << x << " " << y << " cm\n/Im1 Do\nQ\n";
+    if (is_tiling) {
+        // Grid pattern: space images evenly with gaps equal to half the image size
+        int gap_x = width / 2;
+        int gap_y = height / 2;
+        int step_x = width + gap_x;
+        int step_y = height + gap_y;
+        // Start with offset so grid is centered on page
+        int total_cols = (page_width + gap_x) / step_x + 1;
+        int total_rows = (page_height + gap_y) / step_y + 1;
+        int start_x = (page_width - (total_cols * step_x - gap_x)) / 2;
+        int start_y = (page_height - (total_rows * step_y - gap_y)) / 2;
+        for (int row = 0; row < total_rows; ++row) {
+            for (int col = 0; col < total_cols; ++col) {
+                int tx = start_x + col * step_x;
+                int ty = start_y + row * step_y;
+                content << "q\n" << width << " 0 0 " << height << " " << tx << " " << ty << " cm\n/Im1 Do\nQ\n";
+            }
+        }
+    } else {
+        content << "q\n" << width << " 0 0 " << height << " " << x << " " << y << " cm\n/Im1 Do\nQ\n";
+    }
     std::string content_str = content.str();
 
     obj_offsets.push_back(pdf.tellp());
