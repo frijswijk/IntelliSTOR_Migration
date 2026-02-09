@@ -5,126 +5,83 @@ REM ============================================================================
 
 setlocal
 
-set SOURCE=papyrus_rpt_page_extractor_v2.cpp
-set OUTPUT=papyrus_rpt_page_extractor_v2.exe
+REM Compiler location (MinGW-w64)
+set MINGW=C:\Users\freddievr\mingw64\bin
+
+REM Source and output files (relative to this batch file location)
+set SOURCE=%~dp0papyrus_rpt_page_extractor_v2.cpp
+set OUTPUT=%~dp0papyrus_rpt_page_extractor_v2.exe
 
 echo ============================================================================
-echo Compiling %SOURCE%
+echo Compiling Papyrus RPT Page Extractor V2 (with Watermarking)
 echo ============================================================================
+echo Source: %SOURCE%
+echo Output: %OUTPUT%
+echo Compiler: %MINGW%\g++.exe
 echo.
 
-REM ============================================================================
-REM Try GCC/MinGW first (recommended)
-REM ============================================================================
+REM Compilation command
+REM Flags:
+REM   -std=c++17       : Use C++17 standard (for filesystem support)
+REM   -O2              : Optimize for performance
+REM   -static          : Static linking (no external DLLs needed)
+REM   -lz              : Link zlib library (for compression)
+REM   -s               : Strip debug symbols (smaller executable)
 
-where g++ >nul 2>&1
+"%MINGW%\g++.exe" -std=c++17 -O2 -static ^
+  -o "%OUTPUT%" ^
+  "%SOURCE%" ^
+  -lz -s
+
+REM Check compilation result
 if %errorlevel% equ 0 (
-    echo Using GCC/MinGW compiler...
     echo.
-    echo Command: g++ -std=c++17 -O2 -static -o %OUTPUT% %SOURCE% -lz -s
+    echo ============================================================================
+    echo SUCCESS: Executable created
+    echo ============================================================================
+    echo File: %OUTPUT%
+    dir "%OUTPUT%" | find ".exe"
     echo.
-
-    g++ -std=c++17 -O2 -static -o %OUTPUT% %SOURCE% -lz -s
-
-    if %errorlevel% equ 0 (
-        echo.
-        echo ============================================================================
-        echo Compilation successful!
-        echo Output: %OUTPUT%
-        echo ============================================================================
-        echo.
-        dir %OUTPUT%
-        echo.
-        goto :success
-    ) else (
-        echo.
-        echo ERROR: GCC compilation failed
-        echo.
-        goto :error
-    )
+    goto :success
+) else (
+    echo.
+    echo ============================================================================
+    echo ERROR: Compilation failed with error code %ERRORLEVEL%
+    echo ============================================================================
+    echo.
+    echo Check the error messages above for details.
+    echo Common issues:
+    echo   - Missing MinGW: Install from https://winlibs.com/
+    echo   - Wrong path: Update MINGW variable in this batch file
+    echo   - Missing zlib: Ensure MinGW installation includes zlib
+    echo.
+    goto :error
 )
-
-REM ============================================================================
-REM Try MSVC (Visual Studio)
-REM ============================================================================
-
-where cl >nul 2>&1
-if %errorlevel% equ 0 (
-    echo Using MSVC compiler...
-    echo.
-    echo Command: cl /EHsc /O2 /MT %SOURCE% /Fe:%OUTPUT%
-    echo.
-
-    cl /EHsc /O2 /MT %SOURCE% /Fe:%OUTPUT%
-
-    if %errorlevel% equ 0 (
-        echo.
-        echo ============================================================================
-        echo Compilation successful!
-        echo Output: %OUTPUT%
-        echo ============================================================================
-        echo.
-        dir %OUTPUT%
-        echo.
-        goto :success
-    ) else (
-        echo.
-        echo ERROR: MSVC compilation failed
-        echo.
-        goto :error
-    )
-)
-
-REM ============================================================================
-REM No compiler found
-REM ============================================================================
-
-echo ERROR: No C++ compiler found in PATH
-echo.
-echo Please install one of the following:
-echo.
-echo 1. GCC/MinGW (recommended for Windows)
-echo    Download from: https://www.mingw-w64.org/
-echo    Or use: https://github.com/skeeto/w64devkit/releases
-echo.
-echo 2. Microsoft Visual Studio (with C++ tools)
-echo    Download from: https://visualstudio.microsoft.com/
-echo    Make sure to run this script from "Developer Command Prompt for VS"
-echo.
-
-goto :error
-
-REM ============================================================================
-REM Success
-REM ============================================================================
 
 :success
-echo Testing executable...
 echo.
-%OUTPUT% >nul 2>&1
-if %errorlevel% equ 1 (
-    echo Test run successful - executable is working
-    echo.
-    echo Usage:
-    echo   %OUTPUT% input.rpt all output.txt output.pdf
-    echo.
-    echo With watermark:
-    echo   %OUTPUT% input.rpt all output.txt output.pdf --WatermarkImage logo.png
-    echo.
-    echo For help:
-    echo   %OUTPUT%
-    echo.
-) else (
-    echo Warning: Executable may not be working correctly
-    echo.
-)
+echo You can now run the extractor:
+echo.
+echo Basic usage (no watermark):
+echo   %OUTPUT% input.rpt all output.txt output.pdf
+echo.
+echo With watermark:
+echo   %OUTPUT% input.rpt all output.txt output.pdf --WatermarkImage logo.png
+echo.
+echo With custom watermark settings:
+echo   %OUTPUT% input.rpt all output.txt output.pdf ^
+echo     --WatermarkImage confidential.png ^
+echo     --WatermarkPosition Center ^
+echo     --WatermarkRotation -45 ^
+echo     --WatermarkOpacity 30 ^
+echo     --WatermarkScale 1.5
+echo.
+echo For help:
+echo   %OUTPUT%
+echo.
 
 endlocal
 exit /b 0
-
-REM ============================================================================
-REM Error
-REM ============================================================================
 
 :error
 endlocal
