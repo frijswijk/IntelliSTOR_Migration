@@ -71,6 +71,10 @@
 
 #include <zlib.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 namespace fs = std::filesystem;
 
 // ============================================================================
@@ -547,13 +551,85 @@ select_pages_by_sections(const std::vector<PageTableEntry>& entries,
 }
 
 // ============================================================================
+// Path Normalization for Windows Commands
+// ============================================================================
+
+static std::string normalize_path_for_command(const std::string& path) {
+    // Convert backslashes to forward slashes for Windows commands
+    // Both ImageMagick and QPDF accept forward slashes on Windows
+    std::string normalized = path;
+    std::replace(normalized.begin(), normalized.end(), '\\', '/');
+    return normalized;
+}
+
+// ============================================================================
+// Windows CreateProcess Helper (more reliable than system() on Windows)
+// ============================================================================
+
+#ifdef _WIN32
+static int run_command_windows(const std::string& command_line) {
+    // Use CreateProcessA for better reliability on Windows
+    // For cmd.exe /C, we need to wrap the entire command in quotes and escape inner quotes
+    std::string escaped_cmd = command_line;
+    // Escape any existing double quotes by doubling them for cmd.exe
+    size_t pos = 0;
+    while ((pos = escaped_cmd.find('"', pos)) != std::string::npos) {
+        escaped_cmd.insert(pos, 1, '"');
+        pos += 2; // Skip the two quotes we just created
+    }
+
+    std::string cmd = "cmd.exe /C \"" + escaped_cmd + "\"";
+
+    STARTUPINFOA si = { sizeof(si) };
+    PROCESS_INFORMATION pi;
+
+    // CreateProcessA modifies the command line, so we need a non-const copy
+    std::vector<char> cmd_buffer(cmd.begin(), cmd.end());
+    cmd_buffer.push_back('\0');
+
+    BOOL success = CreateProcessA(
+        NULL,                       // lpApplicationName
+        cmd_buffer.data(),          // lpCommandLine (must be modifiable)
+        NULL,                       // lpProcessAttributes
+        NULL,                       // lpThreadAttributes
+        FALSE,                      // bInheritHandles
+        CREATE_NO_WINDOW,           // dwCreationFlags (no console window)
+        NULL,                       // lpEnvironment
+        NULL,                       // lpCurrentDirectory
+        &si,                        // lpStartupInfo
+        &pi                         // lpProcessInformation
+    );
+
+    if (!success) {
+        return -1;
+    }
+
+    // Wait for the process to complete
+    WaitForSingleObject(pi.hProcess, INFINITE);
+
+    // Get exit code
+    DWORD exit_code = 0;
+    GetExitCodeProcess(pi.hProcess, &exit_code);
+
+    // Clean up handles
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+
+    return static_cast<int>(exit_code);
+}
+#endif
+
+// ============================================================================
 // PDF Tool Discovery
 // ============================================================================
 
 static std::string find_qpdf() {
     // Check bundled tools first
     std::string bundled = "./tools/qpdf.exe";
-    if (fs::exists(bundled)) return bundled;
+    if (fs::exists(bundled)) {
+        // Convert relative path to absolute path
+        return fs::absolute(bundled).string();
+    }
 
     // Check common install locations
     std::vector<std::string> paths = {
@@ -576,17 +652,22 @@ static std::string find_qpdf() {
 }
 
 static std::string find_magick() {
-    std::string bundled = "./tools/magick.exe";
-    if (fs::exists(bundled)) return bundled;
-
+    // Prefer main installation over bundled version for better compatibility
     std::vector<std::string> paths = {
         "C:\\Users\\freddievr\\imagemagick\\magick.exe",
         "C:\\Program Files\\ImageMagick\\magick.exe",
+        "./tools/magick.exe",
         "magick.exe"
     };
 
     for (const auto& p : paths) {
-        if (fs::exists(p)) return p;
+        if (fs::exists(p)) {
+            // Return absolute path if it's a relative path
+            if (p.find("./") == 0 || p.find(".\\") == 0) {
+                return fs::absolute(p).string();
+            }
+            return p;
+        }
         std::string test_cmd = "\"" + p + "\" --version >nul 2>&1";
         if (std::system(test_cmd.c_str()) == 0) {
             return p;
@@ -607,37 +688,8 @@ struct PageSize {
 
 static PageSize get_pdf_page_size(const std::string& qpdf_exe, const std::string& pdf_path) {
     PageSize size;
-
-    // Use qpdf --show-pages to get page dimensions
-    std::string temp_info = pdf_path + ".pageinfo.tmp";
-    std::string cmd = "\"" + qpdf_exe + "\" --show-pages \"" + pdf_path + "\" > \"" + temp_info + "\" 2>&1";
-
-    if (std::system(cmd.c_str()) == 0) {
-        std::ifstream info_file(temp_info);
-        std::string line;
-        // Look for "page 1: ... /MediaBox" or similar
-        // Example: "page 1: ... /MediaBox [0 0 612 792]"
-        while (std::getline(info_file, line)) {
-            size_t media_pos = line.find("/MediaBox");
-            if (media_pos != std::string::npos) {
-                size_t bracket_start = line.find('[', media_pos);
-                size_t bracket_end = line.find(']', bracket_start);
-                if (bracket_start != std::string::npos && bracket_end != std::string::npos) {
-                    std::string coords = line.substr(bracket_start + 1, bracket_end - bracket_start - 1);
-                    std::istringstream ss(coords);
-                    double x1, y1, x2, y2;
-                    if (ss >> x1 >> y1 >> x2 >> y2) {
-                        size.width = static_cast<int>(x2 - x1);
-                        size.height = static_cast<int>(y2 - y1);
-                        break;
-                    }
-                }
-            }
-        }
-        info_file.close();
-        fs::remove(temp_info);
-    }
-
+    // Just use default Letter size (612x792) to avoid complex QPDF parsing
+    // This works for most documents and avoids Windows system() redirect issues
     return size;
 }
 
@@ -645,11 +697,11 @@ static PageSize get_pdf_page_size(const std::string& qpdf_exe, const std::string
 // Advanced Watermarking Functions
 // ============================================================================
 
-static bool apply_watermark_advanced(const std::string& qpdf_exe,
-                                     const std::string& magick_exe,
-                                     const std::string& input_pdf,
-                                     const std::string& output_pdf,
-                                     const WatermarkConfig& config) {
+static bool apply_watermark_simple(const std::string& qpdf_exe,
+                                   const std::string& magick_exe,
+                                   const std::string& input_pdf,
+                                   const std::string& output_pdf,
+                                   const WatermarkConfig& config) {
     if (!config.is_valid()) {
         std::cerr << "WARNING: Invalid watermark configuration. Skipping watermark.\n";
         try {
@@ -660,26 +712,12 @@ static bool apply_watermark_advanced(const std::string& qpdf_exe,
         }
     }
 
-    // Get PDF page size
-    PageSize page_size = get_pdf_page_size(qpdf_exe, input_pdf);
+    std::cout << "INFO: Applying watermark using batch wrapper...\n";
 
-    // Prepare watermark image with ImageMagick
-    std::string processed_watermark = output_pdf + ".wm_processed.png";
-
-    // Calculate watermark dimensions based on scale
-    int wm_base_size = static_cast<int>(std::min(page_size.width, page_size.height) * 0.3);
-    int wm_width = static_cast<int>(wm_base_size * config.scale);
-
-    // Apply rotation, opacity, and resize to watermark image
-    std::ostringstream wm_prep_cmd;
-    wm_prep_cmd << "\"" << magick_exe << "\" \"" << config.image_path << "\" "
-                << "-resize " << wm_width << "x" << wm_width << " "
-                << "-rotate " << config.rotation << " "
-                << "-alpha set -channel A -evaluate multiply " << (config.opacity / 100.0) << " "
-                << "+channel \"" << processed_watermark << "\"";
-
-    if (std::system(wm_prep_cmd.str().c_str()) != 0) {
-        std::cerr << "WARNING: Failed to prepare watermark image.\n";
+    // Use batch file wrapper which handles Windows command-line escaping correctly
+    std::string wrapper = "./tools/apply_watermark_wrapper.bat";
+    if (!fs::exists(wrapper)) {
+        std::cerr << "WARNING: Watermark wrapper not found. Skipping watermark.\n";
         try {
             fs::copy(input_pdf, output_pdf, fs::copy_options::overwrite_existing);
             return false;
@@ -688,105 +726,38 @@ static bool apply_watermark_advanced(const std::string& qpdf_exe,
         }
     }
 
-    // Convert PDF pages to individual images, apply watermark, and convert back
-    std::string temp_dir = output_pdf + ".wm_temp";
-    fs::create_directories(temp_dir);
+    // Get absolute paths (keep backslashes for Windows compatibility)
+    std::string abs_wrapper = fs::absolute(wrapper).string();
+    std::string abs_input = fs::absolute(input_pdf).string();
+    std::string abs_output = fs::absolute(output_pdf).string();
+    std::string abs_image = fs::absolute(config.image_path).string();
 
-    // Extract PDF to images
-    std::string pdf_to_images = temp_dir + "/page";
-    std::ostringstream extract_cmd;
-    extract_cmd << "\"" << magick_exe << "\" -density 150 \"" << input_pdf << "\" "
-                << "\"" << pdf_to_images << "-%04d.png\"";
+    // Build command to call the batch wrapper
+    std::string cmd = "\"" + abs_wrapper + "\" "
+                    + "\"" + abs_input + "\" "
+                    + "\"" + abs_output + "\" "
+                    + "\"" + abs_image + "\" "
+                    + std::to_string(config.rotation) + " "
+                    + std::to_string(config.opacity);
 
-    if (std::system(extract_cmd.str().c_str()) != 0) {
-        std::cerr << "WARNING: Failed to extract PDF to images.\n";
-        fs::remove_all(temp_dir);
-        fs::remove(processed_watermark);
-        try {
-            fs::copy(input_pdf, output_pdf, fs::copy_options::overwrite_existing);
-            return false;
-        } catch (...) {
-            return false;
-        }
-    }
+    std::cout << "Executing watermark command...\n";
+    std::cout << "Command: " << cmd << "\n";
 
-    // Apply watermark to each page image
-    std::vector<std::string> watermarked_pages;
-    for (const auto& entry : fs::directory_iterator(temp_dir)) {
-        if (entry.path().extension() == ".png" &&
-            entry.path().filename().string().find("page-") == 0) {
+#ifdef _WIN32
+    // Use CreateProcessA for better reliability on Windows
+    int result = run_command_windows(cmd);
+#else
+    // Fall back to system() on non-Windows platforms
+    int result = std::system(cmd.c_str());
+#endif
 
-            std::string page_file = entry.path().string();
-            std::string watermarked_file = entry.path().stem().string() + "_wm.png";
-            std::string watermarked_path = temp_dir + "/" + watermarked_file;
+    std::cout << "Command completed with exit code: " << result << "\n";
 
-            std::ostringstream composite_cmd;
-            composite_cmd << "\"" << magick_exe << "\" \"" << page_file << "\" ";
-
-            // Handle different positions
-            if (config.position == WatermarkPosition::REPEAT) {
-                // Tile watermark across the page
-                composite_cmd << "\\( \"" << processed_watermark << "\" -write mpr:tile +delete \\) "
-                             << "-tile mpr:tile -draw \"color 0,0 reset\" ";
-            } else {
-                // Calculate gravity for ImageMagick
-                std::string gravity;
-                switch (config.position) {
-                    case WatermarkPosition::CENTER:        gravity = "center"; break;
-                    case WatermarkPosition::TOP_LEFT:      gravity = "northwest"; break;
-                    case WatermarkPosition::TOP_CENTER:    gravity = "north"; break;
-                    case WatermarkPosition::TOP_RIGHT:     gravity = "northeast"; break;
-                    case WatermarkPosition::MIDDLE_LEFT:   gravity = "west"; break;
-                    case WatermarkPosition::MIDDLE_RIGHT:  gravity = "east"; break;
-                    case WatermarkPosition::BOTTOM_LEFT:   gravity = "southwest"; break;
-                    case WatermarkPosition::BOTTOM_CENTER: gravity = "south"; break;
-                    case WatermarkPosition::BOTTOM_RIGHT:  gravity = "southeast"; break;
-                    default:                                gravity = "center"; break;
-                }
-
-                composite_cmd << "\"" << processed_watermark << "\" "
-                             << "-gravity " << gravity << " -composite ";
-            }
-
-            composite_cmd << "\"" << watermarked_path << "\"";
-
-            if (std::system(composite_cmd.str().c_str()) == 0) {
-                watermarked_pages.push_back(watermarked_path);
-            } else {
-                std::cerr << "WARNING: Failed to apply watermark to page: " << page_file << "\n";
-            }
-        }
-    }
-
-    // Convert watermarked images back to PDF
-    if (!watermarked_pages.empty()) {
-        // Sort pages
-        std::sort(watermarked_pages.begin(), watermarked_pages.end());
-
-        // Build file list for convert
-        std::ostringstream files;
-        for (const auto& page : watermarked_pages) {
-            files << "\"" << page << "\" ";
-        }
-
-        std::ostringstream convert_cmd;
-        convert_cmd << "\"" << magick_exe << "\" " << files.str() << "\"" << output_pdf << "\"";
-
-        if (std::system(convert_cmd.str().c_str()) != 0) {
-            std::cerr << "WARNING: Failed to convert watermarked images to PDF.\n";
-            fs::remove_all(temp_dir);
-            fs::remove(processed_watermark);
-            try {
-                fs::copy(input_pdf, output_pdf, fs::copy_options::overwrite_existing);
-                return false;
-            } catch (...) {
-                return false;
-            }
-        }
+    if (result == 0) {
+        std::cout << "INFO: Watermark applied successfully!\n";
+        return true;
     } else {
-        std::cerr << "WARNING: No watermarked pages generated.\n";
-        fs::remove_all(temp_dir);
-        fs::remove(processed_watermark);
+        std::cerr << "WARNING: Failed to apply watermark (exit code " << result << ").\n";
         try {
             fs::copy(input_pdf, output_pdf, fs::copy_options::overwrite_existing);
             return false;
@@ -794,12 +765,6 @@ static bool apply_watermark_advanced(const std::string& qpdf_exe,
             return false;
         }
     }
-
-    // Cleanup temp files
-    fs::remove_all(temp_dir);
-    fs::remove(processed_watermark);
-
-    return true;
 }
 
 // ============================================================================
@@ -898,8 +863,8 @@ static bool process_pdf_with_watermark(const std::string& input_pdf,
                 fs::remove(temp_extracted);
             }
         } else {
-            // Apply advanced watermark
-            if (!apply_watermark_advanced(qpdf_exe, magick_exe, temp_extracted, output_pdf, watermark_config)) {
+            // Apply watermark
+            if (!apply_watermark_simple(qpdf_exe, magick_exe, temp_extracted, output_pdf, watermark_config)) {
                 std::cerr << "WARNING: Failed to apply watermark. Using non-watermarked PDF.\n";
             }
             // Cleanup temp file
