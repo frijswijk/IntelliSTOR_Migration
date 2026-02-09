@@ -411,7 +411,7 @@ enum class SelectionMode {
 struct SelectionRule {
     SelectionMode mode = SelectionMode::ALL;
     std::vector<std::pair<int, int>> page_ranges;
-    std::set<uint32_t> section_ids;
+    std::vector<uint32_t> section_ids;  // Changed from set to vector to preserve order
 };
 
 static SelectionRule parse_selection_rule(const std::string& rule_str) {
@@ -442,7 +442,7 @@ static SelectionRule parse_selection_rule(const std::string& rule_str) {
             size_t end = token.find_last_not_of(" \t");
             if (start != std::string::npos) {
                 token = token.substr(start, end - start + 1);
-                rule.section_ids.insert(std::stoul(token));
+                rule.section_ids.push_back(std::stoul(token));  // Changed from insert to push_back
             }
         }
         return rule;
@@ -492,7 +492,7 @@ static SelectionRule parse_selection_rule(const std::string& rule_str) {
             size_t end = sid_str.find_last_not_of(" \t");
             if (start != std::string::npos) {
                 sid_str = sid_str.substr(start, end - start + 1);
-                rule.section_ids.insert(std::stoul(sid_str));
+                rule.section_ids.push_back(std::stoul(sid_str));  // Changed from insert to push_back
             }
         }
     } else {
@@ -520,13 +520,14 @@ select_pages_by_range(const std::vector<PageTableEntry>& entries,
 static std::vector<PageTableEntry>
 select_pages_by_sections(const std::vector<PageTableEntry>& entries,
                         const std::vector<SectionEntry>& sections,
-                        const std::set<uint32_t>& section_ids) {
+                        const std::vector<uint32_t>& section_ids) {  // Changed from set to vector
     std::vector<PageTableEntry> selected;
     std::map<uint32_t, const SectionEntry*> section_map;
     for (const auto& s : sections) {
         section_map[s.section_id] = &s;
     }
 
+    // Iterate in the order requested by the user (preserved in vector)
     for (uint32_t sid : section_ids) {
         auto it = section_map.find(sid);
         if (it == section_map.end()) continue;
@@ -1065,6 +1066,11 @@ int main(int argc, char* argv[]) {
         // Extract binary objects (if present)
         auto binary_entries = read_binary_table(file_data.data(), file_data.size(),
                                                hdr.binary_object_count);
+
+        if (binary_entries.empty()) {
+            std::cout << "NOTE: No binary objects (PDF/AFP) found in RPT file. Only text extracted.\n";
+        }
+
         if (!binary_entries.empty()) {
             // First, extract full PDF/binary to temp file
             std::string temp_full_binary = output_binary + ".full.tmp";
