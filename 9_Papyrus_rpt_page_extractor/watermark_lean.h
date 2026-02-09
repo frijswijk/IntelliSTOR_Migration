@@ -276,12 +276,15 @@ inline bool generate_watermark_pdf(const std::string& png_path,
 }
 
 // Create watermark: process image and generate PDF
+// page_width/page_height should match the target PDF's visible page dimensions
 inline bool create_watermark_pdf(const std::string& watermark_path,
                                 int rotation,
                                 int opacity,
                                 double scale,
                                 const std::string& position,
-                                const std::string& output_pdf) {
+                                const std::string& output_pdf,
+                                int page_width = 612,
+                                int page_height = 792) {
     // Process image
     Image img = load_image(watermark_path);
     if (!img.is_valid()) return false;
@@ -303,8 +306,8 @@ inline bool create_watermark_pdf(const std::string& watermark_path,
         return false;
     }
 
-    // Generate PDF
-    bool result = generate_watermark_pdf(temp_png, output_pdf, position);
+    // Generate PDF with matching page dimensions
+    bool result = generate_watermark_pdf(temp_png, output_pdf, position, page_width, page_height);
 
     // Cleanup
     std::remove(temp_png.c_str());

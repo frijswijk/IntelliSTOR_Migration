@@ -1,0 +1,11 @@
+# Archived v1/v2 files and old tools
+_archive/
+
+# Compiled executables
+*.exe
+*.o
+
+# Test output files
+*.PDF
+*.TXT
+nul

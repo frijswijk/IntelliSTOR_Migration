@@ -1,13 +1,11 @@
-// papyrus_rpt_page_extractor.cpp - RPT extractor with PDF page extraction & watermarking
+// papyrus_rpt_page_extractor.cpp - RPT extractor with QPDF library integration
 //
-// Standalone C++17 CLI tool for Papyrus shell method calls (4 positional arguments).
-// Based on rpt_page_extractor.cpp with simplified command-line interface.
-// Includes PDF page extraction and watermarking support via QPDF.
+// Standalone C++17 CLI tool for Papyrus shell method calls with enhanced watermark support.
+// Links QPDF as a C++ library - zero external process calls, fully self-contained.
 //
-// Compile: g++ -std=c++17 -O2 -static -o papyrus_rpt_page_extractor.exe papyrus_rpt_page_extractor.cpp -lz -s
-// Compile (MSVC): cl /EHsc /O2 /MT papyrus_rpt_page_extractor.cpp /Fe:papyrus_rpt_page_extractor.exe
+// Compile: See compile.bat (requires QPDF development files)
 //
-// Usage: papyrus_rpt_page_extractor.exe <input_rpt> <selection_rule> <output_txt> <output_binary>
+// Usage: papyrus_rpt_page_extractor.exe <input_rpt> <selection_rule> <output_txt> <output_binary> [watermark_options]
 //
 // Selection rule formats:
 //   - "all": All pages
@@ -17,16 +15,29 @@
 //   - "sections:14259,14260,14261": Multiple sections
 //   - "14259,14260": Shorthand for sections (comma-separated numbers without prefix)
 //
-// PDF Features:
-//   - Automatically extracts selected pages from PDF binaries (requires QPDF)
-//   - Applies watermark if image found at ./tools/watermarks/confidential.png (requires ImageMagick)
-//   - Falls back to full PDF extraction if QPDF not available
-//   - Preserves page orientation (portrait/landscape)
+// Watermark options (all optional, no watermark if not provided):
+//   --WatermarkImage <path>       - Path to watermark image (PNG, JPG, etc.)
+//   --WatermarkPosition <pos>     - Position: Center, TopLeft, TopCenter, TopRight,
+//                                   MiddleLeft, MiddleRight, BottomLeft, BottomCenter,
+//                                   BottomRight, Repeat (default: Center)
+//   --WatermarkRotation <degrees> - Rotation angle: -180 to 180 degrees (default: 0)
+//   --WatermarkOpacity <percent>  - Opacity: 0 to 100% (default: 30)
+//   --WatermarkScale <scale>      - Scale factor: 0.5 to 2.0 (default: 1.0)
 //
-// Dependencies (Optional):
-//   - QPDF: For PDF page extraction (https://github.com/qpdf/qpdf/releases)
-//   - ImageMagick: For watermarking (https://imagemagick.org/)
-//   Place executables in ./tools/ or ensure they're in PATH
+// Examples:
+//   Basic extraction (no watermark):
+//     papyrus_rpt_page_extractor.exe input.rpt all output.txt output.pdf
+//
+//   With centered watermark at 30% opacity:
+//     papyrus_rpt_page_extractor.exe input.rpt pages:1-10 output.txt output.pdf --WatermarkImage logo.png
+//
+//   With custom watermark settings:
+//     papyrus_rpt_page_extractor.exe input.rpt all output.txt output.pdf --WatermarkImage confidential.png --WatermarkPosition TopRight --WatermarkOpacity 50 --WatermarkRotation 45 --WatermarkScale 0.8
+//
+// Dependencies:
+//   - QPDF library (linked at compile time - no external exe needed)
+//   - zlib (for RPT decompression)
+//   - stb_image headers (bundled)
 //
 // Exit codes:
 //   0  - Success
@@ -42,6 +53,7 @@
 //   10 - Unknown error
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
@@ -56,6 +68,13 @@
 
 #include <zlib.h>
 
+// QPDF library headers
+#include <qpdf/QPDF.hh>
+#include <qpdf/QPDFJob.hh>
+#include <qpdf/QPDFWriter.hh>
+#include <qpdf/QPDFPageDocumentHelper.hh>
+#include <qpdf/QPDFPageObjectHelper.hh>
+
 namespace fs = std::filesystem;
 
 // ============================================================================
@@ -64,7 +83,7 @@ namespace fs = std::filesystem;
 
 static constexpr uint32_t RPTINSTHDR_OFFSET = 0xF0;
 
-// Exit codes (avoid name collision with stdlib macros)
+// Exit codes
 constexpr int EC_SUCCESS = 0;
 constexpr int EC_INVALID_ARGS = 1;
 constexpr int EC_FILE_NOT_FOUND = 2;
@@ -76,6 +95,70 @@ constexpr int EC_NO_PAGES_SELECTED = 7;
 constexpr int EC_DECOMPRESSION_ERROR = 8;
 constexpr int EC_MEMORY_ERROR = 9;
 constexpr int EC_UNKNOWN_ERROR = 10;
+
+// ============================================================================
+// Watermark Configuration
+// ============================================================================
+
+enum class WatermarkPosition {
+    CENTER,
+    TOP_LEFT,
+    TOP_CENTER,
+    TOP_RIGHT,
+    MIDDLE_LEFT,
+    MIDDLE_RIGHT,
+    BOTTOM_LEFT,
+    BOTTOM_CENTER,
+    BOTTOM_RIGHT,
+    REPEAT
+};
+
+struct WatermarkConfig {
+    std::string image_path;
+    WatermarkPosition position = WatermarkPosition::CENTER;
+    int rotation = 0;           // -180 to 180 degrees
+    int opacity = 30;           // 0 to 100%
+    double scale = 1.0;         // 0.5 to 2.0
+
+    bool is_valid() const {
+        return !image_path.empty() && fs::exists(image_path);
+    }
+
+    // Convert position enum to gravity string
+    static std::string position_to_gravity(WatermarkPosition pos) {
+        switch (pos) {
+            case WatermarkPosition::CENTER:        return "center";
+            case WatermarkPosition::TOP_LEFT:      return "northwest";
+            case WatermarkPosition::TOP_CENTER:    return "north";
+            case WatermarkPosition::TOP_RIGHT:     return "northeast";
+            case WatermarkPosition::MIDDLE_LEFT:   return "west";
+            case WatermarkPosition::MIDDLE_RIGHT:  return "east";
+            case WatermarkPosition::BOTTOM_LEFT:   return "southwest";
+            case WatermarkPosition::BOTTOM_CENTER: return "south";
+            case WatermarkPosition::BOTTOM_RIGHT:  return "southeast";
+            case WatermarkPosition::REPEAT:        return "center"; // Repeat uses tiling, not gravity
+            default:                               return "center";
+        }
+    }
+
+    static WatermarkPosition parse_position(const std::string& pos_str) {
+        std::string pos_lower = pos_str;
+        std::transform(pos_lower.begin(), pos_lower.end(), pos_lower.begin(), ::tolower);
+
+        if (pos_lower == "center") return WatermarkPosition::CENTER;
+        if (pos_lower == "topleft") return WatermarkPosition::TOP_LEFT;
+        if (pos_lower == "topcenter") return WatermarkPosition::TOP_CENTER;
+        if (pos_lower == "topright") return WatermarkPosition::TOP_RIGHT;
+        if (pos_lower == "middleleft") return WatermarkPosition::MIDDLE_LEFT;
+        if (pos_lower == "middleright") return WatermarkPosition::MIDDLE_RIGHT;
+        if (pos_lower == "bottomleft" || pos_lower == "leftbottom") return WatermarkPosition::BOTTOM_LEFT;
+        if (pos_lower == "bottomcenter") return WatermarkPosition::BOTTOM_CENTER;
+        if (pos_lower == "bottomright" || pos_lower == "rightbottom") return WatermarkPosition::BOTTOM_RIGHT;
+        if (pos_lower == "repeat") return WatermarkPosition::REPEAT;
+
+        return WatermarkPosition::CENTER; // default
+    }
+};
 
 // ============================================================================
 // Data Structures
@@ -380,7 +463,7 @@ static SelectionRule parse_selection_rule(const std::string& rule_str) {
             size_t end = token.find_last_not_of(" \t");
             if (start != std::string::npos) {
                 token = token.substr(start, end - start + 1);
-                rule.section_ids.push_back(std::stoul(token));  // Changed from insert to push_back
+                rule.section_ids.push_back(std::stoul(token));
             }
         }
         return rule;
@@ -430,7 +513,7 @@ static SelectionRule parse_selection_rule(const std::string& rule_str) {
             size_t end = sid_str.find_last_not_of(" \t");
             if (start != std::string::npos) {
                 sid_str = sid_str.substr(start, end - start + 1);
-                rule.section_ids.push_back(std::stoul(sid_str));  // Changed from insert to push_back
+                rule.section_ids.push_back(std::stoul(sid_str));
             }
         }
     } else {
@@ -458,7 +541,7 @@ select_pages_by_range(const std::vector<PageTableEntry>& entries,
 static std::vector<PageTableEntry>
 select_pages_by_sections(const std::vector<PageTableEntry>& entries,
                         const std::vector<SectionEntry>& sections,
-                        const std::vector<uint32_t>& section_ids) {  // Changed from set to vector
+                        const std::vector<uint32_t>& section_ids) {
     std::vector<PageTableEntry> selected;
     std::map<uint32_t, const SectionEntry*> section_map;
     for (const auto& s : sections) {
@@ -485,57 +568,66 @@ select_pages_by_sections(const std::vector<PageTableEntry>& entries,
 }
 
 // ============================================================================
-// PDF Page Extraction Functions
+// Lean Watermarking using stb_image (minimal external dependencies)
 // ============================================================================
 
-static std::string find_qpdf() {
-    // Check bundled tools first
-    std::string bundled = "./tools/qpdf.exe";
-    if (fs::exists(bundled)) return bundled;
+#include "watermark_lean.h"
 
-    // Check common install locations
-    std::vector<std::string> paths = {
-        "C:\\Users\\freddievr\\qpdf-12.3.2-mingw64\\bin\\qpdf.exe",
-        "C:\\Users\\freddievr\\qpdf\\bin\\qpdf.exe",
-        "C:\\Program Files\\qpdf\\bin\\qpdf.exe",
-        "qpdf.exe"  // Try PATH
-    };
+// ============================================================================
+// PDF Page Size Detection using QPDF Library
+// ============================================================================
 
-    for (const auto& p : paths) {
-        if (fs::exists(p)) return p;
-        // Try executing to see if it's in PATH
-        std::string test_cmd = "\"" + p + "\" --version >nul 2>&1";
-        if (std::system(test_cmd.c_str()) == 0) {
-            return p;
+struct PageSize {
+    int width = 612;   // Letter default
+    int height = 792;
+};
+
+static PageSize get_pdf_page_size(const std::string& pdf_path) {
+    PageSize size;
+    try {
+        QPDF qpdf;
+        qpdf.processFile(pdf_path.c_str());
+        QPDFPageDocumentHelper dh(qpdf);
+        auto pages = dh.getAllPages();
+        if (pages.empty()) return size;
+
+        // Get first page's MediaBox
+        auto page_obj = pages[0].getObjectHandle();
+        auto mediabox = page_obj.getKey("/MediaBox");
+        if (mediabox.isArray() && mediabox.getArrayNItems() >= 4) {
+            int x0 = static_cast<int>(mediabox.getArrayItem(0).getNumericValue());
+            int y0 = static_cast<int>(mediabox.getArrayItem(1).getNumericValue());
+            int x1 = static_cast<int>(mediabox.getArrayItem(2).getNumericValue());
+            int y1 = static_cast<int>(mediabox.getArrayItem(3).getNumericValue());
+            int w = x1 - x0;
+            int h = y1 - y0;
+
+            // Check for /Rotate — swap width/height for 90/270
+            int rotate = 0;
+            auto rotate_obj = page_obj.getKey("/Rotate");
+            if (rotate_obj.isInteger()) {
+                rotate = static_cast<int>(rotate_obj.getIntValue());
+            }
+            if (rotate == 90 || rotate == 270 || rotate == -90 || rotate == -270) {
+                std::swap(w, h);
+            }
+
+            if (w > 0 && h > 0) {
+                size.width = w;
+                size.height = h;
+            }
         }
+    } catch (const std::exception& e) {
+        std::cerr << "WARNING: Could not read PDF page size: " << e.what() << "\n";
     }
-
-    return "";
+    return size;
 }
 
-static std::string find_magick() {
-    std::string bundled = "./tools/magick.exe";
-    if (fs::exists(bundled)) return bundled;
+// ============================================================================
+// PDF Page Extraction using QPDF Library
+// ============================================================================
 
-    std::vector<std::string> paths = {
-        "C:\\Users\\freddievr\\imagemagick\\magick.exe",
-        "C:\\Program Files\\ImageMagick\\magick.exe",
-        "magick.exe"
-    };
-
-    for (const auto& p : paths) {
-        if (fs::exists(p)) return p;
-        std::string test_cmd = "\"" + p + "\" --version >nul 2>&1";
-        if (std::system(test_cmd.c_str()) == 0) {
-            return p;
-        }
-    }
-
-    return "";
-}
-
-static bool extract_pdf_pages(const std::string& qpdf_exe,
-                              const std::string& input_pdf,
+static bool extract_pdf_pages(const std::string& input_pdf,
                               const std::string& output_pdf,
                               const std::vector<int>& pages) {
     if (pages.empty()) {
@@ -548,136 +640,175 @@ static bool extract_pdf_pages(const std::string& qpdf_exe,
         }
     }
 
-    // Build page specification: "1,3,5-7,10"
-    std::ostringstream page_spec;
+    try {
+        // Build page specification: "1,3,5-7,10"
+        std::ostringstream page_spec;
 
-    // Consolidate consecutive pages into ranges
-    std::vector<int> sorted_pages = pages;
-    std::sort(sorted_pages.begin(), sorted_pages.end());
+        // Consolidate consecutive pages into ranges
+        std::vector<int> sorted_pages = pages;
+        std::sort(sorted_pages.begin(), sorted_pages.end());
 
-    size_t i = 0;
-    while (i < sorted_pages.size()) {
-        int range_start = sorted_pages[i];
-        int range_end = range_start;
+        size_t i = 0;
+        while (i < sorted_pages.size()) {
+            int range_start = sorted_pages[i];
+            int range_end = range_start;
 
-        // Find consecutive pages
-        while (i + 1 < sorted_pages.size() && sorted_pages[i + 1] == sorted_pages[i] + 1) {
+            // Find consecutive pages
+            while (i + 1 < sorted_pages.size() && sorted_pages[i + 1] == sorted_pages[i] + 1) {
+                ++i;
+                range_end = sorted_pages[i];
+            }
+
+            if (!page_spec.str().empty()) {
+                page_spec << ",";
+            }
+
+            if (range_start == range_end) {
+                page_spec << range_start;
+            } else {
+                page_spec << range_start << "-" << range_end;
+            }
+
             ++i;
-            range_end = sorted_pages[i];
         }
 
-        if (!page_spec.str().empty()) {
-            page_spec << ",";
-        }
+        // Use QPDFJob to extract pages (equivalent to: qpdf input --pages . range -- output)
+        QPDFJob j;
+        auto c = j.config();
+        c->inputFile(input_pdf);
+        c->outputFile(output_pdf);
+        c->pages()->pageSpec(".", page_spec.str())->endPages();
+        c->checkConfiguration();
+        j.run();
 
-        if (range_start == range_end) {
-            page_spec << range_start;
-        } else {
-            page_spec << range_start << "-" << range_end;
-        }
-
-        ++i;
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "ERROR: QPDF page extraction failed: " << e.what() << "\n";
+        return false;
     }
-
-    // QPDF command
-    std::ostringstream cmd;
-    cmd << "\"" << qpdf_exe << "\" \"" << input_pdf << "\" "
-        << "--pages . " << page_spec.str() << " -- \"" << output_pdf << "\"";
-
-    int result = std::system(cmd.str().c_str());
-    return (result == 0);
 }
 
-static bool create_watermark_pdf(const std::string& magick_exe,
-                                 const std::string& image_path,
-                                 const std::string& watermark_pdf,
-                                 int width = 612, int height = 792) {
-    // Convert PNG to PDF with page size (Letter: 612x792, A4: 595x842)
-    std::ostringstream cmd;
-    cmd << "\"" << magick_exe << "\" convert \"" << image_path << "\" "
-        << "-page " << width << "x" << height << " "
-        << "-gravity center "
-        << "\"" << watermark_pdf << "\"";
+// ============================================================================
+// Watermark Overlay using QPDF Library
+// ============================================================================
 
-    int result = std::system(cmd.str().c_str());
-    return (result == 0);
-}
-
-static bool apply_watermark(const std::string& qpdf_exe,
-                           const std::string& input_pdf,
-                           const std::string& watermark_pdf,
-                           const std::string& output_pdf) {
-    // QPDF overlay command
-    std::ostringstream cmd;
-    cmd << "\"" << qpdf_exe << "\" \"" << input_pdf << "\" "
-        << "--overlay \"" << watermark_pdf << "\" -- \"" << output_pdf << "\"";
-
-    int result = std::system(cmd.str().c_str());
-    return (result == 0);
-}
-
-static bool process_pdf_with_options(const std::string& input_pdf,
-                                     const std::string& output_pdf,
-                                     const std::vector<int>& pages,
-                                     const std::string& watermark_image) {
-    std::string qpdf_exe = find_qpdf();
-    if (qpdf_exe.empty()) {
-        std::cerr << "WARNING: QPDF not found. Copying full PDF without page extraction.\n";
+static bool apply_watermark_simple(const std::string& input_pdf,
+                                   const std::string& output_pdf,
+                                   const WatermarkConfig& config) {
+    if (!config.is_valid()) {
+        std::cerr << "WARNING: Invalid watermark configuration. Skipping watermark.\n";
         try {
             fs::copy(input_pdf, output_pdf, fs::copy_options::overwrite_existing);
-            return false;
+            return true;
         } catch (...) {
             return false;
         }
     }
 
-    // Step 1: Extract pages (or copy if no filtering)
+    std::cout << "INFO: Applying watermark (100% C++ - stb_image + QPDF library)...\n";
+
+    // Create temp watermark PDF using pure C++ (no ImageMagick!)
+    fs::path output_dir = fs::path(output_pdf).parent_path();
+    if (output_dir.empty()) output_dir = fs::current_path();
+
+    auto now = std::chrono::steady_clock::now();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+    std::string temp_wm_pdf = (output_dir / ("_wm_" + std::to_string(ms) + ".pdf")).string();
+
+    // Read actual page dimensions from input PDF
+    PageSize pg = get_pdf_page_size(input_pdf);
+    std::cout << "  Target PDF page size: " << pg.width << " x " << pg.height << " points\n";
+
+    // Process watermark and generate PDF (pure C++)
+    std::cout << "  Generating watermark PDF (stb_image processing + pure C++ PDF)...\n";
+
+    std::string gravity = WatermarkConfig::position_to_gravity(config.position);
+
+    bool wm_ok = WatermarkLean::create_watermark_pdf(
+        config.image_path,
+        config.rotation,
+        config.opacity,
+        config.scale,
+        gravity,
+        temp_wm_pdf,
+        pg.width,
+        pg.height
+    );
+
+    if (!wm_ok) {
+        std::cerr << "ERROR: Failed to create watermark PDF\n";
+        try {
+            fs::copy(input_pdf, output_pdf, fs::copy_options::overwrite_existing);
+        } catch (...) {}
+        return false;
+    }
+
+    // Use QPDF library to overlay (no external process!)
+    std::cout << "  Overlaying with QPDF library...\n";
+
+    bool overlay_ok = false;
+    try {
+        // Scope the QPDFJob so it releases all file handles before cleanup
+        {
+            QPDFJob j;
+            auto c = j.config();
+            c->inputFile(input_pdf);
+            c->outputFile(output_pdf);
+            c->overlay()->file(temp_wm_pdf)->to("1-z")->repeat("1-z")->endUnderlayOverlay();
+            c->checkConfiguration();
+            j.run();
+        }
+        overlay_ok = true;
+    } catch (const std::filesystem::filesystem_error& e) {
+        // QPDFJob may throw filesystem_error during internal cleanup even when
+        // the overlay itself succeeded. Check if output was actually written.
+        if (fs::exists(output_pdf) && fs::file_size(output_pdf) > 0) {
+            overlay_ok = true;
+            std::cerr << "WARNING: QPDF temp cleanup issue (overlay succeeded): " << e.what() << "\n";
+        } else {
+            std::cerr << "ERROR: QPDF overlay failed: " << e.what() << "\n";
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "ERROR: QPDF overlay failed: " << e.what() << "\n";
+    }
+
+    // Clean up temp watermark PDF (retry with error_code to avoid exceptions)
+    std::error_code ec;
+    fs::remove(temp_wm_pdf, ec);
+
+    if (overlay_ok) {
+        std::cout << "INFO: Watermark applied successfully!\n";
+        return true;
+    } else {
+        try {
+            fs::copy(input_pdf, output_pdf, fs::copy_options::overwrite_existing);
+        } catch (...) {}
+        return false;
+    }
+}
+
+// ============================================================================
+// Main PDF Processing with Watermark Options
+// ============================================================================
+
+static bool process_pdf_with_watermark(const std::string& input_pdf,
+                                       const std::string& output_pdf,
+                                       const std::vector<int>& pages,
+                                       const WatermarkConfig& watermark_config) {
+    // Step 1: Extract pages if needed
     std::string temp_extracted = output_pdf + ".temp.pdf";
-    if (!extract_pdf_pages(qpdf_exe, input_pdf, temp_extracted, pages)) {
+    if (!extract_pdf_pages(input_pdf, temp_extracted, pages)) {
         std::cerr << "ERROR: Failed to extract PDF pages\n";
         return false;
     }
 
-    // Step 2: Apply watermark if provided
-    if (!watermark_image.empty() && fs::exists(watermark_image)) {
-        std::string magick_exe = find_magick();
-        if (magick_exe.empty()) {
-            std::cerr << "WARNING: ImageMagick not found. Skipping watermark.\n";
-            try {
-                fs::rename(temp_extracted, output_pdf);
-            } catch (...) {
-                fs::copy(temp_extracted, output_pdf, fs::copy_options::overwrite_existing);
-                fs::remove(temp_extracted);
-            }
-        } else {
-            std::string watermark_pdf = output_pdf + ".watermark.pdf";
-
-            // Convert image to PDF
-            if (!create_watermark_pdf(magick_exe, watermark_image, watermark_pdf)) {
-                std::cerr << "WARNING: Failed to create watermark PDF. Skipping watermark.\n";
-                try {
-                    fs::rename(temp_extracted, output_pdf);
-                } catch (...) {
-                    fs::copy(temp_extracted, output_pdf, fs::copy_options::overwrite_existing);
-                    fs::remove(temp_extracted);
-                }
-            } else {
-                // Apply watermark
-                if (!apply_watermark(qpdf_exe, temp_extracted, watermark_pdf, output_pdf)) {
-                    std::cerr << "WARNING: Failed to apply watermark.\n";
-                    try {
-                        fs::rename(temp_extracted, output_pdf);
-                    } catch (...) {
-                        fs::copy(temp_extracted, output_pdf, fs::copy_options::overwrite_existing);
-                        fs::remove(temp_extracted);
-                    }
-                } else {
-                    // Cleanup temp files
-                    fs::remove(temp_extracted);
-                    fs::remove(watermark_pdf);
-                }
-            }
+    // Step 2: Apply watermark if configured
+    if (watermark_config.is_valid()) {
+        if (!apply_watermark_simple(temp_extracted, output_pdf, watermark_config)) {
+            std::cerr << "WARNING: Failed to apply watermark. Using non-watermarked PDF.\n";
         }
+        // Cleanup temp file
+        fs::remove(temp_extracted);
     } else {
         // No watermark requested
         try {
@@ -692,19 +823,60 @@ static bool process_pdf_with_options(const std::string& input_pdf,
 }
 
 // ============================================================================
+// Command-Line Argument Parsing
+// ============================================================================
+
+static WatermarkConfig parse_watermark_args(int argc, char* argv[], int start_index) {
+    WatermarkConfig config;
+
+    for (int i = start_index; i < argc; ++i) {
+        std::string arg = argv[i];
+
+        if (arg == "--WatermarkImage" && i + 1 < argc) {
+            config.image_path = argv[++i];
+        }
+        else if (arg == "--WatermarkPosition" && i + 1 < argc) {
+            config.position = WatermarkConfig::parse_position(argv[++i]);
+        }
+        else if (arg == "--WatermarkRotation" && i + 1 < argc) {
+            int rotation = std::stoi(argv[++i]);
+            config.rotation = std::max(-180, std::min(180, rotation));
+        }
+        else if (arg == "--WatermarkOpacity" && i + 1 < argc) {
+            int opacity = std::stoi(argv[++i]);
+            config.opacity = std::max(0, std::min(100, opacity));
+        }
+        else if (arg == "--WatermarkScale" && i + 1 < argc) {
+            double scale = std::stod(argv[++i]);
+            config.scale = std::max(0.5, std::min(2.0, scale));
+        }
+    }
+
+    return config;
+}
+
+// ============================================================================
 // Main Extraction
 // ============================================================================
 
 int main(int argc, char* argv[]) {
-    // Validate arguments
-    if (argc != 5) {
+    // Validate minimum arguments (4 required + optional watermark args)
+    if (argc < 5) {
         std::cerr << "Usage: " << argv[0]
-                  << " <input_rpt> <selection_rule> <output_txt> <output_binary>\n";
-        std::cerr << "\nArguments:\n";
+                  << " <input_rpt> <selection_rule> <output_txt> <output_binary> [watermark_options]\n";
+        std::cerr << "\nRequired Arguments:\n";
         std::cerr << "  input_rpt       - Path to input .rpt file\n";
         std::cerr << "  selection_rule  - \"all\", \"pages:1-5\", \"sections:14259,14260\", or \"14259,14260\"\n";
         std::cerr << "  output_txt      - Path to write concatenated text output\n";
         std::cerr << "  output_binary   - Path to write binary output (PDF/AFP)\n";
+        std::cerr << "\nWatermark Options (all optional):\n";
+        std::cerr << "  --WatermarkImage <path>      - Path to watermark image\n";
+        std::cerr << "  --WatermarkPosition <pos>    - Center, TopLeft, TopCenter, TopRight,\n";
+        std::cerr << "                                 MiddleLeft, MiddleRight, BottomLeft,\n";
+        std::cerr << "                                 BottomCenter, BottomRight, Repeat\n";
+        std::cerr << "  --WatermarkRotation <deg>    - Rotation: -180 to 180 degrees (default: 0)\n";
+        std::cerr << "  --WatermarkOpacity <pct>     - Opacity: 0 to 100% (default: 30)\n";
+        std::cerr << "  --WatermarkScale <scale>     - Scale: 0.5 to 2.0 (default: 1.0)\n";
         std::cerr << "\nExit Codes:\n";
         std::cerr << "  0  - Success\n";
         std::cerr << "  1  - Invalid arguments\n";
@@ -724,6 +896,9 @@ int main(int argc, char* argv[]) {
     std::string selection_rule_str = argv[2];
     std::string output_txt = argv[3];
     std::string output_binary = argv[4];
+
+    // Parse watermark options (if provided)
+    WatermarkConfig watermark_config = parse_watermark_args(argc, argv, 5);
 
     try {
         // Validate input file
@@ -838,27 +1013,13 @@ int main(int argc, char* argv[]) {
                     pdf_pages.push_back(entry.page_number);
                 }
 
-                // Look for watermark image
-                std::string watermark;
-                std::vector<std::string> watermark_paths = {
-                    "./tools/watermarks/confidential.png",
-                    "./watermarks/confidential.png",
-                    "./confidential.png"
-                };
-                for (const auto& wm_path : watermark_paths) {
-                    if (fs::exists(wm_path)) {
-                        watermark = wm_path;
-                        break;
-                    }
-                }
-
                 // Process PDF with page extraction and optional watermark
                 if (rule.mode == SelectionMode::ALL) {
                     // No page filtering for "all" mode
-                    process_pdf_with_options(temp_full_binary, output_binary, {}, watermark);
+                    process_pdf_with_watermark(temp_full_binary, output_binary, {}, watermark_config);
                 } else {
                     // Extract selected pages only
-                    process_pdf_with_options(temp_full_binary, output_binary, pdf_pages, watermark);
+                    process_pdf_with_watermark(temp_full_binary, output_binary, pdf_pages, watermark_config);
                 }
 
                 // Cleanup temp file
@@ -886,6 +1047,9 @@ int main(int argc, char* argv[]) {
                 std::cout << " (PDF";
                 if (rule.mode != SelectionMode::ALL) {
                     std::cout << " - " << selected.size() << " pages extracted";
+                }
+                if (watermark_config.is_valid()) {
+                    std::cout << " with watermark";
                 }
                 std::cout << ")";
             }
