@@ -491,6 +491,70 @@ bool AFPSplitter::extractPagesWithResources(const std::vector<PageRange>& ranges
 
     uint8_t crlf[2] = {0x0D, 0x0A};
 
+    // Include document preamble resources (everything before first page,
+    // excluding BDT/EDT/BNG/ENG which we handle ourselves).
+    // This captures font objects, resource groups, document environment groups,
+    // coded font maps, overlay maps, etc.
+    // Only include preamble when source has a BDT (indicates global resources).
+    // Files without BDT (e.g. 26027272.AFP) have page-specific preamble data
+    // (MPS) that is already handled by inter-page data logic.
+    const auto& preamble = parser_->getPreamble();
+    bool preambleHasBDT = false;
+    {
+        size_t scan = 0;
+        while (scan + 9 <= preamble.size()) {
+            if (preamble[scan] == 0x5A && preamble[scan + 3] == 0xD3 &&
+                preamble[scan + 4] == 0xA8 && preamble[scan + 5] == 0xA8) {
+                preambleHasBDT = true;
+                break;
+            }
+            scan++;
+        }
+    }
+    if (!preamble.empty() && preambleHasBDT) {
+        // Walk through preamble record by record, copying all except BDT/EDT/BNG/ENG
+        size_t pos = 0;
+        while (pos + 9 <= preamble.size()) {
+            if (preamble[pos] == 0x5A && preamble[pos + 3] == 0xD3) {
+                uint16_t recLen = AFPUtil::readUInt16BE(&preamble[pos + 1]);
+                if (recLen >= 8 && pos + 1 + recLen <= preamble.size()) {
+                    uint8_t typeCode = preamble[pos + 4];
+                    uint8_t catCode = preamble[pos + 5];
+
+                    // Skip document/group envelope records (we write our own BDT/EDT)
+                    bool skip = false;
+                    if (typeCode == 0xA8 && catCode == 0xA8) skip = true; // BDT
+                    if (typeCode == 0xA9 && catCode == 0xA8) skip = true; // EDT
+                    if (typeCode == 0xA8 && catCode == 0xAD) skip = true; // BNG
+                    if (typeCode == 0xA9 && catCode == 0xAD) skip = true; // ENG
+
+                    if (!skip) {
+                        // Write separator before this record
+                        if (useCRLF) {
+                            out.write(reinterpret_cast<const char*>(crlf), 2);
+                        }
+                        // Copy record with renumbered sequence
+                        size_t recSize = 1 + recLen;
+                        std::vector<uint8_t> rec(preamble.begin() + pos,
+                                                  preamble.begin() + pos + recSize);
+                        AFPUtil::writeUInt16BE(&rec[7], seqCounter++);
+                        out.write(reinterpret_cast<const char*>(rec.data()), rec.size());
+                    }
+
+                    pos += 1 + recLen;
+                    // Skip source CRLF separators (we write our own above)
+                    while (pos < preamble.size() && (preamble[pos] == 0x0D || preamble[pos] == 0x0A)) {
+                        pos++;
+                    }
+                } else {
+                    pos++;
+                }
+            } else {
+                pos++;
+            }
+        }
+    }
+
     // Write each requested page with inter-page data and renumbered sequences
     for (int pageNum : pageNumbers) {
         const AFPPage* page = parser_->getPage(pageNum);

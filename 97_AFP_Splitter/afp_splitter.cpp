@@ -96,9 +96,6 @@ int main(int argc, char* argv[]) {
     if (argc == 5) {
         if (strcmp(argv[4], "--raw") == 0) {
             rawMode = true;
-        } else if (strcmp(argv[4], "--with-resources") == 0) {
-            // Accept old flag for backwards compatibility (it was the default now)
-            rawMode = false;
         } else {
             std::cerr << "Error: Unknown option: " << argv[4] << "\n";
             printUsage(argv[0]);
