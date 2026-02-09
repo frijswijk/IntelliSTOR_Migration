@@ -6,12 +6,12 @@
 void printUsage(const char* progName) {
     std::cout << "\n";
     std::cout << "=============================================================================\n";
-    std::cout << "AFP Page Splitter v1.0\n";
+    std::cout << "AFP Page Splitter v1.1\n";
     std::cout << "=============================================================================\n";
     std::cout << "Extract specific pages from AFP (Advanced Function Presentation) files\n";
     std::cout << "\n";
     std::cout << "Usage:\n";
-    std::cout << "  " << progName << " <input.afp> <page_ranges> <output.afp> [--with-resources]\n";
+    std::cout << "  " << progName << " <input.afp> <page_ranges> <output.afp> [--raw]\n";
     std::cout << "\n";
     std::cout << "Arguments:\n";
     std::cout << "  input.afp     Input AFP file path\n";
@@ -19,11 +19,11 @@ void printUsage(const char* progName) {
     std::cout << "  output.afp    Output AFP file path\n";
     std::cout << "\n";
     std::cout << "Options:\n";
-    std::cout << "  --with-resources    Extract only requested pages with resource collection\n";
-    std::cout << "                      (creates Resource Group wrapper, excludes previous pages)\n";
+    std::cout << "  --raw    Raw copy mode: copies everything from file start through\n";
+    std::cout << "           the requested pages (includes all prior pages).\n";
     std::cout << "\n";
-    std::cout << "Note: Without --with-resources, extracts pages using simple mode which\n";
-    std::cout << "      preserves document structure but includes all previous pages.\n";
+    std::cout << "By default, extracts only the requested pages into a clean standalone\n";
+    std::cout << "AFP document with proper BDT/EDT envelope and inter-page records.\n";
     std::cout << "\n";
     std::cout << "Page Range Format:\n";
     std::cout << "  Single page:        5\n";
@@ -46,12 +46,6 @@ void printUsage(const char* progName) {
     std::cout << "\n";
     std::cout << "  " << progName << " input.afp 1-3,5-7 output.afp\n";
     std::cout << "      Extract pages 1,2,3,5,6,7\n";
-    std::cout << "\n";
-    std::cout << "  " << progName << " input.afp 1-5,4-6 output.afp\n";
-    std::cout << "      Extract pages 1,2,3,4,5,4,5,6 (4 and 5 appear twice)\n";
-    std::cout << "\n";
-    std::cout << "  " << progName << " input.afp 8-5 output.afp\n";
-    std::cout << "      Extract pages 5,6,7,8 (range automatically reversed)\n";
     std::cout << "\n";
     std::cout << "=============================================================================\n";
     std::cout << "\n";
@@ -96,12 +90,15 @@ int main(int argc, char* argv[]) {
     std::string inputFile = argv[1];
     std::string rangeStr = argv[2];
     std::string outputFile = argv[3];
-    bool withResources = false;
+    bool rawMode = false;
 
-    // Check for --with-resources flag
+    // Check for optional flag
     if (argc == 5) {
-        if (strcmp(argv[4], "--with-resources") == 0) {
-            withResources = true;
+        if (strcmp(argv[4], "--raw") == 0) {
+            rawMode = true;
+        } else if (strcmp(argv[4], "--with-resources") == 0) {
+            // Accept old flag for backwards compatibility (it was the default now)
+            rawMode = false;
         } else {
             std::cerr << "Error: Unknown option: " << argv[4] << "\n";
             printUsage(argv[0]);
@@ -116,7 +113,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Input file:   " << inputFile << "\n";
     std::cout << "Page ranges:  " << rangeStr << "\n";
     std::cout << "Output file:  " << outputFile << "\n";
-    std::cout << "Mode:         " << (withResources ? "Resource Collection" : "Simple (includes previous pages)") << "\n";
+    std::cout << "Mode:         " << (rawMode ? "Raw (includes prior pages)" : "Clean extraction") << "\n";
     std::cout << "=============================================================================\n";
     std::cout << "\n";
 
@@ -161,12 +158,12 @@ int main(int argc, char* argv[]) {
 
     std::cout << "Extracting " << extractedPages << " page(s)...\n";
 
-    // Extract pages using the appropriate method
+    // Extract pages: default is clean extraction, --raw for legacy simple mode
     bool success;
-    if (withResources) {
-        success = splitter.extractPagesWithResources(ranges, outputFile);
-    } else {
+    if (rawMode) {
         success = splitter.extractPages(ranges, outputFile);
+    } else {
+        success = splitter.extractPagesWithResources(ranges, outputFile);
     }
 
     if (!success) {

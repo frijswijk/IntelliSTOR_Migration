@@ -279,9 +279,9 @@ This is compensated by the scanning loop: the next iteration sees a non-0x5A byt
 
 ## 4. Extraction Modes
 
-### 4.1 `extractPagesWithResources()` (Recommended)
+### 4.1 `extractPagesWithResources()` (Default)
 
-Produces a clean, standalone AFP file:
+The default mode. Produces a clean, standalone AFP file:
 
 ```
 [BDT] [inter-page data] [BPG..EPG] [inter-page data] [BPG..EPG] ... [EDT]
@@ -292,7 +292,9 @@ Produces a clean, standalone AFP file:
 - Renumbers all sequence counters from 1
 - Respects source CRLF convention
 
-### 4.2 `extractPages()` (Simple Mode)
+CLI: `afp_splitter.exe input.afp 2-3 output.afp`
+
+### 4.2 `extractPages()` (Raw Mode)
 
 Copies raw data from the source file:
 
@@ -304,6 +306,8 @@ Copies raw data from the source file:
 - Includes all pages before the first requested page (by design)
 - Does not renumber sequence counters
 - Useful when you want to preserve the full document context
+
+CLI: `afp_splitter.exe input.afp 2-3 output.afp --raw`
 
 ---
 

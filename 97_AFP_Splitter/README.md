@@ -15,15 +15,15 @@ This produces `afp_splitter.exe` (statically linked, no DLL dependencies).
 ## Usage
 
 ```
-afp_splitter.exe <input.afp> <page_ranges> <output.afp> [--with-resources]
+afp_splitter.exe <input.afp> <page_ranges> <output.afp> [--raw]
 ```
 
-### Extraction Modes
+By default the splitter extracts only the requested pages into a clean, standalone AFP document with a proper BDT/EDT envelope and inter-page records.
 
 | Mode | Flag | Behaviour |
 |------|------|-----------|
-| **Resource Collection** | `--with-resources` | Extracts only the requested pages wrapped in a new BDT/EDT document envelope. Includes inter-page records (MPS, etc.). Produces a clean, standalone AFP file. **Recommended.** |
-| Simple | _(none)_ | Copies everything from the start of the file up to and including the requested pages. Prior pages are included to preserve document structure. |
+| **Clean extraction** | _(default)_ | Extracts only the requested pages wrapped in a new BDT/EDT document envelope. Includes inter-page records (MPS, etc.). |
+| Raw copy | `--raw` | Copies everything from the start of the file up to and including the requested pages. Prior pages are included. |
 
 ### Page Range Format
 
@@ -43,14 +43,14 @@ Ranges are normalised automatically:
 ### Examples
 
 ```bash
-# Extract pages 2-3 from an AFP file (recommended mode)
-afp_splitter.exe input.afp 2-3 output.afp --with-resources
+# Extract pages 2-3 from an AFP file
+afp_splitter.exe input.afp 2-3 output.afp
 
 # Extract a single page
-afp_splitter.exe input.afp 5 page5.afp --with-resources
+afp_splitter.exe input.afp 5 page5.afp
 
 # Extract multiple non-contiguous ranges
-afp_splitter.exe input.afp 1-3,7-9 selection.afp --with-resources
+afp_splitter.exe input.afp 1-3,7-9 selection.afp
 ```
 
 ### Output
@@ -62,7 +62,7 @@ AFP Page Splitter
 Input file:   input.afp
 Page ranges:  2-3
 Output file:  output.afp
-Mode:         Resource Collection
+Mode:         Clean extraction
 =============================================================================
 
 Loading AFP file...
