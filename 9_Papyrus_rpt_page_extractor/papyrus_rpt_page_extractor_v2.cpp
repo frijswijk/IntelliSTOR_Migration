@@ -612,12 +612,14 @@ static int run_command_windows(const std::string& command_line) {
         FALSE,                      // bInheritHandles
         CREATE_NO_WINDOW,           // dwCreationFlags (no console window)
         NULL,                       // lpEnvironment
-        NULL,                       // lpCurrentDirectory
+        NULL,                       // lpCurrentDirectory (inherit from parent)
         &si,                        // lpStartupInfo
         &pi                         // lpProcessInformation
     );
 
     if (!success) {
+        DWORD err = GetLastError();
+        std::cerr << "CreateProcessA failed with error: " << err << "\n";
         return -1;
     }
 
@@ -711,8 +713,10 @@ static PageSize get_pdf_page_size(const std::string& qpdf_exe, const std::string
 }
 
 // ============================================================================
-// Advanced Watermarking Functions
+// Lean Watermarking using stb_image (minimal external dependencies)
 // ============================================================================
+
+#include "watermark_lean.h"
 
 static bool apply_watermark_simple(const std::string& qpdf_exe,
                                    const std::string& magick_exe,
@@ -729,64 +733,90 @@ static bool apply_watermark_simple(const std::string& qpdf_exe,
         }
     }
 
-    std::cout << "INFO: Applying watermark using batch wrapper...\n";
+    std::cout << "INFO: Applying watermark (100% C++ - stb_image + pure PDF generation)...\n";
 
-    // Use batch file wrapper which handles Windows command-line escaping correctly
-    std::string wrapper = "./tools/apply_watermark_wrapper.bat";
-    if (!fs::exists(wrapper)) {
-        std::cerr << "WARNING: Watermark wrapper not found. Skipping watermark.\n";
-        try {
-            fs::copy(input_pdf, output_pdf, fs::copy_options::overwrite_existing);
-            return false;
-        } catch (...) {
-            return false;
-        }
+    // Create temp watermark PDF using pure C++ (no ImageMagick!)
+    fs::path output_dir = fs::path(output_pdf).parent_path();
+    if (output_dir.empty()) output_dir = fs::current_path();
+
+    std::string temp_wm_pdf = (output_dir / ("_wm_" + std::to_string(GetTickCount()) + ".pdf")).string();
+
+    // Process watermark and generate PDF (pure C++)
+    std::cout << "  Generating watermark PDF (stb_image processing + pure C++ PDF)...\n";
+
+    std::string gravity = WatermarkConfig::position_to_gravity(config.position);
+
+    bool wm_ok = WatermarkLean::create_watermark_pdf(
+        config.image_path,
+        config.rotation,
+        config.opacity,
+        config.scale,
+        gravity,
+        temp_wm_pdf
+    );
+
+    if (!wm_ok) {
+        std::cerr << "ERROR: Failed to create watermark PDF\n";
+        fs::copy(input_pdf, output_pdf, fs::copy_options::overwrite_existing);
+        return false;
     }
 
-    // Get absolute paths (keep backslashes for Windows compatibility)
-    std::string abs_wrapper = fs::absolute(wrapper).string();
-    std::string abs_input = fs::absolute(input_pdf).string();
-    std::string abs_output = fs::absolute(output_pdf).string();
-    std::string abs_image = fs::absolute(config.image_path).string();
-
-    // Build command to call the batch wrapper
-    // Parameters: input.pdf output.pdf watermark.png rotation opacity gravity scale_percent
-    std::string gravity = WatermarkConfig::position_to_gravity(config.position);
-    int scale_percent = static_cast<int>(config.scale * 100); // Convert 2.0 -> 200, 0.5 -> 50
-    std::string cmd = "\"" + abs_wrapper + "\" "
-                    + "\"" + abs_input + "\" "
-                    + "\"" + abs_output + "\" "
-                    + "\"" + abs_image + "\" "
-                    + std::to_string(config.rotation) + " "
-                    + std::to_string(config.opacity) + " "
-                    + gravity + " "
-                    + std::to_string(scale_percent);
-
-    std::cout << "Executing watermark command...\n";
-    std::cout << "Command: " << cmd << "\n";
+    // Use QPDF to overlay (CreateProcessA for better reliability)
+    std::cout << "  Overlaying with QPDF...\n";
 
 #ifdef _WIN32
-    // Use CreateProcessA for better reliability on Windows
-    int result = run_command_windows(cmd);
+    // Build command line for CreateProcessA (no cmd.exe wrapper needed)
+    std::string cmdline = "\"" + qpdf_exe + "\" "
+                        + "\"" + input_pdf + "\" "
+                        + "--overlay \"" + temp_wm_pdf + "\" "
+                        + "--to=1-z --repeat=1-z -- "
+                        + "\"" + output_pdf + "\"";
+
+    STARTUPINFOA si = {sizeof(si)};
+    PROCESS_INFORMATION pi;
+
+    std::vector<char> cmd_buf(cmdline.begin(), cmdline.end());
+    cmd_buf.push_back('\0');
+
+    // Get qpdf directory for DLL loading
+    fs::path qpdf_dir = fs::path(qpdf_exe).parent_path();
+
+    BOOL success = CreateProcessA(
+        NULL,                               // Use command line
+        cmd_buf.data(),                     // Command line
+        NULL, NULL, FALSE, 0, NULL,
+        qpdf_dir.string().c_str(),         // Working directory (for DLLs)
+        &si, &pi
+    );
+
+    int result = 1;
+    if (success) {
+        WaitForSingleObject(pi.hProcess, INFINITE);
+        DWORD exit_code = 0;
+        GetExitCodeProcess(pi.hProcess, &exit_code);
+        result = static_cast<int>(exit_code);
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+    }
 #else
-    // Fall back to system() on non-Windows platforms
+    std::string cmd = "\"" + qpdf_exe + "\" "
+                    + "\"" + input_pdf + "\" "
+                    + "--overlay \"" + temp_wm_pdf + "\" "
+                    + "--to=1-z --repeat=1-z -- "
+                    + "\"" + output_pdf + "\"";
     int result = std::system(cmd.c_str());
 #endif
 
-    std::cout << "Command completed with exit code: " << result << "\n";
+    fs::remove(temp_wm_pdf);
 
-    if (result == 0) {
-        std::cout << "INFO: Watermark applied successfully!\n";
-        return true;
-    } else {
-        std::cerr << "WARNING: Failed to apply watermark (exit code " << result << ").\n";
-        try {
-            fs::copy(input_pdf, output_pdf, fs::copy_options::overwrite_existing);
-            return false;
-        } catch (...) {
-            return false;
-        }
+    if (result != 0) {
+        std::cerr << "ERROR: QPDF overlay failed (exit code " << result << ")\n";
+        fs::copy(input_pdf, output_pdf, fs::copy_options::overwrite_existing);
+        return false;
     }
+
+    std::cout << "INFO: Watermark applied successfully!\n";
+    return true;
 }
 
 // ============================================================================

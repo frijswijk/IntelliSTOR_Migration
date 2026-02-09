@@ -97,6 +97,7 @@ bool AFPParser::parse(const std::string& filename) {
 
 bool AFPParser::parseStructuredFields() {
     pages_.clear();
+    allResources_.clear();
     size_t offset = 0;
     int currentPage = 0;
     size_t pageStartOffset = 0;
@@ -133,8 +134,15 @@ bool AFPParser::parseStructuredFields() {
             memcpy(field.data.data(), &fileData_[offset + 8], field.length - 8);
         }
 
-        // Collect ALL resource structured fields (d3a6xx) from entire file
-        if (field.isResource()) {
+        // For resource collection mode: collect ALL structured fields from the entire file
+        // except page/document boundaries. Pages will still contain embedded resources,
+        // but we also put them in the Resource Group for reference.
+        // This handles both inline and external resource modes.
+        if (field.classCode == 0xD3 &&
+            !field.isBeginPage() && !field.isEndPage() &&
+            !field.isBeginDocument() && !field.isEndDocument() &&
+            !field.isBeginPageGroup() && !field.isEndPageGroup()) {
+
             std::vector<uint8_t> resourceData(field.length);
             memcpy(resourceData.data(), &fileData_[offset], field.length);
             allResources_.push_back(resourceData);
@@ -433,7 +441,7 @@ bool AFPSplitter::extractPagesWithResources(const std::vector<PageRange>& ranges
     };
     out.write(reinterpret_cast<const char*>(beginResourceGroup), sizeof(beginResourceGroup));
 
-    // Write all collected resources
+    // Write all collected resources (from entire file)
     for (const auto& resource : allResources) {
         out.write(reinterpret_cast<const char*>(resource.data()), resource.size());
     }
@@ -471,12 +479,9 @@ bool AFPSplitter::extractPagesWithResources(const std::vector<PageRange>& ranges
             return false;
         }
 
-        // Find the actual Begin Page structured field
-        size_t offset = page->actualPageStart;
-
-        // Write from Begin Page to End Page
-        size_t pageContentSize = page->endOffset - offset;
-        out.write(reinterpret_cast<const char*>(&rawData[offset]), pageContentSize);
+        // Write from actualPageStart (Begin Page) to endOffset (after End Page)
+        size_t pageContentSize = page->endOffset - page->actualPageStart;
+        out.write(reinterpret_cast<const char*>(&rawData[page->actualPageStart]), pageContentSize);
     }
 
     // Write End Document (D3A9AD)
