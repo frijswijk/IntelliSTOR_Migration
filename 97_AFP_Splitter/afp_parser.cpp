@@ -427,51 +427,16 @@ bool AFPSplitter::extractPagesWithResources(const std::vector<PageRange>& ranges
     }
 
     const auto& rawData = parser_->getRawData();
-    const auto& allResources = parser_->getAllResources();
+    const auto& preamble = parser_->getPreamble();
+    const auto& postamble = parser_->getPostamble();
 
-    // Write Begin Resource Group (D3A8C6)
-    uint8_t beginResourceGroup[] = {
-        0x5A,           // Introducer
-        0x00, 0x10,     // Length (16 bytes)
-        0xD3, 0xA8, 0xC6,  // Begin Resource Group
-        0x00,           // Flag
-        0x00,           // Reserved
-        // 8-byte resource group name (blank/default)
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-    };
-    out.write(reinterpret_cast<const char*>(beginResourceGroup), sizeof(beginResourceGroup));
-
-    // Write all collected resources (from entire file)
-    for (const auto& resource : allResources) {
-        out.write(reinterpret_cast<const char*>(resource.data()), resource.size());
+    // Write preamble (everything before first page - contains document header and resources)
+    if (!preamble.empty()) {
+        out.write(reinterpret_cast<const char*>(preamble.data()), preamble.size());
     }
 
-    // Write End Resource Group (D3A9C6)
-    uint8_t endResourceGroup[] = {
-        0x5A,           // Introducer
-        0x00, 0x10,     // Length (16 bytes)
-        0xD3, 0xA9, 0xC6,  // End Resource Group
-        0x00,           // Flag
-        0x00,           // Reserved
-        // 8-byte resource group name (blank/default)
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-    };
-    out.write(reinterpret_cast<const char*>(endResourceGroup), sizeof(endResourceGroup));
-
-    // Write Begin Document (D3A8A8)
-    uint8_t beginDocument[] = {
-        0x5A,           // Introducer
-        0x00, 0x11,     // Length (17 bytes)
-        0xD3, 0xA8, 0xA8,  // Begin Document
-        0x00,           // Flag
-        0x00,           // Reserved
-        // 8-byte document name (blank/default)
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00            // Class (normal)
-    };
-    out.write(reinterpret_cast<const char*>(beginDocument), sizeof(beginDocument));
-
-    // Write each requested page (just the page content from Begin Page to End Page)
+    // Write ONLY the requested pages (not previous pages)
+    // Include inter-page structures (Begin Page Group, etc.)
     for (int pageNum : pageNumbers) {
         const AFPPage* page = parser_->getPage(pageNum);
         if (!page) {
@@ -479,22 +444,16 @@ bool AFPSplitter::extractPagesWithResources(const std::vector<PageRange>& ranges
             return false;
         }
 
-        // Write from actualPageStart (Begin Page) to endOffset (after End Page)
-        size_t pageContentSize = page->endOffset - page->actualPageStart;
-        out.write(reinterpret_cast<const char*>(&rawData[page->actualPageStart]), pageContentSize);
+        // Write from startOffset (includes inter-page gap) to endOffset (after End Page)
+        // This includes Begin Page Group and other structures needed between pages
+        size_t pageContentSize = page->endOffset - page->startOffset;
+        out.write(reinterpret_cast<const char*>(&rawData[page->startOffset]), pageContentSize);
     }
 
-    // Write End Document (D3A9AD)
-    uint8_t endDocument[] = {
-        0x5A,           // Introducer
-        0x00, 0x10,     // Length (16 bytes)
-        0xD3, 0xA9, 0xAD,  // End Document
-        0x00,           // Flag
-        0x00,           // Reserved
-        // 8-byte document name (blank/default)
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-    };
-    out.write(reinterpret_cast<const char*>(endDocument), sizeof(endDocument));
+    // Write postamble (document closing structures)
+    if (!postamble.empty()) {
+        out.write(reinterpret_cast<const char*>(postamble.data()), postamble.size());
+    }
 
     out.close();
     return true;
