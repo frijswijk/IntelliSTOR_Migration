@@ -73,7 +73,7 @@ Identified by the 3-byte combination `[ClassCode TypeCode CategoryCode]`:
 
 ### 1.4 Document Structure Patterns
 
-AFP files can have different structural patterns. The splitter handles both:
+AFP files can have different structural patterns. The splitter handles all three:
 
 **Pattern A - Full document envelope (e.g. AEP.afp):**
 ```
@@ -104,10 +104,33 @@ BPG  (Begin Page 2)
 EPG  (End Page 2)
 ```
 
+**Pattern C - Embedded resources with document envelope (e.g. Auction_res_index.afp):**
+```
+BFN  (Begin Font)                    \
+  ...font object data...              |  Pre-BDT resources
+EFN  (End Font)                      /
+BDT  (Begin Document)
+  BNG  (Begin Named Page Group)
+    TLE  (Tag Logical Element - index metadata)
+    BPG  (Begin Page 1)
+      BAG, MCF, EAG, BDG, EDG, ...
+    EPG  (End Page 1)
+    BPG  (Begin Page 2)
+      ...
+    EPG  (End Page 2)
+  ENG  (End Named Page Group)
+  BNG  (Begin Named Page Group)
+    ...
+  ENG
+EDT  (End Document)
+```
+
 Key differences:
 - Pattern B has no BDT/EDT, no CRLF separators, and MPS records precede each page.
+- Pattern C has embedded font resources **before** the BDT and uses named page groups (BNG/ENG) to group pages.
 - The splitter always wraps output in BDT/EDT (creating them if absent in source).
-- Inter-page records (like MPS) are captured and included in the output.
+- Inter-page records (like MPS, ENG/BNG) are captured and included in the output.
+- Document preamble resources (fonts, overlays, environment groups) are automatically included when the source contains them (see section 3.6).
 
 ### 1.5 EBCDIC Encoding
 
@@ -185,8 +208,12 @@ AFPSplitter::extractPagesWithResources(ranges, outputFile)
   |-> Detect CRLF convention from source
   |-> Derive document name from input filename (EBCDIC)
   |-> Write BDT (seq=1)
+  |-> Include preamble resources (if source has BDT):
+  |     |-> Walk preamble record by record
+  |     |-> Copy all records except BDT/EDT/BNG/ENG
+  |     |-> Renumber sequence counters
   |-> For each page:
-  |     |-> Copy inter-page data (MPS, separators) with renumbered sequences
+  |     |-> Copy inter-page data (MPS, ENG/BNG, separators) with renumbered sequences
   |     |-> Copy page data (BPG through EPG) with renumbered sequences
   |-> Write EDT (seq=N)
   |-> Close file
@@ -239,15 +266,18 @@ When `useCRLF` is false:
 AFP records have a 16-bit sequence counter at bytes 7-8 (relative to the 0x5A). The splitter renumbers all output records sequentially starting from 1:
 
 ```
-BDT       -> seq 1
-MPS (p2)  -> seq 2
-BPG (p2)  -> seq 3
-PTX       -> seq 4
+BDT              -> seq 1
+BFN (preamble)   -> seq 2        (only if source has preamble resources)
+...              -> seq ...
+EFN (preamble)   -> seq K
+MPS (p2)         -> seq K+1
+BPG (p2)         -> seq K+2
+PTX              -> seq K+3
 ...
-EPG (p2)  -> seq N
-MPS (p3)  -> seq N+1
+EPG (p2)         -> seq N
+MPS (p3)         -> seq N+1
 ...
-EDT       -> seq M
+EDT              -> seq M
 ```
 
 To avoid false positives (0x5A bytes appearing inside record data), the renumbering loop validates both the 0x5A introducer **and** the 0xD3 class code at offset +3:
@@ -275,6 +305,23 @@ The parser advances with `offset += field.length` instead of `offset += field.le
 
 This is compensated by the scanning loop: the next iteration sees a non-0x5A byte and increments past it (and past any CRLF). This is intentional and should be preserved as-is to avoid cascading changes to the page offset model.
 
+### 3.6 Preamble Resource Inclusion
+
+The document preamble (`documentHeader_` / `getPreamble()`) contains everything from the start of the file up to the first BPG record. Depending on the file pattern, this preamble may contain:
+
+| Pattern | Preamble contents |
+|---------|-------------------|
+| A (AEP.afp) | BDT, MPS, resource mappings |
+| B (26027272.AFP) | MPS only (no BDT) |
+| C (Auction_res_index.afp) | Font objects (BFN..EFN), BDT, BNG, TLE |
+
+The extraction function automatically detects whether the preamble contains a BDT record. This distinguishes Pattern A/C files (global document resources) from Pattern B files (page-specific data only):
+
+- **BDT present**: The preamble contains document-level resources. All records are copied to the output **except** BDT, EDT, BNG, and ENG (which the splitter manages itself). This preserves embedded fonts, coded font maps, overlay definitions, document environment groups, and TLE metadata.
+- **BDT absent**: The preamble contains page-specific data (e.g. MPS for page 1) that is already handled by the inter-page data logic. No preamble records are copied.
+
+Each preamble record is copied individually with its sequence counter renumbered and CRLF separators matching the source convention. Source CRLF bytes between preamble records are skipped (the splitter writes its own separators).
+
 ---
 
 ## 4. Extraction Modes
@@ -284,11 +331,12 @@ This is compensated by the scanning loop: the next iteration sees a non-0x5A byt
 The default mode. Produces a clean, standalone AFP file:
 
 ```
-[BDT] [inter-page data] [BPG..EPG] [inter-page data] [BPG..EPG] ... [EDT]
+[BDT] [preamble resources] [inter-page data] [BPG..EPG] [inter-page data] [BPG..EPG] ... [EDT]
 ```
 
 - Creates synthetic BDT and EDT records with derived document name
-- Copies inter-page data (MPS records, source separators) for each page
+- Includes document preamble resources when the source has them (fonts, overlays, environment groups)
+- Copies inter-page data (MPS, ENG/BNG, source separators) for each page
 - Renumbers all sequence counters from 1
 - Respects source CRLF convention
 
@@ -375,9 +423,9 @@ Compile with C++17 (`-std=c++17`). No external dependencies.
 ### 6.1 Current Limitations
 
 - **Page 1 inter-page data**: If the first requested page is page 1 in the source, any records preceding it (e.g. MPS in Pattern B files) are not included. These records live in the document header, which may also contain BDT/BDG that should not be duplicated.
-- **Named Page Groups (BNG/ENG)**: The splitter extracts individual pages, not page groups. If the source uses named page groups, the group boundaries are not preserved in the output.
-- **Resource Group (BRG/ERG)**: In `--with-resources` mode, external resource groups from the source are not included. The output relies on inter-page records (MPS, MCF, MPO) to reference overlays and fonts.
-- **TLE metadata**: TLE (Tag Logical Element) records are parsed but not used for extraction. They are available in `AFPPage::tleIndexes` for future use.
+- **Named Page Groups (BNG/ENG)**: Inter-page BNG/ENG records are preserved as part of inter-page data, but the splitter does not reconstruct group boundaries to match the original grouping. The output may contain partial groups.
+- **Preamble includes all resources**: When preamble resources are included, all document-level resources are copied regardless of whether the extracted pages actually reference them. This is safe (unused resources are ignored by viewers) but may result in larger output files than strictly necessary.
+- **TLE metadata**: TLE (Tag Logical Element) records in the preamble are preserved in the output. TLE records are parsed but not used for page filtering. They are available in `AFPPage::tleIndexes` for future use.
 
 ### 6.2 Extending the Splitter
 
@@ -386,10 +434,10 @@ Compile with C++17 (`-std=c++17`). No external dependencies.
 2. Add a new extraction method that filters pages by TLE values instead of page numbers.
 3. Reuse `extractPagesWithResources()` with the filtered page list.
 
-**Adding resource group support:**
-1. Detect BRG/ERG blocks during parsing and store their byte ranges.
-2. In extraction, prepend the resource group data between BDT and the first page.
-3. Only include resources actually referenced by the extracted pages.
+**Selective resource inclusion:**
+1. During preamble inclusion, parse each resource record to determine which fonts/overlays it defines.
+2. Cross-reference against the MCF/MPO/MPS records in the extracted pages.
+3. Only include resources that are actually referenced by the extracted pages (reduces output size for large resource blocks).
 
 **Supporting page groups:**
 1. Track BNG/ENG boundaries in the parser alongside BPG/EPG.
