@@ -17,7 +17,7 @@ import sys
 import os
 import ssl
 from pathlib import Path
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 import secrets
 import string
@@ -1317,6 +1317,14 @@ class LDAPBrowserAPI:
 
     def _register_routes(self):
         """Register Flask routes."""
+
+        @self.app.route('/')
+        def serve_browser():
+            """Serve the LDAP browser HTML page."""
+            return send_from_directory(
+                os.path.dirname(os.path.abspath(__file__)),
+                'ldap_browser.html'
+            )
 
         @self.app.route('/api/health', methods=['GET'])
         def health():
