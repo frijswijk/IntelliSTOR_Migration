@@ -33,13 +33,27 @@ papyrus_rpt_page_extractor.exe <directory>  Export [watermark_options]
 | Format | Description | Example |
 |---|---|---|
 | `all` | Extract all pages | `all` |
-| `<number>` | Extract a single page | `2` |
-| `pages:<range>` | Extract specific page ranges | `pages:1-5` |
-| `pages:<range>,<range>` | Multiple page ranges | `pages:1-5,10-20` |
+| `<number>` | Extract a single page | `1` |
+| `<range>` | Extract a page range | `1-3` |
+| `<n>,<n>` | Multiple individual pages | `1,3` |
+| `<n>,<range>` | Mixed pages and ranges | `1,3-5,8` |
+| `pages:<spec>` | Explicit page selection | `pages:1,3,6` |
 | `sections:<id>` | Extract a single section | `sections:14259` |
-| `sections:<id>,<id>` | Multiple sections | `sections:14259,14260,14261` |
-| `<n>,<n>` | Multiple individual pages | `1,3,5` |
+| `sections:<id>,<id>` | Multiple sections | `sections:14259,14260` |
 | *(empty string)* | Same as `all` | `""` |
+
+Bare numbers are always interpreted as **pages**. Sections require the `sections:` prefix.
+
+**Selection rule examples:**
+```
+all              # all pages
+1                # page 1 only
+1-3              # pages 1 through 3
+1,3              # pages 1 and 3
+1-3,7,10-12      # pages 1-3, 7, and 10-12
+pages:1,3,6      # pages 1, 3, and 6 (explicit)
+sections:14259   # all pages in section 14259
+```
 
 ### Watermark Options
 
