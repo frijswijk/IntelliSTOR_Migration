@@ -449,38 +449,56 @@ static SelectionRule parse_selection_rule(const std::string& rule_str) {
         return rule;
     }
 
-    // Check if it's a simple comma-separated list of numbers (shorthand for sections)
-    bool is_number_list = true;
+    // Check if it's purely digits, commas, dashes, and spaces (no colon or alpha prefix)
+    bool is_numeric_shorthand = true;
     for (char c : rule_str) {
-        if (!std::isdigit(c) && c != ',' && c != ' ') {
-            is_number_list = false;
+        if (!std::isdigit(c) && c != ',' && c != '-' && c != ' ') {
+            is_numeric_shorthand = false;
             break;
         }
     }
 
-    if (is_number_list && rule_str.find(',') != std::string::npos) {
-        // Shorthand: "14259,14260" -> sections
-        rule.mode = SelectionMode::SECTIONS;
-        std::istringstream ss(rule_str);
-        std::string token;
-        while (std::getline(ss, token, ',')) {
-            // Trim whitespace
-            size_t start = token.find_first_not_of(" \t");
-            size_t end = token.find_last_not_of(" \t");
-            if (start != std::string::npos) {
-                token = token.substr(start, end - start + 1);
-                rule.section_ids.push_back(std::stoul(token));
-            }
-        }
-        return rule;
-    }
+    if (is_numeric_shorthand) {
+        bool has_dash = rule_str.find('-') != std::string::npos;
+        bool has_comma = rule_str.find(',') != std::string::npos;
 
-    if (is_number_list) {
-        // Bare number: "2" -> pages:2
-        rule.mode = SelectionMode::PAGES;
-        int p = std::stoi(rule_str);
-        rule.page_ranges.push_back({p, p});
-        return rule;
+        if (has_dash || !has_comma) {
+            // Bare page range: "2", "1-5", "1-5,10-20"
+            rule.mode = SelectionMode::PAGES;
+            std::istringstream ss(rule_str);
+            std::string range_str;
+            while (std::getline(ss, range_str, ',')) {
+                size_t start = range_str.find_first_not_of(" \t");
+                size_t end = range_str.find_last_not_of(" \t");
+                if (start != std::string::npos) {
+                    range_str = range_str.substr(start, end - start + 1);
+                }
+                auto dash = range_str.find('-');
+                if (dash != std::string::npos) {
+                    int p_start = std::stoi(range_str.substr(0, dash));
+                    int p_end = std::stoi(range_str.substr(dash + 1));
+                    rule.page_ranges.push_back({p_start, p_end});
+                } else {
+                    int p = std::stoi(range_str);
+                    rule.page_ranges.push_back({p, p});
+                }
+            }
+            return rule;
+        } else {
+            // Shorthand: "14259,14260" -> sections (comma-separated, no dashes)
+            rule.mode = SelectionMode::SECTIONS;
+            std::istringstream ss(rule_str);
+            std::string token;
+            while (std::getline(ss, token, ',')) {
+                size_t start = token.find_first_not_of(" \t");
+                size_t end = token.find_last_not_of(" \t");
+                if (start != std::string::npos) {
+                    token = token.substr(start, end - start + 1);
+                    rule.section_ids.push_back(std::stoul(token));
+                }
+            }
+            return rule;
+        }
     }
 
     // Standard format: "type:value"
