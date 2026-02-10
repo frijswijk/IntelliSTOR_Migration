@@ -307,14 +307,63 @@ class LDAPConnectionManager:
             self.connection.unbind()
             self.connection = None
 
-    def verify_ou_exists(self, ou_dn):
-        """Verify organizational unit exists.
+    def create_ou(self, ou_dn):
+        """Create an organizational unit if it doesn't already exist.
 
         Args:
-            ou_dn: DN of the organizational unit
+            ou_dn: Full DN of the OU (e.g., ou=Groups,dc=ldap1test,dc=loc)
 
         Returns:
-            bool: True if OU exists
+            dict: {'success': bool, 'action': str, 'message': str}
+        """
+        if not self.connection:
+            self.connect()
+
+        # Check if already exists
+        if self.verify_ou_exists(ou_dn):
+            logging.info(f'OU already exists: {ou_dn}')
+            return {'success': True, 'action': 'exists', 'message': 'OU already exists'}
+
+        # Extract OU name from DN
+        ou_name = ou_dn.split(',')[0].split('=')[1]
+
+        try:
+            success = self.connection.add(
+                ou_dn,
+                attributes={
+                    'objectClass': ['top', 'organizationalUnit'],
+                    'ou': ou_name
+                }
+            )
+
+            if success:
+                logging.info(f'Created OU: {ou_dn}')
+                return {'success': True, 'action': 'created', 'message': f'OU created: {ou_dn}'}
+            else:
+                error_msg = self.connection.result.get('description', 'Unknown error')
+                # entryAlreadyExists means the OU (or a container with that DN) is already there
+                if 'AlreadyExists' in error_msg or self.connection.result.get('result', 0) == 68:
+                    logging.info(f'OU already exists: {ou_dn}')
+                    return {'success': True, 'action': 'exists', 'message': 'OU already exists'}
+                logging.error(f'Failed to create OU {ou_dn}: {error_msg}')
+                return {'success': False, 'action': 'error', 'message': error_msg}
+
+        except Exception as e:
+            logging.error(f'Exception creating OU {ou_dn}: {e}')
+            return {'success': False, 'action': 'error', 'message': str(e)}
+
+    def verify_ou_exists(self, ou_dn):
+        """Verify organizational unit or container exists.
+
+        Checks for any object at the given DN (OU, container, or other).
+        AD has built-in containers (cn=Users) that aren't organizationalUnits
+        but can still hold user/group objects.
+
+        Args:
+            ou_dn: DN of the organizational unit or container
+
+        Returns:
+            bool: True if an entry exists at this DN
         """
         if not self.connection:
             self.connect()
@@ -322,7 +371,7 @@ class LDAPConnectionManager:
         try:
             result = self.connection.search(
                 search_base=ou_dn,
-                search_filter='(objectClass=organizationalUnit)',
+                search_filter='(objectClass=*)',
                 search_scope=ldap3.BASE
             )
             return result
@@ -475,7 +524,6 @@ class CSVImporter:
             'displayName': user_row.get('FULLNAME', username) if user_row.get('FULLNAME') else username,
             'description': user_row.get('DESCRIPTION', '') if user_row.get('DESCRIPTION') else f'User {username}',
             'employeeID': str(user_row['USER_ID']),
-            'userAccountControl': 512  # Normal account, enabled
         }
 
         # Handle password based on strategy
@@ -492,6 +540,10 @@ class CSVImporter:
 
         if password_to_encode:
             attributes['unicodePwd'] = self._encode_password_for_ad(password_to_encode)
+            attributes['userAccountControl'] = 512  # Normal account, enabled
+        else:
+            # AD requires a password for enabled accounts; create as disabled
+            attributes['userAccountControl'] = 514  # Normal account, disabled
 
         return {
             'dn': dn,
@@ -624,6 +676,15 @@ class LDAPGroupManager:
                 }
             else:
                 error_msg = conn.result.get('description', 'Unknown error')
+                # Treat "already exists" as a skip (e.g., built-in groups like Domain Users)
+                if 'AlreadyExists' in error_msg or conn.result.get('result', 0) == 68:
+                    logging.warning(f'Group already exists (AD built-in): {cn}')
+                    return {
+                        'success': False,
+                        'action': 'skipped',
+                        'dn': dn,
+                        'message': 'Group already exists in AD'
+                    }
                 logging.error(f'Failed to create group {cn}: {error_msg}')
                 return {
                     'success': False,
@@ -817,6 +878,15 @@ class LDAPUserManager:
                 }
             else:
                 error_msg = conn.result.get('description', 'Unknown error')
+                if 'AlreadyExists' in error_msg or conn.result.get('result', 0) == 68:
+                    logging.warning(f'User already exists (AD): {username}')
+                    return {
+                        'success': False,
+                        'action': 'skipped',
+                        'dn': dn,
+                        'username': username,
+                        'message': 'User already exists in AD'
+                    }
                 logging.error(f'Failed to create user {username}: {error_msg}')
                 return {
                     'success': False,
@@ -1074,6 +1144,17 @@ class LDAPGroupMembershipManager:
                 }
             else:
                 error_msg = conn.result.get('description', 'Unknown error')
+                if 'AlreadyExists' in error_msg or conn.result.get('result', 0) == 68:
+                    logging.debug(f'User {username} already in group {groupname}')
+                    return {
+                        'success': False,
+                        'action': 'skipped',
+                        'user_id': user_id,
+                        'group_id': group_id,
+                        'username': username,
+                        'groupname': groupname,
+                        'message': 'User already in group'
+                    }
                 logging.error(f'Failed to add {username} to group {groupname}: {error_msg}')
                 return {
                     'success': False,
@@ -1437,6 +1518,56 @@ def cmd_test_connection(args):
         return 1
 
 
+def cmd_create_ous(args):
+    """Create organizational units in AD."""
+    logging.info('Creating organizational units...')
+
+    conn_mgr = LDAPConnectionManager(
+        server=args.server,
+        port=args.port,
+        bind_dn=args.bind_dn,
+        password=args.password,
+        use_ssl=args.use_ssl,
+        base_dn=args.base_dn,
+        ssl_no_verify=getattr(args, 'ssl_no_verify', False),
+        ssl_ca_cert=getattr(args, 'ssl_ca_cert', None),
+        ssl_ca_path=getattr(args, 'ssl_ca_path', None)
+    )
+
+    result = conn_mgr.test_connection()
+    if not result['success']:
+        logging.error(f'Connection failed: {result["message"]}')
+        return 1
+
+    conn_mgr.connect()
+
+    ou_list = []
+    if hasattr(args, 'groups_ou') and args.groups_ou:
+        ou_list.append(args.groups_ou)
+    if hasattr(args, 'users_ou') and args.users_ou:
+        ou_list.append(args.users_ou)
+
+    if not ou_list:
+        logging.error('No OUs specified. Use --groups-ou and/or --users-ou.')
+        return 1
+
+    errors = 0
+    for ou_dn in ou_list:
+        result = conn_mgr.create_ou(ou_dn)
+        if not result['success']:
+            errors += 1
+
+    conn_mgr.disconnect()
+
+    logging.info('=' * 70)
+    logging.info('OU CREATION COMPLETE')
+    logging.info(f'OUs processed: {len(ou_list)}')
+    logging.info(f'Errors: {errors}')
+    logging.info('=' * 70)
+
+    return 0 if errors == 0 else 1
+
+
 def cmd_add_groups(args):
     """Add groups command."""
     logging.info('Adding groups from CSV...')
@@ -1686,23 +1817,34 @@ def cmd_serve_browser(args):
     return 0
 
 
-def extract_rid_from_sid(sid_bytes):
-    """Extract RID (last component) from binary SID.
+def extract_rid_from_sid(sid_value):
+    """Extract RID (last component) from SID.
+
+    Handles both binary SID bytes and string SID format (S-1-5-21-...-RID).
 
     Args:
-        sid_bytes: Binary SID from AD objectSid attribute
+        sid_value: SID from AD objectSid attribute (bytes or string)
 
     Returns:
         int: RID (last subauthority of SID)
     """
     import struct
 
+    # Handle string SID format: S-1-5-21-1234-5678-9012-1105
+    if isinstance(sid_value, str) and sid_value.startswith('S-'):
+        parts = sid_value.split('-')
+        return int(parts[-1])
+
+    sid_bytes = sid_value
     if isinstance(sid_bytes, str):
         sid_bytes = sid_bytes.encode('latin-1')
 
+    # Validate minimum SID length (8 bytes header + at least 4 bytes for one subauth)
+    if len(sid_bytes) < 12:
+        raise ValueError(f'SID too short: {len(sid_bytes)} bytes')
+
     # SID structure: S-R-I-S-S-S-RID
     # Parse binary: revision(1), subauth_count(1), authority(6), subauths(4*count)
-    revision = sid_bytes[0]
     subauth_count = sid_bytes[1]
 
     # RID is the last subauthority (4 bytes, little-endian)
@@ -1712,17 +1854,24 @@ def extract_rid_from_sid(sid_bytes):
     return rid
 
 
-def format_sid(sid_bytes):
-    """Convert binary SID to string format S-1-5-21-...-RID.
+def format_sid(sid_value):
+    """Convert SID to string format S-1-5-21-...-RID.
+
+    Handles both binary SID bytes and string SID format.
 
     Args:
-        sid_bytes: Binary SID from AD
+        sid_value: SID from AD (bytes or string)
 
     Returns:
         str: SID in string format
     """
     import struct
 
+    # Already a string SID
+    if isinstance(sid_value, str) and sid_value.startswith('S-'):
+        return sid_value
+
+    sid_bytes = sid_value
     if isinstance(sid_bytes, str):
         sid_bytes = sid_bytes.encode('latin-1')
 
@@ -1808,14 +1957,17 @@ def cmd_export_rid_mapping(args):
         object_sid = attrs.get('objectSid', [None])[0]
 
         if employee_id and object_sid:
-            rid = extract_rid_from_sid(object_sid)
-            mapping_rows.append({
-                'Original_ID': employee_id,
-                'Object_Type': 'User',
-                'Name': username,
-                'AD_SID': format_sid(object_sid),
-                'AD_RID': rid
-            })
+            try:
+                rid = extract_rid_from_sid(object_sid)
+                mapping_rows.append({
+                    'Original_ID': employee_id,
+                    'Object_Type': 'User',
+                    'Name': username,
+                    'AD_SID': format_sid(object_sid),
+                    'AD_RID': rid
+                })
+            except Exception as e:
+                logging.warning(f'Failed to parse SID for user {username}: {e} (type={type(object_sid).__name__}, value={repr(object_sid)[:100]})')
 
     logging.info(f'Found {len(mapping_rows)} users with employeeID')
 
@@ -1840,14 +1992,17 @@ def cmd_export_rid_mapping(args):
         original_id = extract_original_id_from_description(description)
 
         if original_id and object_sid:
-            rid = extract_rid_from_sid(object_sid)
-            mapping_rows.append({
-                'Original_ID': original_id,
-                'Object_Type': 'Group',
-                'Name': cn,
-                'AD_SID': format_sid(object_sid),
-                'AD_RID': rid
-            })
+            try:
+                rid = extract_rid_from_sid(object_sid)
+                mapping_rows.append({
+                    'Original_ID': original_id,
+                    'Object_Type': 'Group',
+                    'Name': cn,
+                    'AD_SID': format_sid(object_sid),
+                    'AD_RID': rid
+                })
+            except Exception as e:
+                logging.warning(f'Failed to parse SID for group {cn}: {e} (type={type(object_sid).__name__}, value={repr(object_sid)[:100]})')
 
     logging.info(f'Found {len(mapping_rows) - user_count} groups with OriginalID')
 
@@ -2200,6 +2355,12 @@ Examples:
     test_parser = subparsers.add_parser('test-connection', help='Test LDAP connectivity')
     add_connection_args(test_parser)
 
+    # Create OUs
+    ous_parser = subparsers.add_parser('create-ous', help='Create organizational units (Groups/Users OUs)')
+    add_connection_args(ous_parser)
+    ous_parser.add_argument('--groups-ou', help='Groups OU DN to create')
+    ous_parser.add_argument('--users-ou', help='Users OU DN to create')
+
     # Add groups
     groups_parser = subparsers.add_parser('add-groups', help='Import groups from CSV')
     add_connection_args(groups_parser)
@@ -2298,6 +2459,8 @@ Examples:
     # Route to subcommand
     if args.command == 'test-connection':
         sys.exit(cmd_test_connection(args))
+    elif args.command == 'create-ous':
+        sys.exit(cmd_create_ous(args))
     elif args.command == 'add-groups':
         sys.exit(cmd_add_groups(args))
     elif args.command == 'add-users':

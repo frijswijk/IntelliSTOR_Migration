@@ -61,18 +61,18 @@ set AFP_Export_SG=%Migration_data%\AFP_Export_SG
 set AFP_Export_MY=%Migration_data%\AFP_Export_MY
 
 rem -- LDAP Integration
-set LDAP_Server=YLDAPTEST-DC01.ldap1test.loc
-set LDAP_Port=636
-set LDAP_SSL=--use-ssl --ssl-no-verify
-set LDAP_BindDN=cn=administrator,cn=Users,dc=ldap1test,dc=loc
-set LDAP_Password=Linked3-Shorten-Crestless
-set LDAP_BaseDN=dc=ldap1test,dc=loc
-set LDAP_GroupsOU=ou=Groups,dc=ldap1test,dc=loc
-set LDAP_UsersOU=ou=Users,dc=ldap1test,dc=loc
-set LDAP_PasswordStrategy=skip
-set LDAP_TestUserCount=10
+set "LDAP_Server=YLDAPTEST-DC01.ldap1test.loc"
+set "LDAP_Port=636"
+set "LDAP_SSL=--use-ssl --ssl-no-verify"
+set "LDAP_BindDN=cn=administrator,cn=Users,dc=ldap1test,dc=loc"
+set "LDAP_Password=Linked3-Shorten-Crestless"
+set "LDAP_BaseDN=dc=ldap1test,dc=loc"
+set "LDAP_GroupsOU=ou=Groups,dc=ldap1test,dc=loc"
+set "LDAP_UsersOU=ou=Users,dc=ldap1test,dc=loc"
+set "LDAP_PasswordStrategy=skip"
+set "LDAP_TestUserCount=10"
 rem Set LDAP_TestUserCount to 1, 5, 10, 100, or "all"
-set LDAP_PreparedDir=%Migration_data%\LDAP_Import
-set LDAP_TranslatedDir=%Migration_data%\LDAP_Translated_Permissions
-set LDAP_RidMapping=%Migration_data%\LDAP_Import\rid_mapping.csv
+set "LDAP_PreparedDir=%Migration_data%\LDAP_Import"
+set "LDAP_TranslatedDir=%Migration_data%\LDAP_Translated_Permissions"
+set "LDAP_RidMapping=%Migration_data%\LDAP_Import\rid_mapping.csv"
 

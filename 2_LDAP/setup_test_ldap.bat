@@ -21,7 +21,7 @@ echo.
 REM ==============================================================
 REM  Phase 1: Prepare CSVs
 REM ==============================================================
-echo [Phase 1/6] Preparing CSVs...
+echo [Phase 1/7] Preparing CSVs...
 echo.
 
 python prepare_test_ldap.py ^
@@ -40,9 +40,35 @@ echo Phase 1 complete.
 echo.
 
 REM ==============================================================
-REM  Phase 2: Create groups in LDAP
+REM  Phase 2: Create OUs in LDAP
 REM ==============================================================
-echo [Phase 2/6] Creating groups in LDAP...
+echo [Phase 2/7] Creating organizational units...
+echo.
+
+python ldap_integration.py create-ous ^
+  --server %LDAP_Server% ^
+  --port %LDAP_Port% ^
+  %LDAP_SSL% ^
+  --bind-dn "%LDAP_BindDN%" ^
+  --password "%LDAP_Password%" ^
+  --base-dn "%LDAP_BaseDN%" ^
+  --groups-ou "%LDAP_GroupsOU%" ^
+  --users-ou "%LDAP_UsersOU%"
+
+if %errorlevel% neq 0 (
+    echo.
+    echo ERROR: Phase 2 failed. Aborting.
+    goto :end
+)
+
+echo.
+echo Phase 2 complete.
+echo.
+
+REM ==============================================================
+REM  Phase 3: Create groups in LDAP
+REM ==============================================================
+echo [Phase 3/7] Creating groups in LDAP...
 echo.
 
 python ldap_integration.py add-groups ^
@@ -57,18 +83,18 @@ python ldap_integration.py add-groups ^
 
 if %errorlevel% neq 0 (
     echo.
-    echo ERROR: Phase 2 failed. Aborting.
+    echo ERROR: Phase 3 failed. Aborting.
     goto :end
 )
 
 echo.
-echo Phase 2 complete.
+echo Phase 3 complete.
 echo.
 
 REM ==============================================================
-REM  Phase 3: Create users in LDAP
+REM  Phase 4: Create users in LDAP
 REM ==============================================================
-echo [Phase 3/6] Creating users in LDAP...
+echo [Phase 4/7] Creating users in LDAP...
 echo.
 
 python ldap_integration.py add-users ^
@@ -84,18 +110,18 @@ python ldap_integration.py add-users ^
 
 if %errorlevel% neq 0 (
     echo.
-    echo ERROR: Phase 3 failed. Aborting.
+    echo ERROR: Phase 4 failed. Aborting.
     goto :end
 )
 
 echo.
-echo Phase 3 complete.
+echo Phase 4 complete.
 echo.
 
 REM ==============================================================
-REM  Phase 4: Assign users to groups
+REM  Phase 5: Assign users to groups
 REM ==============================================================
-echo [Phase 4/6] Assigning users to groups...
+echo [Phase 5/7] Assigning users to groups...
 echo.
 
 python ldap_integration.py assign-groups ^
@@ -113,18 +139,18 @@ python ldap_integration.py assign-groups ^
 
 if %errorlevel% neq 0 (
     echo.
-    echo ERROR: Phase 4 failed. Aborting.
+    echo ERROR: Phase 5 failed. Aborting.
     goto :end
 )
 
 echo.
-echo Phase 4 complete.
+echo Phase 5 complete.
 echo.
 
 REM ==============================================================
-REM  Phase 5: Export RID mapping
+REM  Phase 6: Export RID mapping
 REM ==============================================================
-echo [Phase 5/6] Exporting RID mapping...
+echo [Phase 6/7] Exporting RID mapping...
 echo.
 
 python ldap_integration.py export-rid-mapping ^
@@ -140,18 +166,18 @@ python ldap_integration.py export-rid-mapping ^
 
 if %errorlevel% neq 0 (
     echo.
-    echo ERROR: Phase 5 failed. Aborting.
+    echo ERROR: Phase 6 failed. Aborting.
     goto :end
 )
 
 echo.
-echo Phase 5 complete.
+echo Phase 6 complete.
 echo.
 
 REM ==============================================================
-REM  Phase 6: Translate permission CSVs
+REM  Phase 7: Translate permission CSVs
 REM ==============================================================
-echo [Phase 6/6] Translating permission CSVs...
+echo [Phase 7/7] Translating permission CSVs...
 echo.
 
 python ldap_integration.py translate-permissions ^
@@ -161,12 +187,12 @@ python ldap_integration.py translate-permissions ^
 
 if %errorlevel% neq 0 (
     echo.
-    echo ERROR: Phase 6 failed.
+    echo ERROR: Phase 7 failed.
     goto :end
 )
 
 echo.
-echo Phase 6 complete.
+echo Phase 7 complete.
 echo.
 
 REM ==============================================================
