@@ -15,6 +15,7 @@ set QPDF=C:\Users\freddievr\qpdf-12.3.2-mingw64
 
 REM Source and output files (relative to this batch file location)
 set SOURCE=%~dp0papyrus_rpt_page_extractor.cpp
+set AFP_PARSER=%~dp0afp_parser.cpp
 set SHIMS=%~dp0compat_shims.c
 set OUTPUT=%~dp0papyrus_rpt_page_extractor.exe
 set SHIMOBJ=%~dp0compat_shims.o
@@ -37,7 +38,7 @@ REM Step 2: Compile and link everything statically
 echo Compiling (fully static)...
 echo.
 
-"%MINGW%\g++.exe" -std=c++17 -O2 -static -I"%QPDF%\include" -o "%OUTPUT%" "%SOURCE%" "%SHIMOBJ%" -L"%QPDF%\lib" -L"%MINGW%\..\lib" -lqpdf_static -ljpeg -lcrypto -lz -lws2_32 -lcrypt32 -ladvapi32 "-Wl,--defsym=__imp__setjmp=__imp_setjmp" -s
+"%MINGW%\g++.exe" -std=c++17 -O2 -static -I"%QPDF%\include" -o "%OUTPUT%" "%SOURCE%" "%AFP_PARSER%" "%SHIMOBJ%" -L"%QPDF%\lib" -L"%MINGW%\..\lib" -lqpdf_static -ljpeg -lcrypto -lz -lws2_32 -lcrypt32 -ladvapi32 "-Wl,--defsym=__imp__setjmp=__imp_setjmp" -s
 
 if !errorlevel! neq 0 (
     echo.

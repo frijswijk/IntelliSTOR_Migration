@@ -76,6 +76,8 @@
 #include <qpdf/QPDFPageDocumentHelper.hh>
 #include <qpdf/QPDFPageObjectHelper.hh>
 
+#include "afp_parser.h"
+
 namespace fs = std::filesystem;
 
 // ============================================================================
@@ -473,6 +475,14 @@ static SelectionRule parse_selection_rule(const std::string& rule_str) {
         return rule;
     }
 
+    if (is_number_list) {
+        // Bare number: "2" -> pages:2
+        rule.mode = SelectionMode::PAGES;
+        int p = std::stoi(rule_str);
+        rule.page_ranges.push_back({p, p});
+        return rule;
+    }
+
     // Standard format: "type:value"
     auto colon = rule_str.find(':');
     if (colon == std::string::npos) {
@@ -693,6 +703,56 @@ static bool extract_pdf_pages(const std::string& input_pdf,
 }
 
 // ============================================================================
+// AFP Page Extraction using AFPSplitter Library
+// ============================================================================
+
+static bool extract_afp_pages(const std::string& input_afp,
+                              const std::string& output_afp,
+                              const std::vector<int>& pages) {
+    if (pages.empty()) {
+        // No filtering - just copy the AFP as-is (ALL mode)
+        try {
+            fs::copy(input_afp, output_afp, fs::copy_options::overwrite_existing);
+            return true;
+        } catch (...) {
+            return false;
+        }
+    }
+
+    try {
+        AFPSplitter splitter;
+        if (!splitter.loadFile(input_afp)) {
+            std::cerr << "ERROR: AFP load failed: " << splitter.getLastError() << "\n";
+            return false;
+        }
+
+        // Build PageRange vector from page numbers
+        std::vector<PageRange> ranges;
+        size_t i = 0;
+        while (i < pages.size()) {
+            int range_start = pages[i];
+            int range_end = range_start;
+            while (i + 1 < pages.size() && pages[i + 1] == pages[i] + 1) {
+                ++i;
+                range_end = pages[i];
+            }
+            ranges.push_back(PageRange(range_start, range_end));
+            ++i;
+        }
+
+        if (!splitter.extractPagesWithResources(ranges, output_afp)) {
+            std::cerr << "ERROR: AFP page extraction failed: " << splitter.getLastError() << "\n";
+            return false;
+        }
+
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "ERROR: AFP extraction exception: " << e.what() << "\n";
+        return false;
+    }
+}
+
+// ============================================================================
 // Watermark Overlay using QPDF Library
 // ============================================================================
 
@@ -881,23 +941,26 @@ static WatermarkConfig parse_watermark_args(int argc, char* argv[], int start_in
     WatermarkConfig config;
 
     for (int i = start_index; i < argc; ++i) {
-        std::string arg = argv[i];
+        // Normalize: strip leading dashes and lowercase for matching
+        std::string arg_normalized = argv[i];
+        while (!arg_normalized.empty() && arg_normalized[0] == '-') arg_normalized.erase(0, 1);
+        std::transform(arg_normalized.begin(), arg_normalized.end(), arg_normalized.begin(), ::tolower);
 
-        if (arg == "--WatermarkImage" && i + 1 < argc) {
+        if (arg_normalized == "watermarkimage" && i + 1 < argc) {
             config.image_path = argv[++i];
         }
-        else if (arg == "--WatermarkPosition" && i + 1 < argc) {
+        else if (arg_normalized == "watermarkposition" && i + 1 < argc) {
             config.position = WatermarkConfig::parse_position(argv[++i]);
         }
-        else if (arg == "--WatermarkRotation" && i + 1 < argc) {
+        else if (arg_normalized == "watermarkrotation" && i + 1 < argc) {
             int rotation = std::stoi(argv[++i]);
             config.rotation = std::max(-180, std::min(180, rotation));
         }
-        else if (arg == "--WatermarkOpacity" && i + 1 < argc) {
+        else if (arg_normalized == "watermarkopacity" && i + 1 < argc) {
             int opacity = std::stoi(argv[++i]);
             config.opacity = std::max(0, std::min(100, opacity));
         }
-        else if (arg == "--WatermarkScale" && i + 1 < argc) {
+        else if (arg_normalized == "watermarkscale" && i + 1 < argc) {
             double scale = std::stod(argv[++i]);
             config.scale = std::max(0.5, std::min(2.0, scale));
         }
@@ -907,50 +970,16 @@ static WatermarkConfig parse_watermark_args(int argc, char* argv[], int start_in
 }
 
 // ============================================================================
-// Main Extraction
+// Core extraction logic (shared by normal and export modes)
 // ============================================================================
 
-int main(int argc, char* argv[]) {
-    // Validate minimum arguments (4 required + optional watermark args)
-    if (argc < 5) {
-        std::cerr << "Usage: " << argv[0]
-                  << " <input_rpt> <selection_rule> <output_txt> <output_binary> [watermark_options]\n";
-        std::cerr << "\nRequired Arguments:\n";
-        std::cerr << "  input_rpt       - Path to input .rpt file\n";
-        std::cerr << "  selection_rule  - \"all\", \"pages:1-5\", \"sections:14259,14260\", or \"14259,14260\"\n";
-        std::cerr << "  output_txt      - Path to write concatenated text output\n";
-        std::cerr << "  output_binary   - Path to write binary output (PDF/AFP)\n";
-        std::cerr << "\nWatermark Options (all optional):\n";
-        std::cerr << "  --WatermarkImage <path>      - Path to watermark image\n";
-        std::cerr << "  --WatermarkPosition <pos>    - Center, TopLeft, TopCenter, TopRight,\n";
-        std::cerr << "                                 MiddleLeft, MiddleRight, BottomLeft,\n";
-        std::cerr << "                                 BottomCenter, BottomRight, Repeat\n";
-        std::cerr << "  --WatermarkRotation <deg>    - Rotation: -180 to 180 degrees (default: 0)\n";
-        std::cerr << "  --WatermarkOpacity <pct>     - Opacity: 0 to 100% (default: 30)\n";
-        std::cerr << "  --WatermarkScale <scale>     - Scale: 0.5 to 2.0 (default: 1.0)\n";
-        std::cerr << "\nExit Codes:\n";
-        std::cerr << "  0  - Success\n";
-        std::cerr << "  1  - Invalid arguments\n";
-        std::cerr << "  2  - File not found\n";
-        std::cerr << "  3  - Invalid RPT file\n";
-        std::cerr << "  4  - Read error\n";
-        std::cerr << "  5  - Write error\n";
-        std::cerr << "  6  - Invalid selection rule\n";
-        std::cerr << "  7  - No pages selected\n";
-        std::cerr << "  8  - Decompression error\n";
-        std::cerr << "  9  - Memory error\n";
-        std::cerr << "  10 - Unknown error\n";
-        return EC_INVALID_ARGS;
-    }
-
-    std::string input_rpt = argv[1];
-    std::string selection_rule_str = argv[2];
-    std::string output_txt = argv[3];
-    std::string output_binary = argv[4];
-
-    // Parse watermark options (if provided)
-    WatermarkConfig watermark_config = parse_watermark_args(argc, argv, 5);
-
+static int extract_rpt(const std::string& input_rpt,
+                       const std::string& selection_rule_str,
+                       const std::string& output_txt,
+                       const std::string& output_binary,
+                       const WatermarkConfig& watermark_config,
+                       bool export_mode = false,
+                       const std::string& export_csv = "") {
     try {
         // Validate input file
         if (!fs::exists(input_rpt)) {
@@ -1018,6 +1047,21 @@ int main(int argc, char* argv[]) {
         }
         txt_out.close();
 
+        // Write CSV if in export mode
+        if (export_mode && !export_csv.empty()) {
+            std::ofstream csv_out(export_csv);
+            if (csv_out) {
+                csv_out << "SPECIES_ID,SECTION_ID,START_PAGE,PAGES\n";
+                for (const auto& sec : sections) {
+                    csv_out << hdr.report_species_id << ","
+                            << sec.section_id << ","
+                            << sec.start_page << ","
+                            << sec.page_count << "\n";
+                }
+                csv_out.close();
+            }
+        }
+
         // Extract binary objects (if present)
         auto binary_entries = read_binary_table(file_data.data(), file_data.size(),
                                                hdr.binary_object_count);
@@ -1047,36 +1091,97 @@ int main(int argc, char* argv[]) {
                 full_bin_out.close();
             }
 
-            // Check if it's a PDF by reading magic bytes
+            // Detect binary format by reading magic bytes
             bool is_pdf = false;
+            bool is_afp = false;
             {
                 std::ifstream check(temp_full_binary, std::ios::binary);
-                char magic[5] = {0};
-                check.read(magic, 4);
-                is_pdf = (std::strncmp(magic, "%PDF", 4) == 0);
+                uint8_t magic[256] = {0};
+                auto bytes_read = check.read(reinterpret_cast<char*>(magic), sizeof(magic)).gcount();
+                is_pdf = (bytes_read >= 4 && std::strncmp(reinterpret_cast<char*>(magic), "%PDF", 4) == 0);
+                if (!is_pdf && bytes_read >= 8) {
+                    is_afp = AFPUtil::isValidAFP(magic, static_cast<size_t>(bytes_read));
+                }
+            }
+
+            // In export mode, auto-detect and fix the output extension
+            if (export_mode) {
+                std::string correct_ext = is_pdf ? ".pdf" : (is_afp ? ".afp" : ".bin");
+                fs::path out_path(output_binary);
+                if (out_path.extension().string() != correct_ext) {
+                    std::string corrected = (out_path.parent_path() / (out_path.stem().string() + correct_ext)).string();
+                    // Use the corrected path - but we must update output_binary
+                    // Since output_binary is const ref, work with corrected path directly
+                    std::string final_binary = corrected;
+
+                    if (is_pdf) {
+                        if (rule.mode == SelectionMode::ALL) {
+                            process_pdf_with_watermark(temp_full_binary, final_binary, {}, watermark_config);
+                        } else {
+                            std::vector<int> pdf_pages;
+                            for (const auto& entry : selected) pdf_pages.push_back(entry.page_number);
+                            process_pdf_with_watermark(temp_full_binary, final_binary, pdf_pages, watermark_config);
+                        }
+                        fs::remove(temp_full_binary);
+                    } else if (is_afp) {
+                        std::vector<int> afp_pages;
+                        if (rule.mode != SelectionMode::ALL) {
+                            for (const auto& entry : selected) afp_pages.push_back(entry.page_number);
+                        }
+                        if (!extract_afp_pages(temp_full_binary, final_binary, afp_pages)) {
+                            try { fs::rename(temp_full_binary, final_binary); }
+                            catch (...) { fs::copy(temp_full_binary, final_binary, fs::copy_options::overwrite_existing); fs::remove(temp_full_binary); }
+                        } else {
+                            fs::remove(temp_full_binary);
+                        }
+                    } else {
+                        try { fs::rename(temp_full_binary, final_binary); }
+                        catch (...) { fs::copy(temp_full_binary, final_binary, fs::copy_options::overwrite_existing); fs::remove(temp_full_binary); }
+                    }
+
+                    std::cout << "SUCCESS: Extracted " << selected.size() << " pages\n";
+                    std::cout << "  TXT:  " << output_txt << "\n";
+                    std::cout << "  BIN:  " << final_binary;
+                    if (is_pdf) std::cout << " (PDF)";
+                    else if (is_afp) std::cout << " (AFP)";
+                    std::cout << "\n";
+                    if (!export_csv.empty()) std::cout << "  CSV:  " << export_csv << "\n";
+                    return EC_SUCCESS;
+                }
             }
 
             if (is_pdf) {
-                // Build PDF page numbers from selected text pages
-                // Assumption: PDF pages correspond 1:1 with text pages
                 std::vector<int> pdf_pages;
                 for (const auto& entry : selected) {
                     pdf_pages.push_back(entry.page_number);
                 }
 
-                // Process PDF with page extraction and optional watermark
                 if (rule.mode == SelectionMode::ALL) {
-                    // No page filtering for "all" mode
                     process_pdf_with_watermark(temp_full_binary, output_binary, {}, watermark_config);
                 } else {
-                    // Extract selected pages only
                     process_pdf_with_watermark(temp_full_binary, output_binary, pdf_pages, watermark_config);
                 }
 
-                // Cleanup temp file
                 fs::remove(temp_full_binary);
+            } else if (is_afp) {
+                std::vector<int> afp_pages;
+                if (rule.mode != SelectionMode::ALL) {
+                    for (const auto& entry : selected) {
+                        afp_pages.push_back(entry.page_number);
+                    }
+                }
+
+                if (!extract_afp_pages(temp_full_binary, output_binary, afp_pages)) {
+                    try {
+                        fs::rename(temp_full_binary, output_binary);
+                    } catch (...) {
+                        fs::copy(temp_full_binary, output_binary, fs::copy_options::overwrite_existing);
+                        fs::remove(temp_full_binary);
+                    }
+                } else {
+                    fs::remove(temp_full_binary);
+                }
             } else {
-                // Not a PDF - just rename the full binary file
                 try {
                     fs::rename(temp_full_binary, output_binary);
                 } catch (...) {
@@ -1091,20 +1196,32 @@ int main(int argc, char* argv[]) {
         if (!binary_entries.empty()) {
             std::cout << "  BIN:  " << output_binary;
 
-            // Check if it's a PDF
+            // Detect format of output binary
             std::ifstream check(output_binary, std::ios::binary);
-            char magic[5] = {0};
-            if (check.read(magic, 4) && std::strncmp(magic, "%PDF", 4) == 0) {
-                std::cout << " (PDF";
-                if (rule.mode != SelectionMode::ALL) {
-                    std::cout << " - " << selected.size() << " pages extracted";
+            uint8_t magic[256] = {0};
+            auto bytes_read = check.read(reinterpret_cast<char*>(magic), sizeof(magic)).gcount();
+            if (bytes_read >= 4) {
+                if (std::strncmp(reinterpret_cast<char*>(magic), "%PDF", 4) == 0) {
+                    std::cout << " (PDF";
+                    if (rule.mode != SelectionMode::ALL) {
+                        std::cout << " - " << selected.size() << " pages extracted";
+                    }
+                    if (watermark_config.is_valid()) {
+                        std::cout << " with watermark";
+                    }
+                    std::cout << ")";
+                } else if (bytes_read >= 8 && AFPUtil::isValidAFP(magic, static_cast<size_t>(bytes_read))) {
+                    std::cout << " (AFP";
+                    if (rule.mode != SelectionMode::ALL) {
+                        std::cout << " - " << selected.size() << " pages extracted";
+                    }
+                    std::cout << ")";
                 }
-                if (watermark_config.is_valid()) {
-                    std::cout << " with watermark";
-                }
-                std::cout << ")";
             }
             std::cout << "\n";
+        }
+        if (export_mode && !export_csv.empty()) {
+            std::cout << "  CSV:  " << export_csv << "\n";
         }
 
         return EC_SUCCESS;
@@ -1116,4 +1233,210 @@ int main(int argc, char* argv[]) {
         std::cerr << "FATAL ERROR: " << e.what() << "\n";
         return EC_UNKNOWN_ERROR;
     }
+}
+
+// ============================================================================
+// Export Mode: Single File
+// ============================================================================
+
+static int export_single_file(const std::string& input_rpt,
+                              const WatermarkConfig& watermark_config) {
+    fs::path rpt_path(input_rpt);
+    fs::path parent_dir = rpt_path.parent_path();
+    if (parent_dir.empty()) parent_dir = fs::current_path();
+
+    fs::path export_dir = parent_dir / "export";
+    fs::create_directories(export_dir);
+
+    std::string basename = rpt_path.stem().string();
+    std::string output_txt = (export_dir / (basename + ".txt")).string();
+    std::string output_binary = (export_dir / (basename + ".bin")).string();  // will be auto-corrected
+    std::string export_csv = (export_dir / (basename + ".csv")).string();
+
+    std::cout << "EXPORT: " << rpt_path.filename().string() << "\n";
+
+    return extract_rpt(input_rpt, "all", output_txt, output_binary,
+                       watermark_config, true, export_csv);
+}
+
+// ============================================================================
+// Export Mode: Batch Directory
+// ============================================================================
+
+static int export_batch(const std::string& dir_path,
+                        const WatermarkConfig& watermark_config) {
+    if (!fs::is_directory(dir_path)) {
+        std::cerr << "ERROR: Not a directory: " << dir_path << "\n";
+        return EC_FILE_NOT_FOUND;
+    }
+
+    // Collect all .RPT files
+    std::vector<std::string> rpt_files;
+    for (const auto& entry : fs::directory_iterator(dir_path)) {
+        if (!entry.is_regular_file()) continue;
+        std::string ext = entry.path().extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+        if (ext == ".rpt") {
+            rpt_files.push_back(entry.path().string());
+        }
+    }
+
+    if (rpt_files.empty()) {
+        std::cerr << "ERROR: No .RPT files found in: " << dir_path << "\n";
+        return EC_FILE_NOT_FOUND;
+    }
+
+    // Sort for deterministic order
+    std::sort(rpt_files.begin(), rpt_files.end());
+
+    // Create export directory
+    fs::path export_dir = fs::path(dir_path) / "export";
+    fs::create_directories(export_dir);
+
+    // Read progress file (list of already-completed filenames)
+    std::string progress_file = (export_dir / "export_progress.txt").string();
+    std::set<std::string> completed;
+    {
+        std::ifstream pf(progress_file);
+        std::string line;
+        while (std::getline(pf, line)) {
+            // Trim whitespace
+            size_t start = line.find_first_not_of(" \t\r\n");
+            size_t end = line.find_last_not_of(" \t\r\n");
+            if (start != std::string::npos) {
+                completed.insert(line.substr(start, end - start + 1));
+            }
+        }
+    }
+
+    int total = static_cast<int>(rpt_files.size());
+    int processed = 0;
+    int skipped = 0;
+    int failed = 0;
+
+    std::cout << "BATCH EXPORT: " << total << " RPT files in " << dir_path << "\n";
+    if (!completed.empty()) {
+        std::cout << "  Resuming: " << completed.size() << " already completed\n";
+    }
+    std::cout << "\n";
+
+    for (const auto& rpt : rpt_files) {
+        std::string filename = fs::path(rpt).filename().string();
+
+        if (completed.count(filename)) {
+            skipped++;
+            continue;
+        }
+
+        std::cout << "--- [" << (processed + skipped + failed + 1) << "/" << total << "] ";
+
+        int rc = export_single_file(rpt, watermark_config);
+
+        if (rc == EC_SUCCESS) {
+            processed++;
+            // Append to progress file
+            std::ofstream pf(progress_file, std::ios::app);
+            pf << filename << "\n";
+        } else {
+            failed++;
+            std::cerr << "  FAILED: " << filename << " (exit code " << rc << ")\n";
+        }
+
+        std::cout << "\n";
+    }
+
+    std::cout << "============================================================================\n";
+    std::cout << "BATCH EXPORT SUMMARY\n";
+    std::cout << "  Total:     " << total << " files\n";
+    std::cout << "  Processed: " << processed << " files\n";
+    std::cout << "  Skipped:   " << skipped << " files (already completed)\n";
+    if (failed > 0) {
+        std::cout << "  Failed:    " << failed << " files\n";
+    }
+    std::cout << "  Output:    " << export_dir.string() << "\n";
+    std::cout << "============================================================================\n";
+
+    return (failed > 0) ? EC_UNKNOWN_ERROR : EC_SUCCESS;
+}
+
+// ============================================================================
+// Main Entry Point
+// ============================================================================
+
+static void print_usage(const char* prog) {
+    std::cerr << "Usage:\n";
+    std::cerr << "  " << prog << " <input.rpt> <selection_rule> <output_txt> <output_binary> [watermark_options]\n";
+    std::cerr << "  " << prog << " <input.rpt> Export [watermark_options]\n";
+    std::cerr << "  " << prog << " <directory>  Export [watermark_options]\n";
+    std::cerr << "\nRequired Arguments (standard mode):\n";
+    std::cerr << "  input_rpt       - Path to input .rpt file\n";
+    std::cerr << "  selection_rule  - \"all\", \"pages:1-5\", \"sections:14259,14260\", or \"14259,14260\"\n";
+    std::cerr << "  output_txt      - Path to write concatenated text output\n";
+    std::cerr << "  output_binary   - Path to write binary output (PDF/AFP)\n";
+    std::cerr << "\nExport Mode:\n";
+    std::cerr << "  Single file:  Creates export/ subfolder with .txt, .pdf/.afp, .csv\n";
+    std::cerr << "  Directory:    Batch processes all .RPT files with restart capability\n";
+    std::cerr << "\nWatermark Options (all optional, accepted with or without -- prefix):\n";
+    std::cerr << "  WatermarkImage <path>      - Path to watermark image\n";
+    std::cerr << "  WatermarkPosition <pos>    - Center, TopLeft, TopCenter, TopRight,\n";
+    std::cerr << "                               MiddleLeft, MiddleRight, BottomLeft,\n";
+    std::cerr << "                               BottomCenter, BottomRight, Repeat, Tiling\n";
+    std::cerr << "  WatermarkRotation <deg>    - Rotation: -180 to 180 degrees (default: 0)\n";
+    std::cerr << "  WatermarkOpacity <pct>     - Opacity: 0 to 100% (default: 30)\n";
+    std::cerr << "  WatermarkScale <scale>     - Scale: 0.5 to 2.0 (default: 1.0)\n";
+    std::cerr << "\nExit Codes:\n";
+    std::cerr << "  0  - Success\n";
+    std::cerr << "  1  - Invalid arguments\n";
+    std::cerr << "  2  - File not found\n";
+    std::cerr << "  3  - Invalid RPT file\n";
+    std::cerr << "  4  - Read error\n";
+    std::cerr << "  5  - Write error\n";
+    std::cerr << "  6  - Invalid selection rule\n";
+    std::cerr << "  7  - No pages selected\n";
+    std::cerr << "  8  - Decompression error\n";
+    std::cerr << "  9  - Memory error\n";
+    std::cerr << "  10 - Unknown error\n";
+}
+
+int main(int argc, char* argv[]) {
+    if (argc < 3) {
+        print_usage(argv[0]);
+        return EC_INVALID_ARGS;
+    }
+
+    std::string arg1 = argv[1];
+    std::string arg2 = argv[2];
+
+    // Check for Export mode
+    std::string arg2_lower = arg2;
+    std::transform(arg2_lower.begin(), arg2_lower.end(), arg2_lower.begin(), ::tolower);
+
+    if (arg2_lower == "export") {
+        // Parse watermark options from argv[3+]
+        WatermarkConfig watermark_config = parse_watermark_args(argc, argv, 3);
+
+        if (fs::is_directory(arg1)) {
+            // Batch directory export
+            return export_batch(arg1, watermark_config);
+        } else {
+            // Single file export
+            return export_single_file(arg1, watermark_config);
+        }
+    }
+
+    // Standard mode: requires 4 positional args
+    if (argc < 5) {
+        print_usage(argv[0]);
+        return EC_INVALID_ARGS;
+    }
+
+    std::string input_rpt = argv[1];
+    std::string selection_rule_str = argv[2];
+    std::string output_txt = argv[3];
+    std::string output_binary = argv[4];
+
+    // Parse watermark options (if provided)
+    WatermarkConfig watermark_config = parse_watermark_args(argc, argv, 5);
+
+    return extract_rpt(input_rpt, selection_rule_str, output_txt, output_binary, watermark_config);
 }
