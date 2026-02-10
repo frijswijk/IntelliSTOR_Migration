@@ -1874,6 +1874,126 @@ def cmd_export_rid_mapping(args):
     return 0
 
 
+def cmd_translate_permissions(args):
+    """Translate permission CSVs from original RIDs to new AD-assigned RIDs.
+
+    Reads the RID mapping file (from export-rid-mapping) and rewrites
+    permission CSVs, replacing original GROUP_IDs with new AD RIDs.
+    This is a pure CSV-to-CSV translation; no LDAP connection required.
+    """
+    logging.info('Translating permission CSVs...')
+
+    # Read RID mapping
+    mapping_file = args.rid_mapping
+    if not os.path.isfile(mapping_file):
+        logging.error(f'RID mapping file not found: {mapping_file}')
+        return 1
+
+    rid_lookup = {}  # Original_ID (str) -> AD_RID (str)
+    with open(mapping_file, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            original_id = row['Original_ID'].strip()
+            ad_rid = str(row['AD_RID']).strip()
+            if original_id in rid_lookup:
+                logging.warning(f'Duplicate Original_ID {original_id} in mapping (keeping first)')
+            else:
+                rid_lookup[original_id] = ad_rid
+
+    logging.info(f'Loaded RID mapping: {len(rid_lookup)} entries')
+
+    # Validate input directory
+    input_dir = args.input_dir
+    if not os.path.isdir(input_dir):
+        logging.error(f'Input directory not found: {input_dir}')
+        return 1
+
+    # Create output directory
+    output_dir = args.output_dir
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Define which files and columns to translate
+    # Each entry: (filename, list of columns to translate)
+    permission_files = [
+        ('Unique_Sections_Access.csv', ['Group', 'User', 'RID']),
+        ('STYPE_SECTION_ACCESS.csv', ['Group', 'RID']),
+        ('STYPE_REPORT_SPECIES_ACCESS.csv', ['Group', 'RID']),
+        ('STYPE_FOLDER_ACCESS.csv', ['Group', 'RID']),
+    ]
+
+    total_translated = 0
+    total_unmapped = 0
+    unmapped_rids = set()
+    files_processed = 0
+
+    for filename, columns in permission_files:
+        input_path = os.path.join(input_dir, filename)
+        if not os.path.isfile(input_path):
+            logging.warning(f'Permission file not found, skipping: {input_path}')
+            continue
+
+        output_path = os.path.join(output_dir, filename)
+        file_translated = 0
+        file_unmapped = 0
+
+        with open(input_path, 'r', encoding='utf-8') as fin:
+            reader = csv.DictReader(fin)
+            fieldnames = reader.fieldnames
+
+            with open(output_path, 'w', newline='', encoding='utf-8') as fout:
+                writer = csv.DictWriter(fout, fieldnames=fieldnames)
+                writer.writeheader()
+
+                for row in reader:
+                    for col in columns:
+                        value = row.get(col, '').strip()
+                        if not value:
+                            continue
+
+                        # Handle pipe-delimited values (e.g., "35442|36986")
+                        parts = value.split('|')
+                        translated_parts = []
+
+                        for part in parts:
+                            part = part.strip()
+                            if not part:
+                                translated_parts.append(part)
+                                continue
+
+                            if part in rid_lookup:
+                                translated_parts.append(rid_lookup[part])
+                                file_translated += 1
+                            else:
+                                translated_parts.append(part)
+                                if part.isdigit():
+                                    file_unmapped += 1
+                                    unmapped_rids.add(part)
+
+                        row[col] = '|'.join(translated_parts)
+
+                    writer.writerow(row)
+
+        logging.info(f'{filename}: {file_translated} RIDs translated, {file_unmapped} unmapped')
+        total_translated += file_translated
+        total_unmapped += file_unmapped
+        files_processed += 1
+
+    # Log unmapped RIDs
+    if unmapped_rids:
+        logging.warning(f'Unmapped RIDs ({len(unmapped_rids)}): {", ".join(sorted(unmapped_rids))}')
+
+    # Summary
+    logging.info('=' * 70)
+    logging.info('PERMISSION TRANSLATION COMPLETE')
+    logging.info(f'Files processed:   {files_processed}')
+    logging.info(f'RIDs translated:   {total_translated}')
+    logging.info(f'RIDs unmapped:     {total_unmapped}')
+    logging.info(f'Output directory:  {os.path.abspath(output_dir)}')
+    logging.info('=' * 70)
+
+    return 0
+
+
 def cmd_verify_import(args):
     """Verify import command."""
     logging.info('Verifying imported entries...')
@@ -2065,6 +2185,12 @@ Examples:
   # Start browser API
   python ldap_integration.py serve-browser --server ldap.ocbc.com --port 389 \\
     --bind-dn "cn=admin,dc=ocbc,dc=com" --password "P@ssw0rd" --base-dn "dc=ocbc,dc=com"
+
+  # Translate permission CSVs using RID mapping
+  python ldap_integration.py translate-permissions \\
+    --rid-mapping rid_mapping.csv \\
+    --input-dir "S:\\transfer\\Freddievr\\ForPhilipp\\Users_SG" \\
+    --output-dir ./translated_permissions
         """
     )
 
@@ -2144,13 +2270,30 @@ Examples:
     export_parser.add_argument('--output-file', default='rid_mapping.csv',
                               help='Output mapping file (default: rid_mapping.csv)')
 
+    # Translate permissions
+    translate_parser = subparsers.add_parser('translate-permissions',
+                                             help='Translate permission CSVs using RID mapping')
+    translate_parser.add_argument('--rid-mapping', required=True,
+                                 help='Path to rid_mapping.csv (from export-rid-mapping)')
+    translate_parser.add_argument('--input-dir', required=True,
+                                 help='Directory containing permission CSVs')
+    translate_parser.add_argument('--output-dir', default='./translated_permissions',
+                                 help='Output directory for translated CSVs (default: ./translated_permissions)')
+    translate_parser.add_argument('--output-dir-log', '-o', dest='output_dir_log', default='.',
+                                 help='Output directory for log file (default: current directory)')
+    translate_parser.add_argument('--quiet', action='store_true', help='Quiet mode')
+
     args = parser.parse_args()
 
     # Setup logging
-    output_dir = getattr(args, 'output_dir', '.')
+    # translate-permissions uses --output-dir for translated files, so log to '.' for that command
+    if args.command == 'translate-permissions':
+        log_dir = getattr(args, 'output_dir_log', '.')
+    else:
+        log_dir = getattr(args, 'output_dir', '.')
     quiet = getattr(args, 'quiet', False)
-    os.makedirs(output_dir, exist_ok=True)
-    setup_logging(output_dir, quiet)
+    os.makedirs(log_dir, exist_ok=True)
+    setup_logging(log_dir, quiet)
 
     # Route to subcommand
     if args.command == 'test-connection':
@@ -2171,6 +2314,8 @@ Examples:
         sys.exit(cmd_verify_import(args))
     elif args.command == 'export-rid-mapping':
         sys.exit(cmd_export_rid_mapping(args))
+    elif args.command == 'translate-permissions':
+        sys.exit(cmd_translate_permissions(args))
     else:
         parser.print_help()
         sys.exit(1)
