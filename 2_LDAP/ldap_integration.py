@@ -1291,21 +1291,25 @@ class LDAPSearchManager:
         Returns:
             list: List of entry dictionaries
         """
-        conn = self.conn_manager.connection
-        if not conn:
-            conn = self.conn_manager.connect()
-
         search_base = base_dn or self.base_dn
 
-        try:
-            result = conn.search(
-                search_base=search_base,
-                search_filter=filter_str,
-                search_scope=scope,
-                attributes=attributes or ldap3.ALL_ATTRIBUTES
-            )
+        # Try search, reconnect once if connection is stale
+        for attempt in range(2):
+            conn = self.conn_manager.connection
+            if not conn or not conn.bound:
+                conn = self.conn_manager.connect()
 
-            if result:
+            try:
+                conn.search(
+                    search_base=search_base,
+                    search_filter=filter_str,
+                    search_scope=scope,
+                    attributes=attributes or ldap3.ALL_ATTRIBUTES,
+                    size_limit=500
+                )
+
+                # Always check conn.entries - ldap3 populates them even on
+                # sizeLimitExceeded (AD returns partial results)
                 entries = []
                 for entry in conn.entries:
                     entries.append({
@@ -1313,11 +1317,13 @@ class LDAPSearchManager:
                         'attributes': entry.entry_attributes_as_dict
                     })
                 return entries
-
-            return []
-        except Exception as e:
-            logging.error(f'Search error: {e}')
-            return []
+            except Exception as e:
+                if attempt == 0:
+                    logging.warning(f'Search failed, reconnecting: {e}')
+                    self.conn_manager.disconnect()
+                    continue
+                logging.error(f'Search error after reconnect: {e}')
+                return []
 
     def search_users(self, username_filter=None):
         """Search for users.
@@ -1392,9 +1398,28 @@ class LDAPBrowserAPI:
         self.conn_manager = conn_manager
         self.search_manager = search_manager
         self.app = Flask(__name__)
+        self.app.json.default = self._json_default
         CORS(self.app)
 
         self._register_routes()
+
+    @staticmethod
+    def _json_default(obj):
+        """Handle non-serializable types from AD attributes."""
+        import datetime
+        import base64
+        if isinstance(obj, bytes):
+            try:
+                return obj.decode('utf-8')
+            except UnicodeDecodeError:
+                return base64.b64encode(obj).decode()
+        if isinstance(obj, (datetime.datetime, datetime.date)):
+            return obj.isoformat()
+        if isinstance(obj, datetime.timedelta):
+            return str(obj)
+        if isinstance(obj, (set, frozenset)):
+            return list(obj)
+        return str(obj)
 
     def _register_routes(self):
         """Register Flask routes."""
@@ -1484,6 +1509,144 @@ class LDAPBrowserAPI:
 # ============================================================================
 # Command Implementations
 # ============================================================================
+
+def cmd_delete_groups(args):
+    """Delete groups from AD that were imported from CSV."""
+    logging.info('Deleting groups from AD...')
+
+    conn_mgr = LDAPConnectionManager(
+        server=args.server, port=args.port, bind_dn=args.bind_dn,
+        password=args.password, use_ssl=args.use_ssl, base_dn=args.base_dn,
+        ssl_no_verify=getattr(args, 'ssl_no_verify', False),
+        ssl_ca_cert=getattr(args, 'ssl_ca_cert', None),
+        ssl_ca_path=getattr(args, 'ssl_ca_path', None)
+    )
+
+    result = conn_mgr.test_connection()
+    if not result['success']:
+        logging.error(f'Connection failed: {result["message"]}')
+        return 1
+
+    conn_mgr.connect()
+
+    importer = CSVImporter(args.csv)
+    validation = importer.validate_csv(['GROUP_ID', 'GROUPNAME'])
+    if not validation['valid']:
+        logging.error(f'CSV validation failed: {validation["error"]}')
+        return 1
+
+    groups = importer.read_groups()
+    deleted = 0
+    skipped = 0
+    errors = 0
+
+    for group in groups:
+        cn = group['GROUPNAME']
+        dn = f"cn={cn},{args.groups_ou}"
+
+        if args.dry_run:
+            logging.info(f'[DRY-RUN] Would delete group: {cn}')
+            deleted += 1
+            continue
+
+        try:
+            success = conn_mgr.connection.delete(dn)
+            if success:
+                logging.info(f'Deleted group: {cn}')
+                deleted += 1
+            else:
+                error_msg = conn_mgr.connection.result.get('description', 'Unknown')
+                if 'noSuchObject' in error_msg or conn_mgr.connection.result.get('result', 0) == 32:
+                    logging.debug(f'Group not found (already deleted): {cn}')
+                    skipped += 1
+                else:
+                    logging.error(f'Failed to delete group {cn}: {error_msg}')
+                    errors += 1
+        except Exception as e:
+            logging.error(f'Exception deleting group {cn}: {e}')
+            errors += 1
+
+    conn_mgr.disconnect()
+
+    logging.info('=' * 70)
+    logging.info('GROUP DELETE COMPLETE' if not args.dry_run else 'DRY-RUN COMPLETE')
+    logging.info(f'Total: {len(groups)}')
+    logging.info(f'Deleted: {deleted}')
+    logging.info(f'Not found: {skipped}')
+    logging.info(f'Errors: {errors}')
+    logging.info('=' * 70)
+
+    return 0 if errors == 0 else 1
+
+
+def cmd_delete_users(args):
+    """Delete users from AD that were imported from CSV."""
+    logging.info('Deleting users from AD...')
+
+    conn_mgr = LDAPConnectionManager(
+        server=args.server, port=args.port, bind_dn=args.bind_dn,
+        password=args.password, use_ssl=args.use_ssl, base_dn=args.base_dn,
+        ssl_no_verify=getattr(args, 'ssl_no_verify', False),
+        ssl_ca_cert=getattr(args, 'ssl_ca_cert', None),
+        ssl_ca_path=getattr(args, 'ssl_ca_path', None)
+    )
+
+    result = conn_mgr.test_connection()
+    if not result['success']:
+        logging.error(f'Connection failed: {result["message"]}')
+        return 1
+
+    conn_mgr.connect()
+
+    importer = CSVImporter(args.csv)
+    validation = importer.validate_csv(['USER_ID', 'USERNAME'])
+    if not validation['valid']:
+        logging.error(f'CSV validation failed: {validation["error"]}')
+        return 1
+
+    users = importer.read_users()
+    deleted = 0
+    skipped = 0
+    errors = 0
+
+    for user in users:
+        username = user['USERNAME']
+        dn = f"cn={username},{args.users_ou}"
+
+        if args.dry_run:
+            logging.info(f'[DRY-RUN] Would delete user: {username}')
+            deleted += 1
+            continue
+
+        try:
+            success = conn_mgr.connection.delete(dn)
+            if success:
+                logging.info(f'Deleted user: {username}')
+                deleted += 1
+            else:
+                error_msg = conn_mgr.connection.result.get('description', 'Unknown')
+                if 'noSuchObject' in error_msg or conn_mgr.connection.result.get('result', 0) == 32:
+                    logging.debug(f'User not found (already deleted): {username}')
+                    skipped += 1
+                else:
+                    logging.error(f'Failed to delete user {username}: {error_msg}')
+                    errors += 1
+        except Exception as e:
+            logging.error(f'Exception deleting user {username}: {e}')
+            errors += 1
+
+    conn_mgr.disconnect()
+
+    logging.info('=' * 70)
+    logging.info('USER DELETE COMPLETE' if not args.dry_run else 'DRY-RUN COMPLETE')
+    logging.info(f'Total: {len(users)}')
+    logging.info(f'Deleted: {deleted}')
+    logging.info(f'Not found: {skipped}')
+    logging.info(f'Errors: {errors}')
+    logging.info('=' * 70)
+
+    return 0 if errors == 0 else 1
+
 
 def cmd_test_connection(args):
     """Test connection command."""
@@ -2431,6 +2594,20 @@ Examples:
     export_parser.add_argument('--output-file', default='rid_mapping.csv',
                               help='Output mapping file (default: rid_mapping.csv)')
 
+    # Delete groups
+    del_groups_parser = subparsers.add_parser('delete-groups', help='Delete imported groups from AD')
+    add_connection_args(del_groups_parser)
+    del_groups_parser.add_argument('--groups-ou', required=True, help='Groups OU DN')
+    del_groups_parser.add_argument('--csv', required=True, help='Path to UserGroups.csv (same file used for import)')
+    del_groups_parser.add_argument('--dry-run', action='store_true', help='Preview without deleting')
+
+    # Delete users
+    del_users_parser = subparsers.add_parser('delete-users', help='Delete imported users from AD')
+    add_connection_args(del_users_parser)
+    del_users_parser.add_argument('--users-ou', required=True, help='Users OU DN')
+    del_users_parser.add_argument('--csv', required=True, help='Path to Users.csv (same file used for import)')
+    del_users_parser.add_argument('--dry-run', action='store_true', help='Preview without deleting')
+
     # Translate permissions
     translate_parser = subparsers.add_parser('translate-permissions',
                                              help='Translate permission CSVs using RID mapping')
@@ -2479,6 +2656,10 @@ Examples:
         sys.exit(cmd_export_rid_mapping(args))
     elif args.command == 'translate-permissions':
         sys.exit(cmd_translate_permissions(args))
+    elif args.command == 'delete-groups':
+        sys.exit(cmd_delete_groups(args))
+    elif args.command == 'delete-users':
+        sys.exit(cmd_delete_users(args))
     else:
         parser.print_help()
         sys.exit(1)
