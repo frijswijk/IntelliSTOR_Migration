@@ -38,7 +38,7 @@ papyrus_rpt_page_extractor.exe <directory>  Export [watermark_options]
 | `pages:<range>,<range>` | Multiple page ranges | `pages:1-5,10-20` |
 | `sections:<id>` | Extract a single section | `sections:14259` |
 | `sections:<id>,<id>` | Multiple sections | `sections:14259,14260,14261` |
-| `<id>,<id>` | Shorthand for sections | `14259,14260` |
+| `<n>,<n>` | Multiple individual pages | `1,3,5` |
 | *(empty string)* | Same as `all` | `""` |
 
 ### Watermark Options

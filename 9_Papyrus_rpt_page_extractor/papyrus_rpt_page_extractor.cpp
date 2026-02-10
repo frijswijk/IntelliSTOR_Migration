@@ -459,46 +459,28 @@ static SelectionRule parse_selection_rule(const std::string& rule_str) {
     }
 
     if (is_numeric_shorthand) {
-        bool has_dash = rule_str.find('-') != std::string::npos;
-        bool has_comma = rule_str.find(',') != std::string::npos;
-
-        if (has_dash || !has_comma) {
-            // Bare page range: "2", "1-5", "1-5,10-20"
-            rule.mode = SelectionMode::PAGES;
-            std::istringstream ss(rule_str);
-            std::string range_str;
-            while (std::getline(ss, range_str, ',')) {
-                size_t start = range_str.find_first_not_of(" \t");
-                size_t end = range_str.find_last_not_of(" \t");
-                if (start != std::string::npos) {
-                    range_str = range_str.substr(start, end - start + 1);
-                }
-                auto dash = range_str.find('-');
-                if (dash != std::string::npos) {
-                    int p_start = std::stoi(range_str.substr(0, dash));
-                    int p_end = std::stoi(range_str.substr(dash + 1));
-                    rule.page_ranges.push_back({p_start, p_end});
-                } else {
-                    int p = std::stoi(range_str);
-                    rule.page_ranges.push_back({p, p});
-                }
+        // Bare numeric input always means pages: "2", "1,3", "1-5", "1-5,10-20"
+        // Sections always require the "sections:" prefix.
+        rule.mode = SelectionMode::PAGES;
+        std::istringstream ss(rule_str);
+        std::string range_str;
+        while (std::getline(ss, range_str, ',')) {
+            size_t start = range_str.find_first_not_of(" \t");
+            size_t end = range_str.find_last_not_of(" \t");
+            if (start != std::string::npos) {
+                range_str = range_str.substr(start, end - start + 1);
             }
-            return rule;
-        } else {
-            // Shorthand: "14259,14260" -> sections (comma-separated, no dashes)
-            rule.mode = SelectionMode::SECTIONS;
-            std::istringstream ss(rule_str);
-            std::string token;
-            while (std::getline(ss, token, ',')) {
-                size_t start = token.find_first_not_of(" \t");
-                size_t end = token.find_last_not_of(" \t");
-                if (start != std::string::npos) {
-                    token = token.substr(start, end - start + 1);
-                    rule.section_ids.push_back(std::stoul(token));
-                }
+            auto dash = range_str.find('-');
+            if (dash != std::string::npos) {
+                int p_start = std::stoi(range_str.substr(0, dash));
+                int p_end = std::stoi(range_str.substr(dash + 1));
+                rule.page_ranges.push_back({p_start, p_end});
+            } else {
+                int p = std::stoi(range_str);
+                rule.page_ranges.push_back({p, p});
             }
-            return rule;
         }
+        return rule;
     }
 
     // Standard format: "type:value"
