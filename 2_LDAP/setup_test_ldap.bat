@@ -79,6 +79,7 @@ python ldap_integration.py add-groups ^
   --password "%LDAP_Password%" ^
   --base-dn "%LDAP_BaseDN%" ^
   --groups-ou "%LDAP_GroupsOU%" ^
+  --country "%LDAP_Country%" ^
   --csv "%LDAP_PreparedDir%\UserGroups.csv"
 
 if %errorlevel% neq 0 (
@@ -105,6 +106,7 @@ python ldap_integration.py add-users ^
   --password "%LDAP_Password%" ^
   --base-dn "%LDAP_BaseDN%" ^
   --users-ou "%LDAP_UsersOU%" ^
+  --country "%LDAP_Country%" ^
   --csv "%LDAP_PreparedDir%\Users.csv" ^
   --password-strategy %LDAP_PasswordStrategy%
 

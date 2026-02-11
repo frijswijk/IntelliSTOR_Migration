@@ -83,11 +83,8 @@ def prepare_groups(rows):
 
         # Build description with original ID tag
         original_desc = row.get('DESCRIPTION', '').strip()
-        if original_desc:
-            description = f'{original_desc} [OriginalID:{group_id}]'
-        else:
-            description = f'{new_name} [OriginalID:{group_id}]'
-
+        description = f'{new_name} '
+        
         row['GROUPNAME'] = new_name
         row['DESCRIPTION'] = description
         prepared.append(row)

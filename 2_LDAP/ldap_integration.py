@@ -468,12 +468,13 @@ class CSVImporter:
                 })
         return users
 
-    def map_group_to_ldap(self, group_row, groups_ou):
+    def map_group_to_ldap(self, group_row, groups_ou, country=None):
         """Map CSV group to LDAP entry.
 
         Args:
             group_row: Group dictionary from CSV
             groups_ou: Groups OU DN
+            country: ISO 3166 two-letter country code (e.g., 'SG') to set on IST_* groups
 
         Returns:
             dict: {'dn': str, 'attributes': dict}
@@ -489,18 +490,25 @@ class CSVImporter:
         if '[OriginalID:' not in description:
             description = f"{description} [OriginalID:{original_id}]"
 
-        return {
-            'dn': dn,
-            'attributes': {
-                'objectClass': ['top', 'group'],
-                'cn': cn,
-                'sAMAccountName': cn,
-                'description': description,
-                'groupType': -2147483646  # Global security group
-            }
+        attributes = {
+            'objectClass': ['top', 'group'],
+            'cn': cn,
+            'sAMAccountName': cn,
+            'description': description,
+            'groupType': -2147483646  # Global security group
         }
 
-    def map_user_to_ldap(self, user_row, users_ou, password_strategy='use-csv', default_password=None):
+        # Set country on IST_* groups via 'info' attribute (Notes field)
+        # Note: 'c'/'co' attributes are not allowed on the AD 'group' objectClass
+        if country and cn.startswith('IST_'):
+            attributes['info'] = country
+
+        return {
+            'dn': dn,
+            'attributes': attributes
+        }
+
+    def map_user_to_ldap(self, user_row, users_ou, password_strategy='use-csv', default_password=None, country=None):
         """Map CSV user to LDAP entry.
 
         Args:
@@ -508,6 +516,7 @@ class CSVImporter:
             users_ou: Users OU DN
             password_strategy: Password strategy (use-csv, default, skip, random)
             default_password: Default password if strategy is 'default'
+            country: ISO 3166 two-letter country code (e.g., 'SG') to set on users
 
         Returns:
             dict: {'dn': str, 'username': str, 'attributes': dict}
@@ -525,6 +534,11 @@ class CSVImporter:
             'description': user_row.get('DESCRIPTION', '') if user_row.get('DESCRIPTION') else f'User {username}',
             'employeeID': str(user_row['USER_ID']),
         }
+
+        # Set country on user
+        if country:
+            attributes['c'] = country
+            attributes['co'] = country
 
         # Handle password based on strategy
         password_to_encode = None
@@ -608,15 +622,17 @@ class CSVImporter:
 class LDAPGroupManager:
     """Creates groups in Active Directory."""
 
-    def __init__(self, conn_manager, groups_ou):
+    def __init__(self, conn_manager, groups_ou, country=None):
         """Initialize with connection manager and groups OU.
 
         Args:
             conn_manager: LDAPConnectionManager instance
             groups_ou: Groups OU DN
+            country: ISO 3166 two-letter country code to set on IST_* groups (e.g., 'SG')
         """
         self.conn_manager = conn_manager
         self.groups_ou = groups_ou
+        self.country = country
         self.stats = {
             'total': 0,
             'created': 0,
@@ -729,7 +745,7 @@ class LDAPGroupManager:
 
         results = []
         for group_row in groups:
-            group_data = importer.map_group_to_ldap(group_row, self.groups_ou)
+            group_data = importer.map_group_to_ldap(group_row, self.groups_ou, country=self.country)
             result = self.add_group(group_data, dry_run=dry_run, continue_on_error=continue_on_error)
 
             # Update stats
@@ -783,7 +799,7 @@ class LDAPGroupManager:
 class LDAPUserManager:
     """Creates users in Active Directory."""
 
-    def __init__(self, conn_manager, users_ou, password_strategy='use-csv', default_password=None):
+    def __init__(self, conn_manager, users_ou, password_strategy='use-csv', default_password=None, country=None):
         """Initialize with connection manager and users OU.
 
         Args:
@@ -791,11 +807,13 @@ class LDAPUserManager:
             users_ou: Users OU DN
             password_strategy: Password strategy (use-csv, default, skip, random)
             default_password: Default password if strategy is 'default'
+            country: ISO 3166 two-letter country code (e.g., 'SG') to set on users
         """
         self.conn_manager = conn_manager
         self.users_ou = users_ou
         self.password_strategy = password_strategy
         self.default_password = default_password
+        self.country = country
         self.stats = {
             'total': 0,
             'created': 0,
@@ -937,7 +955,8 @@ class LDAPUserManager:
                 user_row,
                 self.users_ou,
                 self.password_strategy,
-                self.default_password
+                self.default_password,
+                country=self.country
             )
             result = self.add_user(user_data, dry_run=dry_run, continue_on_error=continue_on_error)
 
@@ -1733,7 +1752,10 @@ def cmd_create_ous(args):
 
 def cmd_add_groups(args):
     """Add groups command."""
+    country = getattr(args, 'country', None)
     logging.info('Adding groups from CSV...')
+    if country:
+        logging.info(f'Country code for IST_* groups: {country}')
 
     # Create connection manager
     conn_mgr = LDAPConnectionManager(
@@ -1763,7 +1785,7 @@ def cmd_add_groups(args):
         return 1
 
     # Create group manager
-    group_mgr = LDAPGroupManager(conn_mgr, args.groups_ou)
+    group_mgr = LDAPGroupManager(conn_mgr, args.groups_ou, country=getattr(args, 'country', None))
 
     # Add groups
     result = group_mgr.add_groups_from_csv(
@@ -1794,7 +1816,10 @@ def cmd_add_groups(args):
 
 def cmd_add_users(args):
     """Add users command."""
+    country = getattr(args, 'country', None)
     logging.info('Adding users from CSV...')
+    if country:
+        logging.info(f'Country code for users: {country}')
 
     # Create connection manager
     conn_mgr = LDAPConnectionManager(
@@ -1828,7 +1853,8 @@ def cmd_add_users(args):
         conn_mgr,
         args.users_ou,
         password_strategy=args.password_strategy,
-        default_password=getattr(args, 'default_password', None)
+        default_password=getattr(args, 'default_password', None),
+        country=getattr(args, 'country', None)
     )
 
     # Add users
@@ -2529,6 +2555,7 @@ Examples:
     add_connection_args(groups_parser)
     groups_parser.add_argument('--groups-ou', required=True, help='Groups OU DN')
     groups_parser.add_argument('--csv', required=True, help='Path to UserGroups.csv')
+    groups_parser.add_argument('--country', help='ISO 3166 two-letter country code to set on IST_* groups (e.g., SG)')
     groups_parser.add_argument('--dry-run', action='store_true', help='Preview without executing')
     groups_parser.add_argument('--continue-on-error', action='store_true', default=True, help='Continue if entry fails')
 
@@ -2537,6 +2564,7 @@ Examples:
     add_connection_args(users_parser)
     users_parser.add_argument('--users-ou', required=True, help='Users OU DN')
     users_parser.add_argument('--csv', required=True, help='Path to Users.csv')
+    users_parser.add_argument('--country', help='ISO 3166 two-letter country code to set on users (e.g., SG)')
     users_parser.add_argument('--password-strategy', choices=['use-csv', 'default', 'skip', 'random'],
                               default='use-csv', help='Password strategy')
     users_parser.add_argument('--default-password', help='Default password (required if strategy is default)')
@@ -2551,6 +2579,7 @@ Examples:
     all_parser.add_argument('--groups-csv', required=True, help='Path to UserGroups.csv')
     all_parser.add_argument('--users-csv', required=True, help='Path to Users.csv')
     all_parser.add_argument('--assignments-csv', help='Path to UserGroupAssignments.csv (optional)')
+    all_parser.add_argument('--country', help='ISO 3166 two-letter country code to set on IST_* groups and users (e.g., SG)')
     all_parser.add_argument('--password-strategy', choices=['use-csv', 'default', 'skip', 'random'],
                             default='use-csv', help='Password strategy')
     all_parser.add_argument('--default-password', help='Default password (required if strategy is default)')
