@@ -221,8 +221,13 @@ private:
         if (parts.size() >= 2) {
             size_t colon = parts[1].find(':');
             if (colon != std::string::npos) {
-                header->domain_id = std::stoi(parts[1].substr(0, colon));
-                header->report_species_id = std::stoi(parts[1].substr(colon + 1));
+                try {
+                    header->domain_id = std::stoi(parts[1].substr(0, colon));
+                    header->report_species_id = std::stoi(parts[1].substr(colon + 1));
+                } catch (...) {
+                    delete header;
+                    return nullptr;
+                }
             }
         }
 
@@ -519,13 +524,17 @@ public:
             std::vector<std::string> fields = parseCSVLine(line);
 
             if (fields.size() >= 5) {
-                ReportSpecies rs;
-                rs.report_species_id = std::stoi(fields[0]);
-                rs.report_species_name = fields[1];
-                rs.report_species_displayname = fields[2];
-                rs.country_code = fields[3];
-                rs.in_use = std::stoi(fields[4]);
-                results.push_back(rs);
+                try {
+                    ReportSpecies rs;
+                    rs.report_species_id = std::stoi(fields[0]);
+                    rs.report_species_name = fields[1];
+                    rs.report_species_displayname = fields[2];
+                    rs.country_code = fields[3];
+                    rs.in_use = std::stoi(fields[4]);
+                    results.push_back(rs);
+                } catch (const std::exception& e) {
+                    std::cerr << "Warning: Skipping invalid CSV row (stoi failed on '" << fields[0] << "' or '" << fields[4] << "'): " << line << "\n";
+                }
             }
         }
 
@@ -971,9 +980,16 @@ int main(int argc, char* argv[]) {
         } else if (arg == "--database" && i + 1 < argc) {
             cfg.database = argv[++i];
         } else if (arg == "--start-year" && i + 1 < argc) {
-            cfg.start_year = std::stoi(argv[++i]);
+            std::string val = argv[++i];
+            try { cfg.start_year = std::stoi(val); }
+            catch (...) { std::cerr << "Error: --start-year requires a numeric value, got '" << val << "'\n"; return EC_INVALID_ARGS; }
         } else if (arg == "--end-year" && i + 1 < argc) {
-            cfg.end_year = std::stoi(argv[++i]);
+            std::string val = argv[++i];
+            if (val.empty() || val[0] == '-') { --i; }  // skip empty or next flag
+            else {
+                try { cfg.end_year = std::stoi(val); }
+                catch (...) { std::cerr << "Error: --end-year requires a numeric value, got '" << val << "'\n"; return EC_INVALID_ARGS; }
+            }
         } else if (arg == "--input" && i + 1 < argc) {
             cfg.input_csv = argv[++i];
         } else if (arg == "--output-dir" && i + 1 < argc) {

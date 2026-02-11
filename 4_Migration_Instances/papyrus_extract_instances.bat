@@ -11,6 +11,7 @@ echo Database: %SQL-SG-Database%
 echo Input CSV: %Instances_Input_SG%
 echo Output Folder: %Instances_Output_SG%
 echo Start Year: %Instances_StartYear_SG%
+echo End    Year: %Instances_EndYear_SG%
 echo ---------------------------------------------------------------------------
 
 rem Prompt for RPT folder (mandatory - SEGMENTS come from RPT file SECTIONHDR)
@@ -30,8 +31,12 @@ echo RPT Folder: %RPT_FOLDER%
 rem Create output directory if it doesn't exist
 if not exist "%Instances_Output_SG%" mkdir "%Instances_Output_SG%"
 
+rem Build optional end-year parameter (only pass if defined and non-empty)
+set "END_YEAR_PARAM="
+if defined Instances_EndYear_SG if not "%Instances_EndYear_SG%"=="" set "END_YEAR_PARAM=--end-year %Instances_EndYear_SG%"
+
 rem Run the Extract_Instances script (C++)
-papyrus_extract_instances.exe --server %SQLServer% --database %SQL-SG-Database% --windows-auth --input "%Instances_Input_SG%" --output-dir "%Instances_Output_SG%" --start-year %Instances_StartYear_SG% --rptfolder "%RPT_FOLDER%"
+papyrus_extract_instances.exe --server %SQLServer% --database %SQL-SG-Database% --windows-auth --input "%Instances_Input_SG%" --output-dir "%Instances_Output_SG%" --start-year %Instances_StartYear_SG% %END_YEAR_PARAM% --rptfolder "%RPT_FOLDER%"
 
 :: --- 2. Capture End Time and Calculate Duration ---
 echo ---------------------------------------------------------------------------

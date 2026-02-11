@@ -18,6 +18,8 @@ set Instances_Output_SG=%Migration_data%\Instances_SG
 set Instances_Output_MY=%Migration_data%\Instances_MY
 set Instances_StartYear_SG=2020
 set Instances_StartYear_MY=1900
+set Instances_EndYear_SG=
+set Instances_EndYear_MY=
 
 rem -- Test File Generation
 set TestGen_ReportSpecies_SG=%ReportSpecies_SG%\Report_Species.csv
