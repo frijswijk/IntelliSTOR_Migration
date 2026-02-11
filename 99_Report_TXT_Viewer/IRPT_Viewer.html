@@ -251,10 +251,10 @@
 
         /* Page jump container - fixed compact width */
         #pageJumpContainer {
-            flex: 0 0 95px !important;
-            width: 95px !important;
-            min-width: 95px !important;
-            max-width: 95px !important;
+            flex: 0 0 110px !important;
+            width: 110px !important;
+            min-width: 110px !important;
+            max-width: 110px !important;
         }
 
         /* Page jump input should NOT flex - fixed width */
@@ -1493,6 +1493,24 @@
             color: var(--text-secondary);
         }
 
+        .progress-cancel-btn {
+            margin-top: 12px;
+            padding: 6px 20px;
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid var(--text-secondary);
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s ease;
+        }
+
+        .progress-cancel-btn:hover {
+            color: var(--text-primary);
+            border-color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
         /* ===========================
            TOAST NOTIFICATIONS
            =========================== */
@@ -1748,7 +1766,7 @@
                 <option value="255">255</option>
             </select>
 
-            <div id="pageJumpContainer" class="search-container" style="width: 95px; min-width: 95px; max-width: 95px; padding: 4px 6px;">
+            <div id="pageJumpContainer" class="search-container" style="width: 110px; min-width: 110px; max-width: 110px; padding: 4px 6px;">
                 <span class="search-icon" style="font-size: 12px;" title="Jump to page">📄</span>
                 <input type="number" id="pageJumpInput" placeholder="Pg" min="1"
                     style="width: 38px; padding: 3px 4px; font-size: 13px;" onkeypress="handlePageJumpKey(event)" title="Enter page number and press Enter">
@@ -1857,7 +1875,28 @@
                 <label class="settings-label">Tools</label>
                 <button class="tool-btn" onclick="openWatermarkModal(); toggleSettingsPanel();">🎨 Watermark...</button>
                 <button class="tool-btn" onclick="openRangesOrSections(); toggleSettingsPanel();" id="rangesBtn">📊 Sections / Ranges...</button>
+                <div style="display: flex; align-items: center; gap: 8px; margin: 4px 0;">
+                    <label style="font-size: 12px; color: var(--text-secondary); white-space: nowrap;">PDF Page:</label>
+                    <select id="pdfPageSizeSelect" onchange="AppState.pdfPageSize = this.value" style="
+                        flex: 1; padding: 4px 6px; font-size: 12px;
+                        background: var(--bg-tertiary); color: var(--text-primary);
+                        border: 1px solid var(--border-color); border-radius: 3px;">
+                        <option value="greenbar" selected>Greenbar 14⅞×11"</option>
+                        <option value="letter">US Letter 11×8½"</option>
+                        <option value="a4">A4 Landscape</option>
+                        <option value="a3">A3 Landscape</option>
+                    </select>
+                </div>
                 <button class="tool-btn" onclick="exportToPDF(); toggleSettingsPanel();">📄 Export PDF</button>
+            </div>
+
+            <!-- About -->
+            <div class="settings-section" style="border-top: 1px solid var(--border-color); padding-top: 12px;">
+                <div style="font-size: 11px; color: var(--text-secondary); line-height: 1.5;">
+                    PDF export powered by <strong>jsPDF 2.5.1</strong><br>
+                    Copyright &copy; James Hall, yWorks GmbH<br>
+                    Licensed under the MIT License
+                </div>
             </div>
         </div>
     </div>
@@ -2089,6 +2128,7 @@
                 <div class="progress-fill" id="progressFill"></div>
             </div>
             <div class="progress-text" id="progressText">0%</div>
+            <button id="progressCancel" class="progress-cancel-btn" style="display: none;" onclick="cancelPdfExport()">Cancel</button>
         </div>
     </div>
 
@@ -2097,7 +2137,6 @@
 
     <!-- CDN Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
 
     <!-- Section Names Lookup (generated from database SECTION table) -->
@@ -2158,9 +2197,13 @@
                 scale: 100
             },
 
+            // PDF export
+            pdfPageSize: 'greenbar',
+
             // UI state
             currentPage: 1,
             settingsPanelOpen: false,
+            pdfExportCancelled: false,
 
             // RPT file state
             rptHeader: null,
@@ -2300,8 +2343,12 @@
         });
 
         function setupRulerSync() {
-            // Ruler stays fixed at top - content scrolls underneath
-            // No scroll sync needed
+            // Sync ruler horizontal position with report horizontal scroll
+            const reportDisplay = document.getElementById('reportDisplay');
+            if (reportDisplay) {
+                reportDisplay.addEventListener('scroll', alignRuler);
+            }
+            window.addEventListener('resize', () => requestAnimationFrame(alignRuler));
         }
 
         // Load saved settings from localStorage
@@ -2448,8 +2495,8 @@
                 delete reportDisplay._cachedCharWidth;
             }
 
-            // Ruler now uses variable font-size, so no scaleX needed
-            // Just ensure padding stays consistent (CSS handles it)
+            // Re-align ruler with text after zoom change
+            requestAnimationFrame(alignRuler);
 
             // Update dropdown
             document.getElementById('zoomDropdown').value = value;
@@ -4191,6 +4238,39 @@
                     lineToggleBtn.classList.remove('active');
                 }
             }
+
+            // Align ruler with text content after a short delay for layout
+            requestAnimationFrame(alignRuler);
+        }
+
+        function alignRuler() {
+            const rulerContent = document.getElementById('stickyRulerContent');
+            if (!rulerContent) return;
+
+            // Find the first visible .line-content element
+            const lineContent = document.querySelector('.line-content');
+            if (!lineContent) return;
+
+            const textLeft = lineContent.getBoundingClientRect().left;
+            const rulerRect = rulerContent.getBoundingClientRect();
+
+            // The ruler text currently starts at rulerRect.left + current paddingLeft
+            const currentPadding = parseFloat(getComputedStyle(rulerContent).paddingLeft) || 0;
+            const rulerTextStart = rulerRect.left + currentPadding;
+
+            // Adjust padding so ruler characters align with text characters
+            const adjustment = textLeft - rulerTextStart + currentPadding;
+            if (Math.abs(adjustment - currentPadding) > 1) {
+                rulerContent.style.paddingLeft = Math.max(0, adjustment) + 'px';
+            }
+
+            // Sync horizontal scroll: offset ruler when report is scrolled
+            const reportDisplay = document.getElementById('reportDisplay');
+            if (reportDisplay && reportDisplay.scrollLeft > 0) {
+                rulerContent.style.transform = `translateX(-${reportDisplay.scrollLeft}px)`;
+            } else {
+                rulerContent.style.transform = '';
+            }
         }
 
         function updateFileInfo() {
@@ -5385,20 +5465,52 @@
                 return;
             }
 
-            // Check if libraries are loaded
-            if (typeof window.jspdf === 'undefined' || typeof html2canvas === 'undefined') {
-                showToast('PDF libraries not loaded. Please refresh the page.', 'error');
+            if (typeof window.jspdf === 'undefined') {
+                showToast('PDF library not loaded. Please refresh the page.', 'error');
                 return;
             }
 
             try {
+                AppState.pdfExportCancelled = false;
                 showProgress('Preparing PDF export...', 0);
+                document.getElementById('progressCancel').style.display = '';
 
                 const { jsPDF } = window.jspdf;
+
+                // Page dimensions based on selected page size (all landscape, in points)
+                const pageSizes = {
+                    greenbar: { w: 14.875 * 72, h: 11 * 72 },     // 1071 × 792pt
+                    letter:   { w: 11 * 72,     h: 8.5 * 72 },    // 792 × 612pt
+                    a4:       { w: 841.89,      h: 595.28 },       // 297 × 210mm
+                    a3:       { w: 1190.55,     h: 841.89 }        // 420 × 297mm
+                };
+                const pgSize = pageSizes[AppState.pdfPageSize] || pageSizes.greenbar;
+                const pageWidthPt = pgSize.w;
+                const pageHeightPt = pgSize.h;
+                const marginPt = 36;               // 0.5" margins
+
+                const usableWidth = pageWidthPt - 2 * marginPt;
+                const usableHeight = pageHeightPt - 2 * marginPt;
+
+                // Font sizing: scale down for wider reports
+                const columns = AppState.detectedWidth || 132;
+                let fontSize = 10;
+                if (columns > 166) {
+                    fontSize = Math.max(6, (usableWidth / columns) / 0.6);
+                }
+                const charWidth = fontSize * 0.6;
+                const lineHeight = fontSize * 1.2;
+
                 const pdf = new jsPDF({
                     orientation: 'landscape',
-                    unit: 'in',
-                    format: [11, 14.875]
+                    unit: 'pt',
+                    format: [pageWidthPt, pageHeightPt]
+                });
+
+                pdf.setProperties({
+                    title: AppState.fileName,
+                    creator: 'IRPT_Viewer',
+                    producer: 'jsPDF 2.5.1'
                 });
 
                 // Determine which pages to export
@@ -5419,7 +5531,20 @@
 
                 const totalPages = pagesToExport.length;
 
+                // Pre-render watermark overlay if needed
+                let watermarkDataUrl = null;
+                if (AppState.watermark.enabled && AppState.watermark.imageData) {
+                    watermarkDataUrl = renderWatermarkForPdf(pageWidthPt, pageHeightPt);
+                }
+
                 for (let i = 0; i < totalPages; i++) {
+                    // Check for cancellation
+                    if (AppState.pdfExportCancelled) {
+                        hideProgress();
+                        showToast('PDF export cancelled', 'info');
+                        return;
+                    }
+
                     const page = pagesToExport[i];
                     updateProgress(((i + 1) / totalPages) * 100, `Exporting page ${i + 1} of ${totalPages}...`);
 
@@ -5434,34 +5559,35 @@
                         continue;
                     }
 
-                    // Create temporary container for this page
-                    const pageContainer = createPageElement(page);
-                    document.body.appendChild(pageContainer);
+                    if (i > 0) pdf.addPage();
 
-                    // PDF always uses white background and black text (no zebra, no theme)
-                    // Only apply watermark if enabled
-                    if (AppState.watermark.enabled && AppState.watermark.imageData) {
-                        await applyWatermarkToElement(pageContainer);
+                    // Set font: Courier is built into jsPDF
+                    pdf.setFont('Courier', 'normal');
+                    pdf.setFontSize(fontSize);
+                    pdf.setTextColor(0, 0, 0);
+
+                    // Render each line as native text
+                    let yPos = marginPt + lineHeight;
+                    for (const line of page.lines) {
+                        const text = line.displayText || '';
+                        pdf.text(text, marginPt, yPos);
+                        yPos += lineHeight;
                     }
 
-                    // Render to canvas - always use white background for PDF
-                    const canvas = await html2canvas(pageContainer, {
-                        scale: 2,
-                        backgroundColor: '#ffffff',
-                        logging: false,
-                        useCORS: true
-                    });
+                    // Overlay watermark if enabled
+                    if (watermarkDataUrl) {
+                        pdf.addImage(watermarkDataUrl, 'PNG', 0, 0, pageWidthPt, pageHeightPt);
+                    }
 
-                    // Remove temporary container
-                    document.body.removeChild(pageContainer);
+                    // Yield to event loop so cancel button and progress bar work
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
 
-                    // Add to PDF
-                    const imgData = canvas.toDataURL('image/png');
-                    if (i > 0) pdf.addPage();
-                    pdf.addImage(imgData, 'PNG', 0, 0, 14.875, 11, undefined, 'FAST');
-
-                    // Allow UI to update
-                    await new Promise(resolve => setTimeout(resolve, 10));
+                // Final cancellation check before save
+                if (AppState.pdfExportCancelled) {
+                    hideProgress();
+                    showToast('PDF export cancelled', 'info');
+                    return;
                 }
 
                 // Save PDF - include section info in filename if applicable
@@ -5483,6 +5609,50 @@
                 showToast('Error exporting PDF: ' + error.message, 'error');
                 console.error('PDF export error:', error);
             }
+        }
+
+        function renderWatermarkForPdf(pageWidthPt, pageHeightPt) {
+            const scale = 2;
+            const canvas = document.createElement('canvas');
+            canvas.width = pageWidthPt * scale;
+            canvas.height = pageHeightPt * scale;
+            const ctx = canvas.getContext('2d');
+
+            const positions = {
+                'top-left': { x: 0.15, y: 0.15 },
+                'top-center': { x: 0.5, y: 0.15 },
+                'top-right': { x: 0.85, y: 0.15 },
+                'middle-left': { x: 0.15, y: 0.5 },
+                'center': { x: 0.5, y: 0.5 },
+                'middle-right': { x: 0.85, y: 0.5 },
+                'bottom-left': { x: 0.15, y: 0.85 },
+                'bottom-center': { x: 0.5, y: 0.85 },
+                'bottom-right': { x: 0.85, y: 0.85 }
+            };
+
+            const pos = positions[AppState.watermark.position] || positions['center'];
+            const x = canvas.width * pos.x;
+            const y = canvas.height * pos.y;
+
+            ctx.save();
+            ctx.globalAlpha = AppState.watermark.opacity / 100;
+            ctx.translate(x, y);
+            ctx.rotate(AppState.watermark.rotation * Math.PI / 180);
+
+            const wmScale = (AppState.watermark.scale / 100) * scale;
+            const imgWidth = AppState.watermark.imageData.width * wmScale;
+            const imgHeight = AppState.watermark.imageData.height * wmScale;
+
+            ctx.drawImage(
+                AppState.watermark.imageData,
+                -imgWidth / 2,
+                -imgHeight / 2,
+                imgWidth,
+                imgHeight
+            );
+            ctx.restore();
+
+            return canvas.toDataURL('image/png');
         }
 
         function filterPagesByRanges() {
@@ -5525,159 +5695,6 @@
                 }
             }
             return null;
-        }
-
-        function createPageElement(page) {
-            const container = document.createElement('div');
-
-            // Calculate fixed height based on standard page
-            // 66 lines × 13px per line (11px font + 4px padding) = 858px + 40px padding = 898px
-            const fixedHeight = 898;
-
-            // For PDF, always use white background and black text (ignore theme and zebra)
-            const bgColor = '#ffffff';
-            const textColor = '#000000';
-
-            container.style.cssText = `
-                position: absolute;
-                left: -9999px;
-                top: 0;
-                width: 1487px;
-                height: ${fixedHeight}px;
-                min-height: ${fixedHeight}px;
-                padding: 20px;
-                background: ${bgColor};
-                font-family: 'Courier New', Courier, monospace;
-                font-size: 11px;
-                white-space: pre;
-                color: ${textColor};
-                overflow: hidden;
-            `;
-
-            page.lines.forEach((line, idx) => {
-                const lineDiv = document.createElement('div');
-                lineDiv.textContent = line.displayText;
-                lineDiv.style.cssText = `
-                    padding: 2px 5px;
-                    line-height: 1.2;
-                    color: ${textColor};
-                `;
-                container.appendChild(lineDiv);
-            });
-
-            return container;
-        }
-
-        function applyZebraToElement(element) {
-            const lines = element.querySelectorAll('div');
-            lines.forEach((line, idx) => {
-                line.style.backgroundColor = (idx % 2 === 0) ? AppState.zebraColor1 : AppState.zebraColor2;
-            });
-        }
-
-        async function applyWatermarkToElement(element) {
-            // Force a reflow to ensure element dimensions are computed
-            element.offsetHeight;
-
-            // Create watermark overlay div
-            const watermarkDiv = document.createElement('div');
-            watermarkDiv.style.cssText = `
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                pointer-events: none;
-                z-index: 10;
-            `;
-
-            // Create canvas for watermark
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-
-            // Use explicit dimensions from style if offsetWidth/Height are 0
-            const width = element.offsetWidth || parseInt(element.style.width) || 1487;
-            const height = element.offsetHeight || parseInt(element.style.height) || 898;
-            canvas.width = width;
-            canvas.height = height;
-
-            // Count lines and calculate line-based positioning
-            const lineElements = element.querySelectorAll('div');
-            const lineCount = lineElements.length;
-
-            // Calculate position (same as display)
-            const positions = {
-                'top-left': { x: 0.15, y: 0.15 },
-                'top-center': { x: 0.5, y: 0.15 },
-                'top-right': { x: 0.85, y: 0.15 },
-                'middle-left': { x: 0.15, y: 0.5 },
-                'center': { x: 0.5, y: 0.5 },
-                'middle-right': { x: 0.85, y: 0.5 },
-                'bottom-left': { x: 0.15, y: 0.85 },
-                'bottom-center': { x: 0.5, y: 0.85 },
-                'bottom-right': { x: 0.85, y: 0.85 }
-            };
-
-            const pos = positions[AppState.watermark.position] || positions['center'];
-
-            // For middle/center positions, calculate based on actual line positions
-            let yPos = pos.y;
-            if (lineCount > 0 && (AppState.watermark.position.includes('middle') || AppState.watermark.position === 'center')) {
-                const firstLine = lineElements[0];
-                const lastLine = lineElements[lineCount - 1];
-                if (firstLine && lastLine) {
-                    const firstLineTop = firstLine.offsetTop;
-                    const lastLineTop = lastLine.offsetTop;
-                    const lastLineBottom = lastLineTop + lastLine.offsetHeight;
-
-                    // Middle of content is between first line top and last line bottom
-                    const contentMiddle = (firstLineTop + lastLineBottom) / 2;
-                    yPos = contentMiddle / canvas.height;
-                }
-            }
-
-            const x = canvas.width * pos.x;
-            const y = canvas.height * yPos;
-
-            // Draw watermark
-            ctx.save();
-            ctx.globalAlpha = AppState.watermark.opacity / 100;
-            ctx.translate(x, y);
-            ctx.rotate(AppState.watermark.rotation * Math.PI / 180);
-
-            const scale = AppState.watermark.scale / 100;
-            const imgData = AppState.watermark.imageData;
-
-            // Ensure image data is valid
-            if (!imgData || !imgData.width || !imgData.height) {
-                console.warn('Watermark imageData is invalid:', imgData);
-                ctx.restore();
-                return;
-            }
-
-            const imgWidth = imgData.width * scale;
-            const imgHeight = imgData.height * scale;
-
-            console.log('Drawing watermark:', { canvasW: canvas.width, canvasH: canvas.height, imgW: imgWidth, imgH: imgHeight, x, y, opacity: AppState.watermark.opacity });
-
-            ctx.drawImage(
-                imgData,
-                -imgWidth / 2,
-                -imgHeight / 2,
-                imgWidth,
-                imgHeight
-            );
-            ctx.restore();
-
-            // Apply canvas as background of overlay div
-            watermarkDiv.style.backgroundImage = `url(${canvas.toDataURL()})`;
-            watermarkDiv.style.backgroundRepeat = 'no-repeat';
-            watermarkDiv.style.backgroundPosition = 'left top';
-            watermarkDiv.style.backgroundSize = '100% 100%';
-
-            // Make element position relative and append watermark
-            element.style.position = 'relative';
-            element.appendChild(watermarkDiv);
         }
 
         // ===========================
@@ -5840,6 +5857,12 @@
 
         function hideProgress() {
             document.getElementById('progressOverlay').classList.remove('active');
+            document.getElementById('progressCancel').style.display = 'none';
+            AppState.pdfExportCancelled = false;
+        }
+
+        function cancelPdfExport() {
+            AppState.pdfExportCancelled = true;
         }
 
         // ===========================
