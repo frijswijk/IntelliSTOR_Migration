@@ -4938,15 +4938,22 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         }
 
         function drawTiledWatermark(ctx, width, height, img, imgWidth, imgHeight, rotation, opacity) {
-            const diagonal = Math.sqrt(imgWidth * imgWidth + imgHeight * imgHeight);
-            const spacingX = diagonal * 1.5;
-            const spacingY = diagonal * 1.5;
-            const offsetX = spacingX / 2;
+            // Reduce tile size so multiple tiles fit: each tile ~1/4 of passed dimensions
+            // User scale slider still controls relative size (bigger scale = bigger tiles)
+            const tileW = imgWidth / 4;
+            const tileH = imgHeight / 4;
+
+            // Spacing: 2x tile size for comfortable gaps between tiles
+            const tileMax = Math.max(tileW, tileH);
+            const spacingX = tileMax * 2.5;
+            const spacingY = tileMax * 2.2;
+            const offsetX = spacingX / 2; // diagonal offset for alternating rows
 
             ctx.save();
             ctx.globalAlpha = opacity;
 
-            const margin = diagonal * 2;
+            // Expand bounds to cover rotated overshoot
+            const margin = tileMax * 3;
             let row = 0;
             for (let y = -margin; y < height + margin; y += spacingY) {
                 const xShift = (row % 2) * offsetX;
@@ -4954,7 +4961,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                     ctx.save();
                     ctx.translate(x, y);
                     ctx.rotate(rotation * Math.PI / 180);
-                    ctx.drawImage(img, -imgWidth / 2, -imgHeight / 2, imgWidth, imgHeight);
+                    ctx.drawImage(img, -tileW / 2, -tileH / 2, tileW, tileH);
                     ctx.restore();
                 }
                 row++;
