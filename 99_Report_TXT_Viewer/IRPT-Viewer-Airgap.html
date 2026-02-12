@@ -5847,28 +5847,33 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             }
             if (!AppState.watermark.imageData) return;
 
-            const CANONICAL_W = 800;
-            const CANONICAL_H = 600;
-            const canvas = document.createElement('canvas');
-            canvas.width = CANONICAL_W;
-            canvas.height = CANONICAL_H;
-            const ctx = canvas.getContext('2d');
-
-            drawWatermarkOnCanvas(ctx, CANONICAL_W, CANONICAL_H, AppState.watermark, 1);
-
-            const dataUrl = canvas.toDataURL();
-
             // Calculate content width so watermark centers on the text, not the viewport
-            const contentWidth = getContentPixelWidth();
+            const contentWidth = Math.round(getContentPixelWidth());
 
+            // Render per-page canvas sized to actual page dimensions to avoid squeezing
             const pages = document.querySelectorAll('.report-page');
             pages.forEach(pageEl => {
+                const pageHeight = pageEl.offsetHeight || 600;
+                const canvas = document.createElement('canvas');
+                canvas.width = contentWidth;
+                canvas.height = pageHeight;
+                const ctx = canvas.getContext('2d');
+
+                drawWatermarkOnCanvas(ctx, contentWidth, pageHeight, AppState.watermark, 1);
+
+                const dataUrl = canvas.toDataURL();
                 pageEl.style.setProperty('--watermark-image', `url(${dataUrl})`);
                 pageEl.style.setProperty('--watermark-position', 'left top');
-                pageEl.style.setProperty('--watermark-size', `${contentWidth}px 100%`);
+                pageEl.style.setProperty('--watermark-size', `${contentWidth}px ${pageHeight}px`);
             });
 
-            applyWatermarkToVirtualOverlay(dataUrl, contentWidth);
+            // Virtual scroll overlay uses canonical canvas (viewport-sized, no squeeze issue)
+            const overlayCanvas = document.createElement('canvas');
+            overlayCanvas.width = 800;
+            overlayCanvas.height = 600;
+            const overlayCtx = overlayCanvas.getContext('2d');
+            drawWatermarkOnCanvas(overlayCtx, 800, 600, AppState.watermark, 1);
+            applyWatermarkToVirtualOverlay(overlayCtx.canvas.toDataURL(), contentWidth);
         }
 
         function applyWatermarkToVirtualOverlay(dataUrl, contentWidth) {
