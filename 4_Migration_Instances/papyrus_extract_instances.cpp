@@ -748,6 +748,18 @@ public:
     }
 };
 
+// Sanitize a string for use as a filename (replace illegal characters with _)
+static std::string sanitizeFilename(const std::string& name) {
+    std::string result = name;
+    const std::string illegal = R"(\/:*?"<>|)";
+    for (char& c : result) {
+        if (illegal.find(c) != std::string::npos) {
+            c = '_';
+        }
+    }
+    return result;
+}
+
 // Main extractor
 class InstancesExtractor {
 private:
@@ -873,7 +885,7 @@ public:
 
             if (!instances.empty()) {
                 std::stringstream output_filename;
-                output_filename << rs.report_species_name << "_" << cfg.start_year;
+                output_filename << sanitizeFilename(rs.report_species_name) << "_" << cfg.start_year;
                 if (cfg.end_year > 0) {
                     output_filename << "_" << cfg.end_year;
                 }
