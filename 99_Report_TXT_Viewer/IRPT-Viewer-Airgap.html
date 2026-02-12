@@ -1285,6 +1285,55 @@
             color: white;
         }
 
+        .position-btn.dimmed {
+            opacity: 0.35;
+            pointer-events: none;
+        }
+
+        .tiled-btn-wrapper {
+            margin-top: 10px;
+        }
+
+        .tiled-btn {
+            width: 100%;
+            padding: 12px;
+            background: var(--bg-tertiary);
+            border: 2px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .tiled-btn:hover {
+            border-color: var(--accent-primary);
+        }
+
+        .tiled-btn.active {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+            color: white;
+        }
+
+        .reset-btn {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 11px;
+            padding: 2px 8px;
+            margin-left: 6px;
+            transition: all 0.2s;
+        }
+
+        .reset-btn:hover {
+            background: var(--accent-primary);
+            color: white;
+        }
+
         .slider-control {
             display: flex;
             align-items: center;
@@ -1986,10 +2035,13 @@
                                 <button class="position-btn" data-position="bottom-center" onclick="setWatermarkPosition('bottom-center')">Bottom Center</button>
                                 <button class="position-btn" data-position="bottom-right" onclick="setWatermarkPosition('bottom-right')">Bottom Right</button>
                             </div>
+                            <div class="tiled-btn-wrapper">
+                                <button type="button" class="tiled-btn" id="tiledBtn" onclick="toggleTiledWatermark()">Tiled</button>
+                            </div>
                         </div>
 
                         <div class="config-group">
-                            <label>Rotation: <span id="rotationValue">0°</span></label>
+                            <label>Rotation: <span id="rotationValue">0°</span> <button type="button" class="reset-btn" onclick="updateRotation(0); document.getElementById('rotationSlider').value=0;" title="Reset to 0°">Reset</button></label>
                             <div class="slider-control">
                                 <input type="range" id="rotationSlider" min="-180" max="180" value="0" oninput="updateRotation(this.value)">
                             </div>
@@ -2602,7 +2654,8 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                 position: 'center',
                 rotation: 0,
                 opacity: 30,
-                scale: 100
+                scale: 100,
+                tiled: false
             },
 
             // PDF export
@@ -2906,6 +2959,11 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
             // Re-align ruler with text after zoom change
             requestAnimationFrame(alignRuler);
+
+            // Reapply watermark so it stays aligned to the content width
+            if (AppState.watermark.enabled && AppState.watermark.imageSrc) {
+                setTimeout(() => applyWatermarkToDisplay(), 50);
+            }
 
             // Update dropdown
             document.getElementById('zoomDropdown').value = value;
@@ -4360,6 +4418,15 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                 renderVisibleLines(allLines, pageStarts, startIdx, endIdx, contentDiv);
             });
 
+            // Add watermark overlay for virtual scrolling mode
+            let overlay = document.getElementById('watermarkVirtualOverlay');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'watermarkVirtualOverlay';
+                overlay.style.cssText = 'position:sticky;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:2;margin-top:-100%;display:none;';
+                display.appendChild(overlay);
+            }
+
             // Apply watermark once after initial render (not on every scroll)
             if (AppState.watermark.enabled && AppState.watermark.imageSrc) {
                 setTimeout(() => applyWatermarkToDisplay(), 100);
@@ -4538,15 +4605,9 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             html += '</div>';
             display.innerHTML = html;
 
-            // Apply watermark if enabled (use setTimeout to ensure DOM is ready)
+            // Apply watermark if enabled
             if (AppState.watermark.enabled && AppState.watermark.imageSrc) {
-                console.log('Scheduling watermark application in 100ms...');
-                setTimeout(() => {
-                    console.log('Timeout fired - calling applyWatermarkToDisplay');
-                    applyWatermarkToDisplay();
-                }, 100);
-            } else {
-                console.log('Watermark NOT scheduled - enabled:', AppState.watermark.enabled, 'imageSrc:', !!AppState.watermark.imageSrc);
+                setTimeout(() => applyWatermarkToDisplay(), 100);
             }
         }
 
@@ -4861,6 +4922,11 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                     renderReport();
                 }
             }
+
+            // Reapply watermark since content width changed
+            if (AppState.watermark.enabled && AppState.watermark.imageSrc) {
+                setTimeout(() => applyWatermarkToDisplay(), 150);
+            }
         }
 
         function changePagesToRender() {
@@ -5049,15 +5115,9 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             html += '</div>';
             display.innerHTML = html;
 
-            // Apply watermark if enabled (use setTimeout to ensure DOM is ready)
+            // Apply watermark if enabled
             if (AppState.watermark.enabled && AppState.watermark.imageSrc) {
-                console.log('Scheduling watermark application in 100ms...');
-                setTimeout(() => {
-                    console.log('Timeout fired - calling applyWatermarkToDisplay');
-                    applyWatermarkToDisplay();
-                }, 100);
-            } else {
-                console.log('Watermark NOT scheduled - enabled:', AppState.watermark.enabled, 'imageSrc:', !!AppState.watermark.imageSrc);
+                setTimeout(() => applyWatermarkToDisplay(), 100);
             }
 
             // Update ranges button indicator
@@ -5490,6 +5550,34 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         function openWatermarkModal() {
             document.getElementById('watermarkModal').classList.add('active');
             setupWatermarkDragDrop();
+
+            // Sync all slider values, labels, checkbox, and position buttons from AppState
+            const wm = AppState.watermark;
+            document.getElementById('rotationSlider').value = wm.rotation;
+            document.getElementById('rotationValue').textContent = wm.rotation + '°';
+            document.getElementById('opacitySlider').value = wm.opacity;
+            document.getElementById('opacityValue').textContent = wm.opacity + '%';
+            document.getElementById('scaleSlider').value = wm.scale;
+            document.getElementById('scaleValue').textContent = (wm.scale / 100).toFixed(1) + 'x';
+            document.getElementById('watermarkEnabled').checked = wm.enabled;
+
+            // Sync position buttons
+            document.querySelectorAll('.position-btn').forEach(btn => btn.classList.remove('active'));
+            const activeBtn = document.querySelector(`[data-position="${wm.position}"]`);
+            if (activeBtn) activeBtn.classList.add('active');
+
+            // Sync tiled state
+            const tiledBtn = document.getElementById('tiledBtn');
+            if (tiledBtn) {
+                if (wm.position === 'tiled') {
+                    tiledBtn.classList.add('active');
+                    document.querySelectorAll('.position-grid .position-btn').forEach(btn => btn.classList.add('dimmed'));
+                } else {
+                    tiledBtn.classList.remove('active');
+                    document.querySelectorAll('.position-grid .position-btn').forEach(btn => btn.classList.remove('dimmed'));
+                }
+            }
+
             updateWatermarkPreview();
         }
 
@@ -5591,12 +5679,44 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
         function setWatermarkPosition(position) {
             AppState.watermark.position = position;
+            AppState.watermark.tiled = false;
 
             // Update button styles
             document.querySelectorAll('.position-btn').forEach(btn => {
                 btn.classList.remove('active');
+                btn.classList.remove('dimmed');
             });
             document.querySelector(`[data-position="${position}"]`).classList.add('active');
+
+            // Deactivate tiled button
+            const tiledBtn = document.getElementById('tiledBtn');
+            if (tiledBtn) tiledBtn.classList.remove('active');
+
+            updateWatermarkPreview();
+            updateLiveWatermark();
+        }
+
+        function toggleTiledWatermark() {
+            const tiledBtn = document.getElementById('tiledBtn');
+            const isTiled = !AppState.watermark.tiled;
+            AppState.watermark.tiled = isTiled;
+
+            if (isTiled) {
+                AppState.watermark.position = 'tiled';
+                tiledBtn.classList.add('active');
+                // Dim position buttons
+                document.querySelectorAll('.position-grid .position-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                    btn.classList.add('dimmed');
+                });
+            } else {
+                AppState.watermark.position = 'center';
+                tiledBtn.classList.remove('active');
+                document.querySelectorAll('.position-grid .position-btn').forEach(btn => {
+                    btn.classList.remove('dimmed');
+                });
+                document.querySelector('[data-position="center"]').classList.add('active');
+            }
 
             updateWatermarkPreview();
             updateLiveWatermark();
@@ -5643,132 +5763,126 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             }
         }
 
+        // Shared watermark drawing function - single source of truth
+        function drawWatermarkOnCanvas(ctx, width, height, options, scaleFactor) {
+            const sf = scaleFactor || 1;
+            const opacity = options.opacity / 100;
+            const userScale = options.scale / 100;
+            const rotation = options.rotation;
+            const img = options.imageData;
+            const imgWidth = img.width * userScale * sf;
+            const imgHeight = img.height * userScale * sf;
+
+            if (options.tiled || options.position === 'tiled') {
+                drawTiledWatermark(ctx, width, height, img, imgWidth, imgHeight, rotation, opacity);
+                return;
+            }
+
+            const positions = {
+                'top-left': { x: 0.15, y: 0.15 },
+                'top-center': { x: 0.5, y: 0.15 },
+                'top-right': { x: 0.85, y: 0.15 },
+                'middle-left': { x: 0.15, y: 0.5 },
+                'center': { x: 0.5, y: 0.5 },
+                'middle-right': { x: 0.85, y: 0.5 },
+                'bottom-left': { x: 0.15, y: 0.85 },
+                'bottom-center': { x: 0.5, y: 0.85 },
+                'bottom-right': { x: 0.85, y: 0.85 }
+            };
+
+            const pos = positions[options.position] || positions['center'];
+            const x = width * pos.x;
+            const y = height * pos.y;
+
+            ctx.save();
+            ctx.globalAlpha = opacity;
+            ctx.translate(x, y);
+            ctx.rotate(rotation * Math.PI / 180);
+            ctx.drawImage(img, -imgWidth / 2, -imgHeight / 2, imgWidth, imgHeight);
+            ctx.restore();
+        }
+
+        // Draw tiled watermark in a diagonal grid pattern across the canvas
+        function drawTiledWatermark(ctx, width, height, img, imgWidth, imgHeight, rotation, opacity) {
+            const tileW = imgWidth / 4;
+            const tileH = imgHeight / 4;
+
+            const tileMax = Math.max(tileW, tileH);
+            const spacingX = tileMax * 2.5;
+            const spacingY = tileMax * 2.2;
+            const offsetX = spacingX / 2;
+
+            ctx.save();
+            ctx.globalAlpha = opacity;
+
+            const margin = tileMax * 3;
+            let row = 0;
+            for (let y = -margin; y < height + margin; y += spacingY) {
+                const xShift = (row % 2) * offsetX;
+                for (let x = -margin + xShift; x < width + margin; x += spacingX) {
+                    ctx.save();
+                    ctx.translate(x, y);
+                    ctx.rotate(rotation * Math.PI / 180);
+                    ctx.drawImage(img, -tileW / 2, -tileH / 2, tileW, tileH);
+                    ctx.restore();
+                }
+                row++;
+            }
+
+            ctx.restore();
+        }
+
+        // Calculate the pixel width of the actual text content area
+        function getContentPixelWidth() {
+            const reportDisplay = document.getElementById('reportDisplay');
+            const fontSize = reportDisplay ? parseFloat(getComputedStyle(reportDisplay).fontSize) : 11;
+            const charWidth = fontSize * 0.6;
+            return (AppState.detectedWidth * charWidth) + 10;
+        }
+
         function applyWatermarkToDisplay() {
-            console.log('=== applyWatermarkToDisplay called ===');
-            console.log('Watermark enabled:', AppState.watermark.enabled);
-            console.log('Watermark imageSrc:', AppState.watermark.imageSrc ? 'exists' : 'null');
-            console.log('Watermark imageData:', AppState.watermark.imageData);
-
             if (!AppState.watermark.enabled || !AppState.watermark.imageSrc) {
-                console.log('Watermark not enabled or no image source - exiting');
+                applyWatermarkToVirtualOverlay(null);
                 return;
             }
+            if (!AppState.watermark.imageData) return;
 
-            if (!AppState.watermark.imageData) {
-                console.error('Watermark imageData not loaded');
-                return;
-            }
+            const CANONICAL_W = 800;
+            const CANONICAL_H = 600;
+            const canvas = document.createElement('canvas');
+            canvas.width = CANONICAL_W;
+            canvas.height = CANONICAL_H;
+            const ctx = canvas.getContext('2d');
 
-            const opacity = AppState.watermark.opacity / 100;
-            const scale = AppState.watermark.scale / 100;
-            const rotation = AppState.watermark.rotation;
+            drawWatermarkOnCanvas(ctx, CANONICAL_W, CANONICAL_H, AppState.watermark, 1);
 
-            console.log('Watermark settings:', { opacity, scale, rotation, position: AppState.watermark.position });
+            const dataUrl = canvas.toDataURL();
 
-            // Apply to all page elements
+            // Calculate content width so watermark centers on the text, not the viewport
+            const contentWidth = getContentPixelWidth();
+
             const pages = document.querySelectorAll('.report-page');
-
-            console.log('Found pages:', pages.length);
-
-            if (pages.length === 0) {
-                console.warn('No report pages found for watermark application');
-                return;
-            }
-
-            pages.forEach((pageEl, index) => {
-                try {
-                    console.log(`Processing page ${index + 1}`);
-
-                    // Use actual page element dimensions for accurate positioning
-                    const pageRect = pageEl.getBoundingClientRect();
-                    const pageWidth = pageEl.offsetWidth;
-                    const pageHeight = pageEl.offsetHeight;
-
-                    console.log(`  Page dimensions: ${pageWidth}x${pageHeight}`);
-
-                    // Count lines and calculate line-based positioning
-                    const lineElements = pageEl.querySelectorAll('.report-line');
-                    const lineCount = lineElements.length;
-                    console.log(`  Line count: ${lineCount}`);
-
-                    // Create watermark canvas sized to actual page
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    canvas.width = Math.max(pageWidth, 100);
-                    canvas.height = Math.max(pageHeight, 400);
-
-                // Calculate position within content area
-                const positions = {
-                    'top-left': { x: 0.15, y: 0.15 },
-                    'top-center': { x: 0.5, y: 0.15 },
-                    'top-right': { x: 0.85, y: 0.15 },
-                    'middle-left': { x: 0.15, y: 0.5 },
-                    'center': { x: 0.5, y: 0.5 },
-                    'middle-right': { x: 0.85, y: 0.5 },
-                    'bottom-left': { x: 0.15, y: 0.85 },
-                    'bottom-center': { x: 0.5, y: 0.85 },
-                    'bottom-right': { x: 0.85, y: 0.85 }
-                };
-
-                const pos = positions[AppState.watermark.position] || positions['center'];
-
-                // For middle/center positions, calculate based on actual line positions
-                let yPos = pos.y;
-                if (lineCount > 0 && (AppState.watermark.position.includes('middle') || AppState.watermark.position === 'center')) {
-                    const firstLine = lineElements[0];
-                    const lastLine = lineElements[lineCount - 1];
-                    if (firstLine && lastLine) {
-                        const firstLineTop = firstLine.offsetTop;
-                        const lastLineTop = lastLine.offsetTop;
-                        const lastLineBottom = lastLineTop + lastLine.offsetHeight;
-
-                        // Middle of content is between first line top and last line bottom
-                        const contentMiddle = (firstLineTop + lastLineBottom) / 2;
-                        yPos = contentMiddle / pageHeight;
-
-                        console.log(`  Line-based center: firstLine=${firstLineTop}px, lastLine=${lastLineBottom}px, middle=${contentMiddle}px, ratio=${yPos.toFixed(3)}`);
-                    }
-                }
-
-                const x = canvas.width * pos.x;
-                const y = canvas.height * yPos;
-
-                console.log(`  Position: ${AppState.watermark.position} at (${x}, ${y})`);
-
-                // Draw watermark
-                ctx.save();
-                ctx.globalAlpha = opacity;
-                ctx.translate(x, y);
-                ctx.rotate(rotation * Math.PI / 180);
-
-                const imgWidth = AppState.watermark.imageData.width * scale;
-                const imgHeight = AppState.watermark.imageData.height * scale;
-
-                console.log(`  Image size: ${imgWidth}x${imgHeight}`);
-
-                ctx.drawImage(
-                    AppState.watermark.imageData,
-                    -imgWidth / 2,
-                    -imgHeight / 2,
-                    imgWidth,
-                    imgHeight
-                );
-                ctx.restore();
-
-                    // Apply watermark to page using CSS custom properties
-                    const dataUrl = canvas.toDataURL();
-                    console.log(`  Data URL length: ${dataUrl.length}`);
-
-                    pageEl.style.setProperty('--watermark-image', `url(${dataUrl})`);
-                    pageEl.style.setProperty('--watermark-position', 'left top');
-                    pageEl.style.setProperty('--watermark-size', `${canvas.width}px ${canvas.height}px`);
-
-                    console.log(`  Applied to page - CSS properties set`);
-                } catch (error) {
-                    console.error('Error applying watermark to page:', error);
-                }
+            pages.forEach(pageEl => {
+                pageEl.style.setProperty('--watermark-image', `url(${dataUrl})`);
+                pageEl.style.setProperty('--watermark-position', 'left top');
+                pageEl.style.setProperty('--watermark-size', `${contentWidth}px 100%`);
             });
-            console.log('=== Watermark application complete ===');
+
+            applyWatermarkToVirtualOverlay(dataUrl, contentWidth);
+        }
+
+        function applyWatermarkToVirtualOverlay(dataUrl, contentWidth) {
+            const overlay = document.getElementById('watermarkVirtualOverlay');
+            if (!overlay) return;
+            if (dataUrl) {
+                const width = contentWidth || getContentPixelWidth();
+                overlay.style.backgroundImage = `url(${dataUrl})`;
+                overlay.style.backgroundSize = `${width}px 100%`;
+                overlay.style.backgroundRepeat = 'no-repeat';
+                overlay.style.display = '';
+            } else {
+                overlay.style.display = 'none';
+            }
         }
 
         function updateWatermarkPreview() {
@@ -5784,23 +5898,19 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                 return;
             }
 
-            // Create preview with watermark
             preview.innerHTML = '';
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
 
-            // Use preview pane dimensions
             const previewWidth = preview.offsetWidth || 400;
             const previewHeight = preview.offsetHeight || 300;
 
             canvas.width = previewWidth;
             canvas.height = previewHeight;
 
-            // Fill background to simulate report
             ctx.fillStyle = AppState.theme === 'light' ? '#ffffff' : (AppState.theme === 'high-contrast' ? '#000000' : '#0a0a0a');
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Draw sample text at readable size (don't scale down)
             ctx.fillStyle = AppState.theme === 'light' ? '#000000' : (AppState.theme === 'high-contrast' ? '#00ff00' : '#e0e0e0');
             ctx.font = '9px Courier New';
             const sampleLines = [
@@ -5818,49 +5928,13 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                 ctx.fillText(sampleLines[i], 10, startY + i * lineHeight);
             }
 
-            // Continue pattern
             for (let i = sampleLines.length; i < Math.floor((canvas.height - startY) / lineHeight); i++) {
                 const lineIndex = i % sampleLines.length;
                 ctx.fillText(sampleLines[lineIndex], 10, startY + i * lineHeight);
             }
 
-            // Calculate position for watermark
-            const positions = {
-                'top-left': { x: 0.15, y: 0.15 },
-                'top-center': { x: 0.5, y: 0.15 },
-                'top-right': { x: 0.85, y: 0.15 },
-                'middle-left': { x: 0.15, y: 0.5 },
-                'center': { x: 0.5, y: 0.5 },
-                'middle-right': { x: 0.85, y: 0.5 },
-                'bottom-left': { x: 0.15, y: 0.85 },
-                'bottom-center': { x: 0.5, y: 0.85 },
-                'bottom-right': { x: 0.85, y: 0.85 }
-            };
-
-            const pos = positions[AppState.watermark.position] || positions['center'];
-            const x = canvas.width * pos.x;
-            const y = canvas.height * pos.y;
-
-            // Draw watermark at preview scale
-            ctx.save();
-            ctx.globalAlpha = AppState.watermark.opacity / 100;
-            ctx.translate(x, y);
-            ctx.rotate(AppState.watermark.rotation * Math.PI / 180);
-
-            const userScale = AppState.watermark.scale / 100;
-            // Show watermark at a reasonable preview size (0.5x of actual for preview)
-            const previewScale = 0.5;
-            const imgWidth = AppState.watermark.imageData.width * userScale * previewScale;
-            const imgHeight = AppState.watermark.imageData.height * userScale * previewScale;
-
-            ctx.drawImage(
-                AppState.watermark.imageData,
-                -imgWidth / 2,
-                -imgHeight / 2,
-                imgWidth,
-                imgHeight
-            );
-            ctx.restore();
+            const previewScale = previewWidth / 800;
+            drawWatermarkOnCanvas(ctx, canvas.width, canvas.height, AppState.watermark, previewScale);
 
             preview.appendChild(canvas);
         }
@@ -5909,6 +5983,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                 }
                 const charWidth = fontSize * 0.6;
                 const lineHeight = fontSize * 1.2;
+                const stripeWidth = Math.max(usableWidth, columns * charWidth);
 
                 const pdf = new jsPDF({
                     orientation: 'landscape',
@@ -5998,7 +6073,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                             const g = parseInt(hex.slice(3, 5), 16);
                             const b = parseInt(hex.slice(5, 7), 16);
                             pdf.setFillColor(r, g, b);
-                            pdf.rect(marginPt, yPos - lineHeight + 2, usableWidth, lineHeight, 'F');
+                            pdf.rect(marginPt, yPos - lineHeight + 2, stripeWidth, lineHeight, 'F');
                             pdf.setTextColor(0, 0, 0);
                         }
                         const text = line.displayText || '';
@@ -6044,45 +6119,13 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         }
 
         function renderWatermarkForPdf(pageWidthPt, pageHeightPt) {
-            const scale = 2;
+            const pdfScale = 2;
             const canvas = document.createElement('canvas');
-            canvas.width = pageWidthPt * scale;
-            canvas.height = pageHeightPt * scale;
+            canvas.width = pageWidthPt * pdfScale;
+            canvas.height = pageHeightPt * pdfScale;
             const ctx = canvas.getContext('2d');
 
-            const positions = {
-                'top-left': { x: 0.15, y: 0.15 },
-                'top-center': { x: 0.5, y: 0.15 },
-                'top-right': { x: 0.85, y: 0.15 },
-                'middle-left': { x: 0.15, y: 0.5 },
-                'center': { x: 0.5, y: 0.5 },
-                'middle-right': { x: 0.85, y: 0.5 },
-                'bottom-left': { x: 0.15, y: 0.85 },
-                'bottom-center': { x: 0.5, y: 0.85 },
-                'bottom-right': { x: 0.85, y: 0.85 }
-            };
-
-            const pos = positions[AppState.watermark.position] || positions['center'];
-            const x = canvas.width * pos.x;
-            const y = canvas.height * pos.y;
-
-            ctx.save();
-            ctx.globalAlpha = AppState.watermark.opacity / 100;
-            ctx.translate(x, y);
-            ctx.rotate(AppState.watermark.rotation * Math.PI / 180);
-
-            const wmScale = (AppState.watermark.scale / 100) * scale;
-            const imgWidth = AppState.watermark.imageData.width * wmScale;
-            const imgHeight = AppState.watermark.imageData.height * wmScale;
-
-            ctx.drawImage(
-                AppState.watermark.imageData,
-                -imgWidth / 2,
-                -imgHeight / 2,
-                imgWidth,
-                imgHeight
-            );
-            ctx.restore();
+            drawWatermarkOnCanvas(ctx, canvas.width, canvas.height, AppState.watermark, pdfScale);
 
             return canvas.toDataURL('image/png');
         }
