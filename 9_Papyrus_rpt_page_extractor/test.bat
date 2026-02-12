@@ -1,0 +1,1 @@
+.\papyrus_rpt_page_extractor.exe "F:\RPT\260271Q7.RPT" "" "F:\RPT\260271Q7.TXT" "F:\RPT\260271Q7V3a.PDF" --WatermarkImage "F:\RPT\confidential_small.png" --WatermarkPosition Tiling --WatermarkOpacity 30 --WatermarkScale 1
