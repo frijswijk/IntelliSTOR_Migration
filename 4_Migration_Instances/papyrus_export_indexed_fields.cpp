@@ -22,6 +22,7 @@
 #include <ctime>
 #include <filesystem>
 #include <algorithm>
+#include <set>
 #include <cstring>
 
 namespace fs = std::filesystem;
