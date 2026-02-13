@@ -1287,31 +1287,71 @@
 
         .position-btn.dimmed {
             opacity: 0.35;
-            pointer-events: none;
         }
 
         .tiled-btn-wrapper {
             margin-top: 10px;
+            display: flex;
+            gap: 8px;
         }
 
-        .tiled-btn {
-            width: 100%;
-            padding: 12px;
+        .tile-btn {
+            flex: 1;
+            padding: 10px;
             background: var(--bg-tertiary);
             border: 2px solid var(--border-color);
             border-radius: 6px;
             color: var(--text-primary);
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 500;
             transition: all 0.2s;
         }
 
-        .tiled-btn:hover {
+        .tile-btn:hover {
             border-color: var(--accent-primary);
         }
 
-        .tiled-btn.active {
+        .tile-btn.active {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+            color: white;
+        }
+
+        .fullpage-btn-wrapper {
+            margin-top: 10px;
+        }
+
+        .fullpage-btn-wrapper label {
+            display: block;
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+
+        .fullpage-btn-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .fullpage-btn {
+            flex: 1;
+            padding: 10px;
+            background: var(--bg-tertiary);
+            border: 2px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-primary);
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .fullpage-btn:hover {
+            border-color: var(--accent-primary);
+        }
+
+        .fullpage-btn.active {
             background: var(--accent-primary);
             border-color: var(--accent-primary);
             color: white;
@@ -1778,7 +1818,7 @@
     <!-- Main Toolbar (Single Row) -->
     <header>
         <div class="toolbar">
-            <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+            <button class="upload-btn" onclick="openFilePicker('report')">
                 📁 Open File
             </button>
             <input type="file" id="fileInput" accept=".txt,.TXT" style="display: none;" onchange="handleFileSelect(event)">
@@ -2010,7 +2050,7 @@
                     <div class="config-section">
                         <div class="config-group">
                             <label>Upload Watermark Image</label>
-                            <div class="upload-area" id="watermarkUploadArea" onclick="document.getElementById('watermarkInput').click()">
+                            <div class="upload-area" id="watermarkUploadArea" onclick="openFilePicker('watermark')">
                                 <div style="font-size: 36px; margin-bottom: 10px;">🖼️</div>
                                 <div>Click to upload or drag & drop</div>
                                 <div style="font-size: 12px; margin-top: 5px; color: var(--text-secondary);">PNG, JPG, SVG (max 5MB)</div>
@@ -2032,7 +2072,16 @@
                                 <button class="position-btn" data-position="bottom-right" onclick="setWatermarkPosition('bottom-right')">Bottom Right</button>
                             </div>
                             <div class="tiled-btn-wrapper">
-                                <button type="button" class="tiled-btn" id="tiledBtn" onclick="toggleTiledWatermark()">Tiled</button>
+                                <button type="button" class="tile-btn" id="gridBtn" data-tile="grid" onclick="setTileMode('grid')">Grid</button>
+                                <button type="button" class="tile-btn" id="diagonalBtn" data-tile="diagonal" onclick="setTileMode('diagonal')">Diagonal</button>
+                            </div>
+                            <div class="fullpage-btn-wrapper">
+                                <label>Full Page</label>
+                                <div class="fullpage-btn-row">
+                                    <button type="button" class="fullpage-btn" data-position="full-stretch" onclick="setWatermarkPosition('full-stretch')">Stretch</button>
+                                    <button type="button" class="fullpage-btn" data-position="full-cover" onclick="setWatermarkPosition('full-cover')">Cover</button>
+                                    <button type="button" class="fullpage-btn" data-position="full-fit" onclick="setWatermarkPosition('full-fit')">Fit</button>
+                                </div>
                             </div>
                         </div>
 
@@ -2582,7 +2631,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                 rotation: 0,
                 opacity: 30,
                 scale: 100,
-                tiled: false
+                tiled: false  // false, 'grid', or 'diagonal'
             },
 
             // PDF export
@@ -4680,6 +4729,78 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         }
 
         // ===========================
+        // FILE PICKER DIRECTORY MEMORY
+        // ===========================
+        // Uses IndexedDB + File System Access API to remember separate directories
+        // for report and watermark file pickers (Chrome/Edge only).
+        const FilePickerDB = {
+            _db: null,
+            open() {
+                if (this._db) return Promise.resolve(this._db);
+                return new Promise((resolve, reject) => {
+                    const req = indexedDB.open('filePickerDirs', 1);
+                    req.onupgradeneeded = () => req.result.createObjectStore('dirs');
+                    req.onsuccess = () => { this._db = req.result; resolve(this._db); };
+                    req.onerror = () => resolve(null);
+                });
+            },
+            async getDir(key) {
+                const db = await this.open();
+                if (!db) return null;
+                return new Promise(resolve => {
+                    const tx = db.transaction('dirs', 'readonly');
+                    const req = tx.objectStore('dirs').get(key);
+                    req.onsuccess = () => resolve(req.result || null);
+                    req.onerror = () => resolve(null);
+                });
+            },
+            async setDir(key, handle) {
+                const db = await this.open();
+                if (!db) return;
+                const tx = db.transaction('dirs', 'readwrite');
+                tx.objectStore('dirs').put(handle, key);
+            }
+        };
+
+        async function openFilePicker(type) {
+            const accept = type === 'report'
+                ? [{ description: 'Text files', accept: { 'text/plain': ['.txt', '.TXT'] } }]
+                : [{ description: 'Images', accept: { 'image/*': ['.png', '.jpg', '.jpeg', '.svg', '.gif', '.webp'] } }];
+
+            // Try File System Access API (Chrome/Edge)
+            if (window.showOpenFilePicker) {
+                try {
+                    const dirKey = type === 'report' ? 'reportDir' : 'watermarkDir';
+                    const startIn = await FilePickerDB.getDir(dirKey);
+                    const opts = { types: accept, multiple: false };
+                    if (startIn) opts.startIn = startIn;
+                    const [handle] = await window.showOpenFilePicker(opts);
+                    await FilePickerDB.setDir(dirKey, handle);
+                    const file = await handle.getFile();
+                    if (type === 'report') {
+                        handleFileSelectFromFile(file);
+                    } else {
+                        loadWatermarkImage(file);
+                    }
+                    return;
+                } catch (e) {
+                    if (e.name === 'AbortError') return; // User cancelled
+                    // Fall through to standard file input
+                }
+            }
+
+            // Fallback: standard file input
+            const inputId = type === 'report' ? 'fileInput' : 'watermarkInput';
+            document.getElementById(inputId).click();
+        }
+
+        // Helper: handle a File object from the File System Access API picker for reports
+        function handleFileSelectFromFile(file) {
+            if (!file) return;
+            loadFile(file);
+        }
+
+        // ===========================
         // WATERMARK
         // ===========================
         function openWatermarkModal() {
@@ -4696,21 +4817,20 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             document.getElementById('scaleValue').textContent = (wm.scale / 100).toFixed(1) + 'x';
             document.getElementById('watermarkEnabled').checked = wm.enabled;
 
-            // Sync position buttons
-            document.querySelectorAll('.position-btn').forEach(btn => btn.classList.remove('active'));
-            const activeBtn = document.querySelector(`[data-position="${wm.position}"]`);
+            // Sync position buttons (grid + fullpage)
+            document.querySelectorAll('.position-btn').forEach(btn => btn.classList.remove('active', 'dimmed'));
+            document.querySelectorAll('.fullpage-btn').forEach(btn => btn.classList.remove('active'));
+            const activeBtn = document.querySelector(`.position-btn[data-position="${wm.position}"]`) ||
+                              document.querySelector(`.fullpage-btn[data-position="${wm.position}"]`);
             if (activeBtn) activeBtn.classList.add('active');
 
-            // Sync tiled state
-            const tiledBtn = document.getElementById('tiledBtn');
-            if (tiledBtn) {
-                if (wm.position === 'tiled') {
-                    tiledBtn.classList.add('active');
-                    document.querySelectorAll('.position-grid .position-btn').forEach(btn => btn.classList.add('dimmed'));
-                } else {
-                    tiledBtn.classList.remove('active');
-                    document.querySelectorAll('.position-grid .position-btn').forEach(btn => btn.classList.remove('dimmed'));
-                }
+            // Sync tile buttons (Grid / Diagonal)
+            document.getElementById('gridBtn').classList.toggle('active', wm.tiled === 'grid');
+            document.getElementById('diagonalBtn').classList.toggle('active', wm.tiled === 'diagonal');
+
+            // Dim position buttons when tiling is active
+            if (wm.tiled) {
+                document.querySelectorAll('.position-grid .position-btn').forEach(btn => btn.classList.add('dimmed'));
             }
 
             updateWatermarkPreview();
@@ -4813,45 +4933,68 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
         }
 
         function setWatermarkPosition(position) {
+            const isFullPage = position.startsWith('full-');
+
+            // Toggle behavior: clicking active position deselects it
+            if (AppState.watermark.position === position) {
+                AppState.watermark.position = '';
+                document.querySelectorAll('.position-btn').forEach(btn => btn.classList.remove('active'));
+                document.querySelectorAll('.fullpage-btn').forEach(btn => btn.classList.remove('active'));
+                updateWatermarkPreview();
+                updateLiveWatermark();
+                return;
+            }
+
             AppState.watermark.position = position;
             AppState.watermark.tiled = false;
 
-            // Update button styles
+            // Clear all position-related active states
             document.querySelectorAll('.position-btn').forEach(btn => {
                 btn.classList.remove('active');
                 btn.classList.remove('dimmed');
             });
-            document.querySelector(`[data-position="${position}"]`).classList.add('active');
+            document.querySelectorAll('.fullpage-btn').forEach(btn => btn.classList.remove('active'));
 
-            // Deactivate tiled button
-            const tiledBtn = document.getElementById('tiledBtn');
-            if (tiledBtn) tiledBtn.classList.remove('active');
+            // Activate the clicked button
+            const btn = document.querySelector(`.position-btn[data-position="${position}"]`) ||
+                        document.querySelector(`.fullpage-btn[data-position="${position}"]`);
+            if (btn) btn.classList.add('active');
+
+            // Deactivate tile buttons
+            document.getElementById('gridBtn').classList.remove('active');
+            document.getElementById('diagonalBtn').classList.remove('active');
 
             updateWatermarkPreview();
             updateLiveWatermark();
         }
 
-        function toggleTiledWatermark() {
-            const tiledBtn = document.getElementById('tiledBtn');
-            const isTiled = !AppState.watermark.tiled;
-            AppState.watermark.tiled = isTiled;
-
-            if (isTiled) {
-                AppState.watermark.position = 'tiled';
-                tiledBtn.classList.add('active');
-                // Dim position buttons
-                document.querySelectorAll('.position-grid .position-btn').forEach(btn => {
-                    btn.classList.remove('active');
-                    btn.classList.add('dimmed');
-                });
-            } else {
+        function setTileMode(mode) {
+            // Toggle behavior: clicking active tile mode deselects it
+            if (AppState.watermark.tiled === mode) {
+                AppState.watermark.tiled = false;
                 AppState.watermark.position = 'center';
-                tiledBtn.classList.remove('active');
-                document.querySelectorAll('.position-grid .position-btn').forEach(btn => {
-                    btn.classList.remove('dimmed');
-                });
+                document.getElementById('gridBtn').classList.remove('active');
+                document.getElementById('diagonalBtn').classList.remove('active');
+                document.querySelectorAll('.position-grid .position-btn').forEach(btn => btn.classList.remove('dimmed'));
                 document.querySelector('[data-position="center"]').classList.add('active');
+                updateWatermarkPreview();
+                updateLiveWatermark();
+                return;
             }
+
+            AppState.watermark.tiled = mode;
+            AppState.watermark.position = 'tiled';
+
+            // Update tile buttons
+            document.getElementById('gridBtn').classList.toggle('active', mode === 'grid');
+            document.getElementById('diagonalBtn').classList.toggle('active', mode === 'diagonal');
+
+            // Dim position & fullpage buttons
+            document.querySelectorAll('.position-grid .position-btn').forEach(btn => {
+                btn.classList.remove('active');
+                btn.classList.add('dimmed');
+            });
+            document.querySelectorAll('.fullpage-btn').forEach(btn => btn.classList.remove('active'));
 
             updateWatermarkPreview();
             updateLiveWatermark();
@@ -4908,10 +5051,50 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             const imgWidth = img.width * userScale * sf;
             const imgHeight = img.height * userScale * sf;
 
-            if (options.tiled || options.position === 'tiled') {
-                drawTiledWatermark(ctx, width, height, img, imgWidth, imgHeight, rotation, opacity);
+            // Tiled modes: 'grid' or 'diagonal'
+            if (options.tiled) {
+                const mode = (options.tiled === 'grid' || options.tiled === 'diagonal') ? options.tiled : 'diagonal';
+                drawTiledWatermark(ctx, width, height, img, imgWidth, imgHeight, rotation, opacity, mode);
                 return;
             }
+
+            // Legacy compat: position === 'tiled' treated as diagonal
+            if (options.position === 'tiled') {
+                drawTiledWatermark(ctx, width, height, img, imgWidth, imgHeight, rotation, opacity, 'diagonal');
+                return;
+            }
+
+            // Full-page modes
+            if (options.position === 'full-stretch') {
+                ctx.save();
+                ctx.globalAlpha = opacity;
+                ctx.drawImage(img, 0, 0, width, height);
+                ctx.restore();
+                return;
+            }
+            if (options.position === 'full-cover') {
+                const scale = Math.max(width / img.width, height / img.height);
+                const dw = img.width * scale;
+                const dh = img.height * scale;
+                ctx.save();
+                ctx.globalAlpha = opacity;
+                ctx.drawImage(img, (width - dw) / 2, (height - dh) / 2, dw, dh);
+                ctx.restore();
+                return;
+            }
+            if (options.position === 'full-fit') {
+                const scale = Math.min(width / img.width, height / img.height);
+                const dw = img.width * scale;
+                const dh = img.height * scale;
+                ctx.save();
+                ctx.globalAlpha = opacity;
+                ctx.drawImage(img, (width - dw) / 2, (height - dh) / 2, dw, dh);
+                ctx.restore();
+                return;
+            }
+
+            // No position set - don't render
+            if (!options.position) return;
 
             const positions = {
                 'top-left': { x: 0.15, y: 0.15 },
@@ -4937,34 +5120,40 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             ctx.restore();
         }
 
-        function drawTiledWatermark(ctx, width, height, img, imgWidth, imgHeight, rotation, opacity) {
+        // Draw tiled watermark across the canvas
+        // mode: 'grid' = aligned columns, 'diagonal' = progressive row shift (top-left → bottom-right)
+        function drawTiledWatermark(ctx, width, height, img, imgWidth, imgHeight, rotation, opacity, mode) {
             // Reduce tile size so multiple tiles fit: each tile ~1/4 of passed dimensions
             // User scale slider still controls relative size (bigger scale = bigger tiles)
             const tileW = imgWidth / 4;
             const tileH = imgHeight / 4;
 
-            // Spacing: 2x tile size for comfortable gaps between tiles
             const tileMax = Math.max(tileW, tileH);
             const spacingX = tileMax * 2.5;
-            const spacingY = tileMax * 2.2;
-            const offsetX = spacingX / 2; // diagonal offset for alternating rows
+            // Diagonal: 50% tighter vertical spacing for a denser pattern
+            const spacingY = mode === 'diagonal' ? tileMax * 1.1 : tileMax * 2.2;
+            // Diagonal: each row shifts right by 1/3 of spacingX
+            const stepX = mode === 'diagonal' ? spacingX / 3 : 0;
 
             ctx.save();
             ctx.globalAlpha = opacity;
 
-            // Expand bounds to cover rotated overshoot
+            // Margin for rotated overshoot
             const margin = tileMax * 3;
-            let row = 0;
-            for (let y = -margin; y < height + margin; y += spacingY) {
-                const xShift = (row % 2) * offsetX;
-                for (let x = -margin + xShift; x < width + margin; x += spacingX) {
+            // Align grid so (0,0) is a tile position = top-left corner of the page
+            const rowStart = -Math.ceil(margin / spacingY);
+            const colPad = Math.ceil(margin / spacingX) + 1;
+            for (let ri = rowStart; ri * spacingY < height + margin; ri++) {
+                const y = ri * spacingY;
+                const rawShift = ri * stepX;
+                const xShift = ((rawShift % spacingX) + spacingX) % spacingX;
+                for (let x = -colPad * spacingX + xShift; x < width + margin; x += spacingX) {
                     ctx.save();
                     ctx.translate(x, y);
                     ctx.rotate(rotation * Math.PI / 180);
                     ctx.drawImage(img, -tileW / 2, -tileH / 2, tileW, tileH);
                     ctx.restore();
                 }
-                row++;
             }
 
             ctx.restore();
@@ -4979,17 +5168,29 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             return (AppState.detectedWidth * charWidth) + 10;
         }
 
+        // Track blob URLs so we can revoke them to avoid memory leaks
+        const _watermarkBlobUrls = [];
+        function _revokeWatermarkBlobs() {
+            while (_watermarkBlobUrls.length) URL.revokeObjectURL(_watermarkBlobUrls.pop());
+        }
+
         function applyWatermarkToDisplay() {
             if (!AppState.watermark.enabled || !AppState.watermark.imageSrc) {
+                // Clean up overlay when watermark is disabled
+                _revokeWatermarkBlobs();
                 applyWatermarkToVirtualOverlay(null);
                 return;
             }
             if (!AppState.watermark.imageData) return;
 
+            // Revoke previous blob URLs before creating new ones
+            _revokeWatermarkBlobs();
+
             // Calculate content width so watermark centers on the text, not the viewport
             const contentWidth = Math.round(getContentPixelWidth());
 
             // Render per-page canvas sized to actual page dimensions to avoid squeezing
+            // Uses blob URLs instead of data URLs to avoid Chrome limits on large CSS data URIs
             const pages = document.querySelectorAll('.report-page');
             pages.forEach(pageEl => {
                 const pageHeight = pageEl.offsetHeight || 600;
@@ -5000,10 +5201,13 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
 
                 drawWatermarkOnCanvas(ctx, contentWidth, pageHeight, AppState.watermark, 1);
 
-                const dataUrl = canvas.toDataURL();
-                pageEl.style.setProperty('--watermark-image', `url(${dataUrl})`);
-                pageEl.style.setProperty('--watermark-position', 'left top');
-                pageEl.style.setProperty('--watermark-size', `${contentWidth}px ${pageHeight}px`);
+                canvas.toBlob(blob => {
+                    const url = URL.createObjectURL(blob);
+                    _watermarkBlobUrls.push(url);
+                    pageEl.style.setProperty('--watermark-image', `url(${url})`);
+                    pageEl.style.setProperty('--watermark-position', 'left top');
+                    pageEl.style.setProperty('--watermark-size', `${contentWidth}px ${pageHeight}px`);
+                });
             });
 
             // Virtual scroll overlay uses canonical canvas (viewport-sized, no squeeze issue)
@@ -5012,15 +5216,20 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
             overlayCanvas.height = 600;
             const overlayCtx = overlayCanvas.getContext('2d');
             drawWatermarkOnCanvas(overlayCtx, 800, 600, AppState.watermark, 1);
-            applyWatermarkToVirtualOverlay(overlayCtx.canvas.toDataURL(), contentWidth);
+            overlayCanvas.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                _watermarkBlobUrls.push(url);
+                applyWatermarkToVirtualOverlay(url, contentWidth);
+            });
         }
 
-        function applyWatermarkToVirtualOverlay(dataUrl, contentWidth) {
+        // Apply watermark to virtual scrolling overlay
+        function applyWatermarkToVirtualOverlay(blobUrl, contentWidth) {
             const overlay = document.getElementById('watermarkVirtualOverlay');
             if (!overlay) return;
-            if (dataUrl) {
+            if (blobUrl) {
                 const width = contentWidth || getContentPixelWidth();
-                overlay.style.backgroundImage = `url(${dataUrl})`;
+                overlay.style.backgroundImage = `url(${blobUrl})`;
                 overlay.style.backgroundSize = `${width}px 100%`;
                 overlay.style.backgroundRepeat = 'no-repeat';
                 overlay.style.display = '';
@@ -5306,7 +5515,7 @@ function(t){t.__bidiEngine__=t.prototype.__bidiEngine__=function(t){var r,n,i,a,
                 // Ctrl+O: Open file
                 if (e.ctrlKey && e.key === 'o') {
                     e.preventDefault();
-                    document.getElementById('fileInput').click();
+                    openFilePicker('report');
                 }
 
                 // Ctrl+F: Focus search
