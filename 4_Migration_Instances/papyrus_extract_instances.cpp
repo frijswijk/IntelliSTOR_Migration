@@ -51,6 +51,7 @@ struct Config {
     std::string input_csv;
     std::string output_dir;
     std::string rptfolder;
+    std::string mapfolder;
     std::string timezone;
     int start_year;
     int end_year = 0;
@@ -75,6 +76,7 @@ struct ReportInstance {
     int report_species_id;
     int rpt_file_id;
     std::string filename;
+    std::string map_filename;
     std::string as_of_timestamp;
 };
 
@@ -578,51 +580,63 @@ public:
                                    const std::string& country,
                                    const std::vector<ReportInstance>& instances,
                                    const Config& cfg,
-                                   std::map<std::string, std::string>& segments_cache) {
+                                   std::map<std::string, std::string>& segments_cache,
+                                   const std::string& indexed_fields) {
         std::ofstream file(filename);
         if (!file.is_open()) {
             throw std::runtime_error("Cannot open file: " + filename);
         }
 
-        file << "REPORT_SPECIES_NAME,FILENAME,RPT_FILENAME,COUNTRY,YEAR,REPORT_DATE,AS_OF_TIMESTAMP,UTC,SEGMENTS,REPORT_FILE_ID\n";
+        file << "REPORT_SPECIES_NAME,FILENAME,RPT_FILENAME,MAP_FILENAME,MAP_FILE_EXISTS,COUNTRY,YEAR,REPORT_DATE,AS_OF_TIMESTAMP,UTC,SEGMENTS,REPORT_FILE_ID,INDEXED_FIELDS\n";
 
         for (const auto& inst : instances) {
-            std::string rpt_filename = inst.filename;
-            std::string filename_display = getBasename(rpt_filename);
-            if (filename_display.size() > 4 && filename_display.substr(filename_display.size() - 4) == ".RPT") {
-                filename_display = filename_display.substr(0, filename_display.size() - 4);
+            std::string rpt_filename = getBasename(inst.filename);
+            // FILENAME column: add leading backslash for relative path (matches Python output)
+            std::string filename_display = rpt_filename;
+            if (!filename_display.empty() && filename_display[0] != '\\') {
+                filename_display = "\\" + filename_display;
             }
 
             std::string year = cfg.year_from_filename ?
-                extractYearFromFilename(getBasename(rpt_filename)) :
+                extractYearFromFilename(rpt_filename) :
                 extractYearFromTimestamp(inst.as_of_timestamp);
 
-            std::string report_date = JulianDateConverter::convertJulianDate(getBasename(rpt_filename));
+            std::string report_date = JulianDateConverter::convertJulianDate(rpt_filename);
             std::string utc = TimezoneConverter::convertToUTC(inst.as_of_timestamp, cfg.timezone);
 
             std::string segments;
             if (!cfg.rptfolder.empty()) {
-                std::string cache_key = getBasename(rpt_filename);
+                std::string cache_key = rpt_filename;
                 std::transform(cache_key.begin(), cache_key.end(), cache_key.begin(), ::toupper);
 
                 if (segments_cache.find(cache_key) != segments_cache.end()) {
                     segments = segments_cache[cache_key];
                 } else {
-                    segments = getRPTSegments(cfg.rptfolder, getBasename(rpt_filename));
+                    segments = getRPTSegments(cfg.rptfolder, rpt_filename);
                     segments_cache[cache_key] = segments;
                 }
+            }
+
+            // Check MAP file existence on disk
+            std::string map_file_exists;
+            if (!inst.map_filename.empty() && !cfg.mapfolder.empty()) {
+                fs::path map_path = fs::path(cfg.mapfolder) / inst.map_filename;
+                map_file_exists = fs::exists(map_path) ? "Y" : "N";
             }
 
             file << escape(report_name) << ","
                  << escape(filename_display) << ","
                  << escape(rpt_filename) << ","
+                 << escape(inst.map_filename) << ","
+                 << escape(map_file_exists) << ","
                  << escape(country) << ","
                  << year << ","
                  << report_date << ","
                  << escape(inst.as_of_timestamp) << ","
                  << escape(utc) << ","
                  << escape(segments) << ","
-                 << inst.rpt_file_id << "\n";
+                 << inst.rpt_file_id << ","
+                 << escape(indexed_fields) << "\n";
         }
     }
 
@@ -703,13 +717,13 @@ private:
             rpt_filename += ".RPT";
         }
 
-        std::string rpt_path = rptfolder + "/" + rpt_filename;
+        fs::path rpt_path = fs::path(rptfolder) / rpt_filename;
 
         if (!fs::exists(rpt_path)) {
             return "";
         }
 
-        auto result = RPTSectionReader::readSectionHdr(rpt_path);
+        auto result = RPTSectionReader::readSectionHdr(rpt_path.string());
         if (result.first == nullptr) {
             return "";
         }
@@ -768,6 +782,7 @@ private:
     std::vector<ReportSpecies> report_species;
     ProgressTracker progress_tracker;
     std::map<std::string, std::string> segments_cache;
+    std::map<int, std::string> indexed_fields_cache;
 
     int total_processed = 0;
     int total_exported = 0;
@@ -795,6 +810,48 @@ public:
         }
     }
 
+    std::string queryIndexedFields(int report_species_id) {
+        // Check cache first
+        auto it = indexed_fields_cache.find(report_species_id);
+        if (it != indexed_fields_cache.end()) {
+            return it->second;
+        }
+
+        std::string result;
+        if (!db.tableExists("FIELD")) {
+            indexed_fields_cache[report_species_id] = result;
+            return result;
+        }
+
+        std::stringstream query;
+        query << "SELECT RTRIM(f.NAME) AS FIELD_NAME "
+              << "FROM FIELD f "
+              << "WHERE f.STRUCTURE_DEF_ID = ("
+              << "  SELECT TOP 1 ri.STRUCTURE_DEF_ID FROM REPORT_INSTANCE ri "
+              << "  WHERE ri.REPORT_SPECIES_ID = " << report_species_id
+              << ") AND f.IS_INDEXED = 1 "
+              << "ORDER BY f.LINE_ID, f.FIELD_ID";
+
+        if (db.executeQuery(query.str())) {
+            std::vector<std::string> fields;
+            while (db.fetch()) {
+                std::string name = db.fetchString(1);
+                if (!name.empty()) {
+                    // Trim trailing spaces
+                    while (!name.empty() && name.back() == ' ') name.pop_back();
+                    fields.push_back(name);
+                }
+            }
+            for (size_t i = 0; i < fields.size(); ++i) {
+                if (i > 0) result += "|";
+                result += fields[i];
+            }
+        }
+
+        indexed_fields_cache[report_species_id] = result;
+        return result;
+    }
+
     std::vector<ReportInstance> queryInstances(int report_species_id) {
         std::vector<ReportInstance> results;
 
@@ -805,13 +862,19 @@ public:
         }
 
         std::stringstream query;
-        query << "SELECT ri.REPORT_SPECIES_ID, rfi.RPT_FILE_ID, RTRIM(rf.FILENAME) AS FILENAME, ri.AS_OF_TIMESTAMP "
+        query << "SELECT ri.REPORT_SPECIES_ID, rfi.RPT_FILE_ID, RTRIM(rf.FILENAME) AS FILENAME, "
+              << "RTRIM(mf.FILENAME) AS MAP_FILENAME, ri.AS_OF_TIMESTAMP "
               << "FROM REPORT_INSTANCE ri "
               << "LEFT JOIN RPTFILE_INSTANCE rfi ON ri.DOMAIN_ID = rfi.DOMAIN_ID "
               << "  AND ri.REPORT_SPECIES_ID = rfi.REPORT_SPECIES_ID "
               << "  AND ri.AS_OF_TIMESTAMP = rfi.AS_OF_TIMESTAMP "
               << "  AND ri.REPROCESS_IN_PROGRESS = rfi.REPROCESS_IN_PROGRESS "
               << "LEFT JOIN RPTFILE rf ON rfi.RPT_FILE_ID = rf.RPT_FILE_ID "
+              << "LEFT JOIN SST_STORAGE sst ON ri.DOMAIN_ID = sst.DOMAIN_ID "
+              << "  AND ri.REPORT_SPECIES_ID = sst.REPORT_SPECIES_ID "
+              << "  AND ri.AS_OF_TIMESTAMP = sst.AS_OF_TIMESTAMP "
+              << "  AND ri.REPROCESS_IN_PROGRESS = sst.REPROCESS_IN_PROGRESS "
+              << "LEFT JOIN MAPFILE mf ON sst.MAP_FILE_ID = mf.MAP_FILE_ID "
               << "WHERE ri.REPORT_SPECIES_ID = " << report_species_id
               << " AND ri.AS_OF_TIMESTAMP >= '" << cfg.start_year << "-01-01 00:00:00'";
 
@@ -831,7 +894,8 @@ public:
             inst.report_species_id = db.fetchInt(1);
             inst.rpt_file_id = db.fetchInt(2);
             inst.filename = db.fetchString(3);
-            inst.as_of_timestamp = db.fetchString(4);
+            inst.map_filename = db.fetchString(4);
+            inst.as_of_timestamp = db.fetchString(5);
             results.push_back(inst);
         }
 
@@ -869,6 +933,11 @@ public:
             } else {
                 std::cout << "SEGMENTS source: none (--rptfolder not provided)\n";
             }
+            if (!cfg.mapfolder.empty()) {
+                std::cout << "MAP file check: " << cfg.mapfolder << "\n";
+            } else {
+                std::cout << "MAP file check: none (--mapfolder not provided)\n";
+            }
             std::cout << "\n";
         }
 
@@ -884,6 +953,9 @@ public:
             auto instances = queryInstances(rs.report_species_id);
 
             if (!instances.empty()) {
+                // Query indexed fields for this species (cached)
+                std::string indexed_fields = queryIndexedFields(rs.report_species_id);
+
                 std::stringstream output_filename;
                 output_filename << sanitizeFilename(rs.report_species_name) << "_" << cfg.start_year;
                 if (cfg.end_year > 0) {
@@ -895,7 +967,8 @@ public:
 
                 try {
                     CSVHandler::writeInstancesCSV(output_path, rs.report_species_name,
-                                                  rs.country_code, instances, cfg, segments_cache);
+                                                  rs.country_code, instances, cfg, segments_cache,
+                                                  indexed_fields);
                     if (!cfg.quiet) {
                         std::cout << "  Exported " << instances.size() << " instances to "
                                  << output_filename.str() << "\n";
@@ -968,6 +1041,7 @@ void printUsage(const char* prog) {
     std::cout << "  --year-from-filename    Extract YEAR from filename instead of timestamp\n";
     std::cout << "  --timezone TZ           Timezone for UTC conversion (default: Asia/Singapore)\n";
     std::cout << "  --rptfolder DIR         Directory with RPT files for SEGMENTS extraction\n";
+    std::cout << "  --mapfolder DIR         Directory with MAP files for MAP_FILE_EXISTS check\n";
     std::cout << "  --quiet                 Quiet mode (minimal output)\n";
     std::cout << "  --help                  Show this help\n\n";
     std::cout << "Example:\n";
@@ -1008,6 +1082,8 @@ int main(int argc, char* argv[]) {
             cfg.output_dir = argv[++i];
         } else if (arg == "--rptfolder" && i + 1 < argc) {
             cfg.rptfolder = argv[++i];
+        } else if (arg == "--mapfolder" && i + 1 < argc) {
+            cfg.mapfolder = argv[++i];
         } else if (arg == "--timezone" && i + 1 < argc) {
             cfg.timezone = argv[++i];
         } else if (arg == "--year-from-filename") {

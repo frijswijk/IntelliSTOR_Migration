@@ -698,7 +698,8 @@ def convert_to_utc(timestamp, source_timezone):
 
 
 def write_output_csv(output_path, results, report_species_name, country,
-                     year_from_filename, source_timezone, map_cache=None):
+                     year_from_filename, source_timezone, map_cache=None,
+                     map_dir='.', indexed_fields=''):
     """
     Write query results to CSV file with simplified column set.
 
@@ -710,18 +711,24 @@ def write_output_csv(output_path, results, report_species_name, country,
         year_from_filename: If True, calculate YEAR from filename; else from AS_OF_TIMESTAMP
         source_timezone: Timezone of AS_OF_TIMESTAMP for UTC conversion
         map_cache: Optional MapFileCache instance for segment name lookups
+        map_dir: Directory containing .MAP files for existence check
+        indexed_fields: Pipe-delimited IS_INDEXED field names for this report species
     """
-    # Define output header - only essential columns
+    # Define output header - matches C++ version with MAP extensions
     output_header = [
         'REPORT_SPECIES_NAME',
         'FILENAME',
+        'RPT_FILENAME',
+        'MAP_FILENAME',
+        'MAP_FILE_EXISTS',
         'COUNTRY',
         'YEAR',
         'REPORT_DATE',
         'AS_OF_TIMESTAMP',
         'UTC',
         'SEGMENTS',
-        'REPORT_FILE_ID'
+        'REPORT_FILE_ID',
+        'INDEXED_FIELDS'
     ]
 
     try:
@@ -744,9 +751,19 @@ def write_output_csv(output_path, results, report_species_name, country,
                 # Convert julian date from filename to REPORT_DATE
                 report_date = convert_julian_date(row.get('FILENAME', ''))
 
+                # Get raw RPT filename (full path from DB) for RPT_FILENAME column
+                rpt_filename = row.get('FILENAME', '')
+
+                # Get MAP filename and check existence on disk
+                map_filename = row.get('MAP_FILENAME', '') or ''
+                if map_filename and map_dir:
+                    map_path = os.path.join(map_dir, map_filename)
+                    map_file_exists = 'Y' if os.path.isfile(map_path) else 'N'
+                else:
+                    map_file_exists = ''
+
                 # Post-process segments with .map file lookups
                 raw_segments = row.get('segments', '')
-                map_filename = row.get('MAP_FILENAME')
                 processed_segments = []
 
                 if raw_segments:
@@ -775,13 +792,17 @@ def write_output_csv(output_path, results, report_species_name, country,
                 output_row = [
                     report_species_name,
                     filename,  # With leading backslash
+                    rpt_filename,  # Raw RPT filename from DB
+                    map_filename,  # MAP filename from MAPFILE table
+                    map_file_exists,  # Y/N if MAP file exists on disk
                     country,
                     year,
                     report_date,  # REPORT_DATE from julian date
                     row.get('AS_OF_TIMESTAMP', ''),
                     utc_timestamp,
                     final_segments_str,  # Use processed segments
-                    row.get('RPT_FILE_ID', '')
+                    row.get('RPT_FILE_ID', ''),
+                    indexed_fields  # IS_INDEXED field names
                 ]
                 writer.writerow(output_row)
 
@@ -790,6 +811,42 @@ def write_output_csv(output_path, results, report_species_name, country,
     except Exception as e:
         logging.error(f'Failed to write CSV file {output_path}: {e}')
         raise
+
+
+# ============================================================================
+# Indexed Fields Query
+# ============================================================================
+
+def get_indexed_fields(cursor, report_species_id):
+    """
+    Query all IS_INDEXED field names for a report species.
+
+    Args:
+        cursor: Database cursor
+        report_species_id: Report_Species_Id to query
+
+    Returns:
+        str: Pipe-delimited field names (e.g. 'ACCOUNT_NO|BRANCH_CODE') or empty string
+    """
+    try:
+        sql = """
+            SELECT RTRIM(f.NAME) AS FIELD_NAME
+            FROM FIELD f
+            WHERE f.STRUCTURE_DEF_ID = (
+                SELECT TOP 1 ri.STRUCTURE_DEF_ID
+                FROM REPORT_INSTANCE ri
+                WHERE ri.REPORT_SPECIES_ID = %s
+            )
+            AND f.IS_INDEXED = 1
+            ORDER BY f.LINE_ID, f.FIELD_ID
+        """
+        cursor.execute(sql, (report_species_id,))
+        rows = cursor.fetchall()
+        field_names = [row[0].strip() for row in rows if row[0]]
+        return '|'.join(field_names)
+    except Exception as e:
+        logging.warning(f'Failed to query indexed fields for species {report_species_id}: {e}')
+        return ''
 
 
 # ============================================================================
@@ -821,9 +878,10 @@ def process_reports(conn, report_species_list, csv_path, output_dir, last_proces
     cursor = conn.cursor()
     progress_file = os.path.join(output_dir, 'progress.txt')
 
-    # Initialize map file cache
+    # Initialize map file cache and indexed fields cache
     map_cache = MapFileCache(map_dir)
     logging.info(f'Map file directory: {map_dir}')
+    indexed_fields_cache = {}  # {report_species_id: 'FIELD1|FIELD2|...'}
 
     # Statistics
     stats = {
@@ -862,6 +920,11 @@ def process_reports(conn, report_species_list, csv_path, output_dir, last_proces
             results = execute_query(cursor, report_species_id, start_year, end_year)
 
             if results:
+                # Query indexed fields for this species (cached per species)
+                if report_species_id not in indexed_fields_cache:
+                    indexed_fields_cache[report_species_id] = get_indexed_fields(cursor, report_species_id)
+                indexed_fields = indexed_fields_cache[report_species_id]
+
                 # Write CSV file with REPORT_SPECIES_NAME, COUNTRY, and YEAR columns
                 # Add year suffix to output filename
                 if end_year:
@@ -870,7 +933,8 @@ def process_reports(conn, report_species_list, csv_path, output_dir, last_proces
                     output_filename = f'{report_name}_{start_year}.csv'
                 output_path = os.path.join(output_dir, output_filename)
                 write_output_csv(output_path, results, report_name, country,
-                                year_from_filename, source_timezone, map_cache)
+                                year_from_filename, source_timezone, map_cache,
+                                map_dir, indexed_fields)
 
                 if not quiet:
                     logging.info(f'Query returned {len(results)} instances for {report_name}')

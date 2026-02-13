@@ -29,6 +29,10 @@ export Instances_Output_MY="${Migration_data}/Instances_MY"
 export Instances_StartYear_SG="2020"
 export Instances_StartYear_MY="1900"
 
+# MAP files (for segment name lookups and MAP_FILE_EXISTS check)
+export MapFiles_SG="/Volumes/X9Pro/OCBC/MapFiles"
+export MapFiles_MY="/Volumes/X9Pro/OCBC/MapFiles"
+
 # Test File Generation
 export TestGen_ReportSpecies_SG="${ReportSpecies_SG}/Report_Species.csv"
 export TestGen_ReportSpecies_MY="${ReportSpecies_MY}/Report_Species.csv"

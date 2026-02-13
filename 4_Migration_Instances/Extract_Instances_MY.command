@@ -1,6 +1,7 @@
 #!/bin/bash
-# Extract Instances - Malaysia
+# Extract Instances (Sections) - Malaysia
 # macOS equivalent of Extract_Instances_MY.bat
+# Uses extract_instances_sections.py with MAP file support
 
 clear
 
@@ -27,25 +28,43 @@ echo "Output Folder: ${Instances_Output_MY}"
 echo "Start Year: ${Instances_StartYear_MY}"
 echo "-----------------------------------------------------------------------"
 
-# Prompt for RPT folder (mandatory - SEGMENTS come from RPT file SECTIONHDR)
-while true; do
-    echo ""
-    read -p "Enter RPT folder path (contains .RPT files for SEGMENTS extraction): " RPT_FOLDER
-    if [ -z "${RPT_FOLDER}" ]; then
-        echo "ERROR: RPT folder is required for SEGMENTS extraction."
-    elif [ ! -d "${RPT_FOLDER}" ]; then
-        echo "ERROR: Directory does not exist: ${RPT_FOLDER}"
+# Prompt for MAP folder (for segment name lookups and MAP_FILE_EXISTS)
+echo ""
+if [ -n "${MapFiles_MY}" ] && [ -d "${MapFiles_MY}" ]; then
+    echo "Default MAP folder: ${MapFiles_MY}"
+    read -p "Enter MAP folder path [press Enter for default]: " MAP_FOLDER_INPUT
+    if [ -z "${MAP_FOLDER_INPUT}" ]; then
+        MAP_FOLDER="${MapFiles_MY}"
     else
-        echo "RPT Folder: ${RPT_FOLDER}"
-        break
+        MAP_FOLDER="${MAP_FOLDER_INPUT}"
     fi
-done
+else
+    read -p "Enter MAP folder path (contains .MAP files): " MAP_FOLDER
+fi
+
+# Validate MAP folder (optional - script works without it, SEGMENTS will be empty)
+if [ -n "${MAP_FOLDER}" ] && [ ! -d "${MAP_FOLDER}" ]; then
+    echo "WARNING: MAP folder does not exist: ${MAP_FOLDER}"
+    echo "SEGMENTS and MAP_FILE_EXISTS columns will be empty."
+    read -p "Continue anyway? (y/N): " CONTINUE
+    if [ "${CONTINUE}" != "y" ] && [ "${CONTINUE}" != "Y" ]; then
+        echo "Aborted."
+        exit 1
+    fi
+fi
+echo "MAP Folder: ${MAP_FOLDER:-<not set>}"
 
 # Create output directory if it doesn't exist
 mkdir -p "${Instances_Output_MY}"
 
-# Run the Extract_Instances script
-python3 Extract_Instances.py --server "${SQLServer}" --database "${SQL_MY_Database}" --user "${SQLUser}" --password "${SQLPassword}" --input "${Instances_Input_MY}" --output "${Instances_Output_MY}" --start-year "${Instances_StartYear_MY}" --rptfolder "${RPT_FOLDER}" --quiet
+# Run the extract_instances_sections script
+CMD="python3 extract_instances_sections.py --server \"${SQLServer}\" --database \"${SQL_MY_Database}\" --user \"${SQLUser}\" --password \"${SQLPassword}\" --input \"${Instances_Input_MY}\" --output-dir \"${Instances_Output_MY}\" --start-year \"${Instances_StartYear_MY}\" --quiet"
+
+if [ -n "${MAP_FOLDER}" ]; then
+    CMD="${CMD} --map-dir \"${MAP_FOLDER}\""
+fi
+
+eval ${CMD}
 
 # --- 2. Capture End Time and Calculate Duration ---
 echo "-----------------------------------------------------------------------"
