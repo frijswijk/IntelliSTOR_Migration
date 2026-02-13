@@ -15,6 +15,7 @@
 #include <ctime>
 #include <filesystem>
 #include <algorithm>
+#include <set>
 #include <cstring>
 
 namespace fs = std::filesystem;
@@ -85,6 +86,15 @@ struct SectionEntry {
     int section_id;
     int start_page;
     int page_count;
+};
+
+// Per-species statistics for summary log
+struct SpeciesStats {
+    std::string report_species_name;
+    int report_species_id;
+    int instance_count;
+    int rpt_files_found;
+    int max_sections;
 };
 
 // RPT file header
@@ -591,10 +601,10 @@ public:
 
         for (const auto& inst : instances) {
             std::string rpt_filename = getBasename(inst.filename);
-            // FILENAME column: add leading backslash for relative path (matches Python output)
+            // FILENAME column: basename without .RPT extension (display only)
             std::string filename_display = rpt_filename;
-            if (!filename_display.empty() && filename_display[0] != '\\') {
-                filename_display = "\\" + filename_display;
+            if (filename_display.size() > 4 && filename_display.substr(filename_display.size() - 4) == ".RPT") {
+                filename_display = filename_display.substr(0, filename_display.size() - 4);
             }
 
             std::string year = cfg.year_from_filename ?
@@ -640,6 +650,21 @@ public:
         }
     }
 
+    static std::string escape(const std::string& s) {
+        if (s.find(',') == std::string::npos &&
+            s.find('"') == std::string::npos &&
+            s.find('\n') == std::string::npos) {
+            return s;
+        }
+        std::string result = "\"";
+        for (char c : s) {
+            if (c == '"') result += "\"\"";
+            else result += c;
+        }
+        result += "\"";
+        return result;
+    }
+
 private:
     static std::vector<std::string> parseCSVLine(const std::string& line) {
         std::vector<std::string> fields;
@@ -666,21 +691,6 @@ private:
         fields.push_back(current);
 
         return fields;
-    }
-
-    static std::string escape(const std::string& s) {
-        if (s.find(',') == std::string::npos &&
-            s.find('"') == std::string::npos &&
-            s.find('\n') == std::string::npos) {
-            return s;
-        }
-        std::string result = "\"";
-        for (char c : s) {
-            if (c == '"') result += "\"\"";
-            else result += c;
-        }
-        result += "\"";
-        return result;
     }
 
     static std::string getBasename(const std::string& path) {
@@ -783,6 +793,7 @@ private:
     ProgressTracker progress_tracker;
     std::map<std::string, std::string> segments_cache;
     std::map<int, std::string> indexed_fields_cache;
+    std::vector<SpeciesStats> species_stats;
 
     int total_processed = 0;
     int total_exported = 0;
@@ -977,6 +988,39 @@ public:
                 } catch (const std::exception& e) {
                     std::cerr << "  Error writing output: " << e.what() << "\n";
                 }
+
+                // Collect per-species stats
+                SpeciesStats stats;
+                stats.report_species_name = rs.report_species_name;
+                stats.report_species_id = rs.report_species_id;
+                stats.instance_count = static_cast<int>(instances.size());
+                stats.rpt_files_found = 0;
+                stats.max_sections = 0;
+
+                if (!cfg.rptfolder.empty()) {
+                    std::set<std::string> seen_keys;
+                    for (const auto& inst : instances) {
+                        std::string basename = fs::path(inst.filename).filename().string();
+                        std::string cache_key = basename;
+                        std::transform(cache_key.begin(), cache_key.end(), cache_key.begin(), ::toupper);
+
+                        if (!seen_keys.insert(cache_key).second) continue;  // already counted
+
+                        auto it = segments_cache.find(cache_key);
+                        if (it != segments_cache.end() && !it->second.empty()) {
+                            stats.rpt_files_found++;
+                            int section_count = 1;
+                            for (char c : it->second) {
+                                if (c == '|') section_count++;
+                            }
+                            if (section_count > stats.max_sections) {
+                                stats.max_sections = section_count;
+                            }
+                        }
+                    }
+                }
+
+                species_stats.push_back(stats);
             } else {
                 // Update IN_USE=0
                 if (!cfg.quiet) {
@@ -987,6 +1031,16 @@ public:
                 } catch (const std::exception& e) {
                     std::cerr << "  Error updating IN_USE: " << e.what() << "\n";
                 }
+
+                // Record zero-instance species in stats
+                SpeciesStats stats;
+                stats.report_species_name = rs.report_species_name;
+                stats.report_species_id = rs.report_species_id;
+                stats.instance_count = 0;
+                stats.rpt_files_found = 0;
+                stats.max_sections = 0;
+                species_stats.push_back(stats);
+
                 total_skipped++;
             }
 
@@ -1005,7 +1059,44 @@ public:
             std::cout << "\n";
         }
 
+        writeStatsLog();
+
         return true;
+    }
+
+    void writeStatsLog() {
+        std::stringstream log_filename;
+        log_filename << "species_summary_" << cfg.start_year;
+        if (cfg.end_year > 0) {
+            log_filename << "_" << cfg.end_year;
+        }
+        log_filename << ".csv";
+
+        // Write to parent folder of output_dir
+        fs::path parent_dir = fs::path(cfg.output_dir).parent_path();
+        if (parent_dir.empty()) parent_dir = ".";
+        std::string log_path = (parent_dir / log_filename.str()).string();
+
+        std::ofstream file(log_path);
+        if (!file.is_open()) {
+            std::cerr << "Warning: Could not create species summary log: " << log_path << "\n";
+            return;
+        }
+
+        file << "REPORT_SPECIES_ID,REPORT_SPECIES_NAME,INSTANCE_COUNT,RPT_FILES_FOUND,MAX_SECTIONS\n";
+        for (const auto& s : species_stats) {
+            file << s.report_species_id << ","
+                 << CSVHandler::escape(s.report_species_name) << ","
+                 << s.instance_count << ","
+                 << s.rpt_files_found << ","
+                 << s.max_sections << "\n";
+        }
+
+        file.close();
+
+        if (!cfg.quiet) {
+            std::cout << "\nSpecies summary log written to " << log_path << "\n";
+        }
     }
 
     void printSummary() {

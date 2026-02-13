@@ -28,6 +28,21 @@ if not exist "%RPT_FOLDER%" (
 )
 echo RPT Folder: %RPT_FOLDER%
 
+rem Prompt for MAP folder (mandatory - Indexes come from MAP file)
+:ask_mapfolder
+echo.
+set /p "MAP_FOLDER=Enter MAP folder path (contains .MAP files for Index extraction): "
+if "%MAP_FOLDER%"=="" (
+    echo ERROR: MAP folder is required for Index extraction.
+    goto ask_mapfolder
+)
+if not exist "%MAP_FOLDER%" (
+    echo ERROR: Directory does not exist: %MAP_FOLDER%
+    goto ask_mapfolder
+)
+echo MAP Folder: %MAP_FOLDER%
+
+
 rem Create output directory if it doesn't exist
 if not exist "%Instances_Output_SG%" mkdir "%Instances_Output_SG%"
 
@@ -36,7 +51,7 @@ set "END_YEAR_PARAM="
 if defined Instances_EndYear_SG if not "%Instances_EndYear_SG%"=="" set "END_YEAR_PARAM=--end-year %Instances_EndYear_SG%"
 
 rem Run the Extract_Instances script (C++)
-papyrus_extract_instances.exe --server %SQLServer% --database %SQL-SG-Database% --windows-auth --input "%Instances_Input_SG%" --output-dir "%Instances_Output_SG%" --start-year %Instances_StartYear_SG% %END_YEAR_PARAM% --rptfolder "%RPT_FOLDER%"
+papyrus_extract_instances.exe --server %SQLServer% --database %SQL-SG-Database% --windows-auth --input "%Instances_Input_SG%" --output-dir "%Instances_Output_SG%" --start-year %Instances_StartYear_SG% %END_YEAR_PARAM% --rptfolder "%RPT_FOLDER%" --mapfolder "%MAP_FOLDER%"
 
 :: --- 2. Capture End Time and Calculate Duration ---
 echo ---------------------------------------------------------------------------
