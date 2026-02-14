@@ -599,7 +599,7 @@ public:
             throw std::runtime_error("Cannot open file: " + filename);
         }
 
-        file << "REPORT_SPECIES_NAME,FILENAME,RPT_FILENAME,MAP_FILENAME,MAP_FILE_EXISTS,COUNTRY,YEAR,REPORT_DATE,AS_OF_TIMESTAMP,UTC,SEGMENTS,REPORT_FILE_ID,INDEXED_FIELDS\n";
+        file << "REPORT_SPECIES_NAME,FILENAME,RPT_FILENAME,RPT_FILE_EXISTS,MAP_FILENAME,MAP_FILE_EXISTS,COUNTRY,YEAR,REPORT_DATE,AS_OF_TIMESTAMP,UTC,SEGMENTS,REPORT_FILE_ID,INDEXED_FIELDS\n";
 
         for (const auto& inst : instances) {
             std::string rpt_filename = getBasename(inst.filename);
@@ -629,6 +629,18 @@ public:
                 }
             }
 
+            // Check RPT file existence on disk
+            std::string rpt_file_exists;
+            if (!rpt_filename.empty() && !cfg.rptfolder.empty()) {
+                std::string rpt_upper = rpt_filename;
+                std::transform(rpt_upper.begin(), rpt_upper.end(), rpt_upper.begin(), ::toupper);
+                if (rpt_upper.size() < 4 || rpt_upper.substr(rpt_upper.size() - 4) != ".RPT") {
+                    rpt_upper += ".RPT";
+                }
+                fs::path rpt_path = fs::path(cfg.rptfolder) / rpt_upper;
+                rpt_file_exists = fs::exists(rpt_path) ? "Y" : "N";
+            }
+
             // Check MAP file existence on disk
             std::string map_file_exists;
             if (!inst.map_filename.empty() && !cfg.mapfolder.empty()) {
@@ -639,6 +651,7 @@ public:
             file << escape(report_name) << ","
                  << escape(filename_display) << ","
                  << escape(rpt_filename) << ","
+                 << escape(rpt_file_exists) << ","
                  << escape(inst.map_filename) << ","
                  << escape(map_file_exists) << ","
                  << escape(country) << ","

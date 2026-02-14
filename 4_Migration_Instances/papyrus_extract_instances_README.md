@@ -56,6 +56,7 @@ Requires: MinGW-w64 (C++17), ODBC libraries (`-lodbc32 -lodbccp32`)
 | `REPORT_SPECIES_NAME` | Report species name |
 | `FILENAME` | RPT basename without path and `.RPT` extension (display only) |
 | `RPT_FILENAME` | RPT filename with extension |
+| `RPT_FILE_EXISTS` | `Y` or `N` (checked on disk via `--rptfolder`) |
 | `MAP_FILENAME` | Associated MAP filename from database |
 | `MAP_FILE_EXISTS` | `Y` or `N` (checked on disk via `--mapfolder`) |
 | `COUNTRY` | Country code |
