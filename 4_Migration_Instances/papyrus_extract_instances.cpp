@@ -95,6 +95,8 @@ struct SpeciesStats {
     int instance_count;
     int rpt_files_found;
     int max_sections;
+    int map_files_found;
+    std::string index_field_names;
 };
 
 // RPT file header
@@ -996,25 +998,41 @@ public:
                 stats.instance_count = static_cast<int>(instances.size());
                 stats.rpt_files_found = 0;
                 stats.max_sections = 0;
+                stats.map_files_found = 0;
+                stats.index_field_names = indexed_fields;
 
-                if (!cfg.rptfolder.empty()) {
-                    std::set<std::string> seen_keys;
-                    for (const auto& inst : instances) {
+                std::set<std::string> seen_rpt_keys;
+                std::set<std::string> seen_map_keys;
+                for (const auto& inst : instances) {
+                    // Count unique RPT files found
+                    if (!cfg.rptfolder.empty()) {
                         std::string basename = fs::path(inst.filename).filename().string();
                         std::string cache_key = basename;
                         std::transform(cache_key.begin(), cache_key.end(), cache_key.begin(), ::toupper);
 
-                        if (!seen_keys.insert(cache_key).second) continue;  // already counted
-
-                        auto it = segments_cache.find(cache_key);
-                        if (it != segments_cache.end() && !it->second.empty()) {
-                            stats.rpt_files_found++;
-                            int section_count = 1;
-                            for (char c : it->second) {
-                                if (c == '|') section_count++;
+                        if (seen_rpt_keys.insert(cache_key).second) {
+                            auto it = segments_cache.find(cache_key);
+                            if (it != segments_cache.end() && !it->second.empty()) {
+                                stats.rpt_files_found++;
+                                int section_count = 1;
+                                for (char c : it->second) {
+                                    if (c == '|') section_count++;
+                                }
+                                if (section_count > stats.max_sections) {
+                                    stats.max_sections = section_count;
+                                }
                             }
-                            if (section_count > stats.max_sections) {
-                                stats.max_sections = section_count;
+                        }
+                    }
+
+                    // Count unique MAP files found
+                    if (!cfg.mapfolder.empty() && !inst.map_filename.empty()) {
+                        std::string map_key = inst.map_filename;
+                        std::transform(map_key.begin(), map_key.end(), map_key.begin(), ::toupper);
+                        if (seen_map_keys.insert(map_key).second) {
+                            fs::path map_path = fs::path(cfg.mapfolder) / inst.map_filename;
+                            if (fs::exists(map_path)) {
+                                stats.map_files_found++;
                             }
                         }
                     }
@@ -1039,6 +1057,8 @@ public:
                 stats.instance_count = 0;
                 stats.rpt_files_found = 0;
                 stats.max_sections = 0;
+                stats.map_files_found = 0;
+                stats.index_field_names = queryIndexedFields(rs.report_species_id);
                 species_stats.push_back(stats);
 
                 total_skipped++;
@@ -1083,13 +1103,15 @@ public:
             return;
         }
 
-        file << "REPORT_SPECIES_ID,REPORT_SPECIES_NAME,INSTANCE_COUNT,RPT_FILES_FOUND,MAX_SECTIONS\n";
+        file << "REPORT_SPECIES_ID,REPORT_SPECIES_NAME,INSTANCE_COUNT,RPT_FILES_FOUND,MAX_SECTIONS,MAP_FILES_FOUND,INDEX_FIELD_NAMES\n";
         for (const auto& s : species_stats) {
             file << s.report_species_id << ","
                  << CSVHandler::escape(s.report_species_name) << ","
                  << s.instance_count << ","
                  << s.rpt_files_found << ","
-                 << s.max_sections << "\n";
+                 << s.max_sections << ","
+                 << s.map_files_found << ","
+                 << CSVHandler::escape(s.index_field_names) << "\n";
         }
 
         file.close();
