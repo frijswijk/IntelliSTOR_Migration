@@ -837,7 +837,7 @@ public:
         }
 
         std::stringstream query;
-        query << "SELECT RTRIM(f.NAME) AS FIELD_NAME "
+        query << "SELECT RTRIM(f.NAME) AS FIELD_NAME, f.LINE_ID, f.FIELD_ID "
               << "FROM FIELD f "
               << "WHERE f.STRUCTURE_DEF_ID = ("
               << "  SELECT TOP 1 ri.STRUCTURE_DEF_ID FROM REPORT_INSTANCE ri "
@@ -852,7 +852,9 @@ public:
                 if (!name.empty()) {
                     // Trim trailing spaces
                     while (!name.empty() && name.back() == ' ') name.pop_back();
-                    fields.push_back(name);
+                    int line_id = db.fetchInt(2);
+                    int field_id = db.fetchInt(3);
+                    fields.push_back(name + "#" + std::to_string(line_id) + "#" + std::to_string(field_id));
                 }
             }
             for (size_t i = 0; i < fields.size(); ++i) {
