@@ -94,6 +94,7 @@ struct SpeciesStats {
     int report_species_id;
     int instance_count;
     int rpt_files_found;
+    int rpt_files_exist;
     int max_sections;
     int map_files_found;
     std::string index_field_names;
@@ -1012,6 +1013,7 @@ public:
                 stats.report_species_id = rs.report_species_id;
                 stats.instance_count = static_cast<int>(instances.size());
                 stats.rpt_files_found = 0;
+                stats.rpt_files_exist = 0;
                 stats.max_sections = 0;
                 stats.map_files_found = 0;
                 stats.index_field_names = indexed_fields;
@@ -1019,13 +1021,23 @@ public:
                 std::set<std::string> seen_rpt_keys;
                 std::set<std::string> seen_map_keys;
                 for (const auto& inst : instances) {
-                    // Count unique RPT files found
+                    // Count unique RPT files found (with segments) and existing on disk
                     if (!cfg.rptfolder.empty()) {
                         std::string basename = fs::path(inst.filename).filename().string();
                         std::string cache_key = basename;
                         std::transform(cache_key.begin(), cache_key.end(), cache_key.begin(), ::toupper);
 
                         if (seen_rpt_keys.insert(cache_key).second) {
+                            // Check RPT file exists on disk
+                            std::string rpt_upper = cache_key;
+                            if (rpt_upper.size() < 4 || rpt_upper.substr(rpt_upper.size() - 4) != ".RPT") {
+                                rpt_upper += ".RPT";
+                            }
+                            fs::path rpt_path = fs::path(cfg.rptfolder) / rpt_upper;
+                            if (fs::exists(rpt_path)) {
+                                stats.rpt_files_exist++;
+                            }
+
                             auto it = segments_cache.find(cache_key);
                             if (it != segments_cache.end() && !it->second.empty()) {
                                 stats.rpt_files_found++;
@@ -1071,6 +1083,7 @@ public:
                 stats.report_species_id = rs.report_species_id;
                 stats.instance_count = 0;
                 stats.rpt_files_found = 0;
+                stats.rpt_files_exist = 0;
                 stats.max_sections = 0;
                 stats.map_files_found = 0;
                 stats.index_field_names = queryIndexedFields(rs.report_species_id);
@@ -1118,11 +1131,12 @@ public:
             return;
         }
 
-        file << "REPORT_SPECIES_ID,REPORT_SPECIES_NAME,INSTANCE_COUNT,RPT_FILES_FOUND,MAX_SECTIONS,MAP_FILES_FOUND,INDEX_FIELD_NAMES\n";
+        file << "REPORT_SPECIES_ID,REPORT_SPECIES_NAME,INSTANCE_COUNT,RPT_FILES_EXIST,RPT_FILES_FOUND,MAX_SECTIONS,MAP_FILES_FOUND,INDEX_FIELD_NAMES\n";
         for (const auto& s : species_stats) {
             file << s.report_species_id << ","
                  << CSVHandler::escape(s.report_species_name) << ","
                  << s.instance_count << ","
+                 << s.rpt_files_exist << ","
                  << s.rpt_files_found << ","
                  << s.max_sections << ","
                  << s.map_files_found << ","

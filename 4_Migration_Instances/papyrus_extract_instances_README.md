@@ -77,7 +77,8 @@ Requires: MinGW-w64 (C++17), ODBC libraries (`-lodbc32 -lodbccp32`)
 | `REPORT_SPECIES_ID` | Species ID |
 | `REPORT_SPECIES_NAME` | Species name |
 | `INSTANCE_COUNT` | Number of instances extracted |
-| `RPT_FILES_FOUND` | Unique RPT files found on disk |
+| `RPT_FILES_EXIST` | Unique RPT files that exist on disk |
+| `RPT_FILES_FOUND` | Unique RPT files with valid segments |
 | `MAX_SECTIONS` | Maximum section count across RPT files |
 | `MAP_FILES_FOUND` | Unique MAP files found on disk |
 | `INDEX_FIELD_NAMES` | Indexed fields: `NAME#LINE_ID#FIELD_ID\|...` |
