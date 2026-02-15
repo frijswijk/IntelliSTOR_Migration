@@ -935,40 +935,45 @@
             return values;
         }
 
-        // Build Segment 0 lookup tables. Two possible 15-byte record layouts exist:
-        //   Layout A (Python extractor): [page:4][rec_id:1][type:1][pad:1][join_key:4][extra:4]
-        //   Layout B (documentation):    [row:1][type:1][pad:1][join_key:4][flag:4][page:4]
-        // We try both and the one that produces valid results wins in resolvePages.
+        // Build Segment 0 lookup tables. Two record sizes exist:
+        //   18-byte (small/medium files): [record_id:2][line:1][field:1][pad:3][flag:2][sub_id:2][boundary:2][??:2][page:2][pad:2]
+        //     key = u16 record_id @ offset 0, page = u16 @ offset 14
+        //   15-byte (large files):        [page:4][rec_id:1][type:1][pad:1][join_key:4][extra:4]
+        //     key = u32 join_key @ offset 7, page = u32 @ offset 0
+        // Auto-detect by checking if u16 at offset 0 of first records are sequential (1,2,3...) → 18-byte.
         buildSegment0Lookup() {
             if (this._seg0Cache) return this._seg0Cache;
-            const lookupA = new Map(), lookupB = new Map();
+            const lookup18 = new Map(), lookup15 = new Map();
             if (this.segments.length === 0) {
-                this._seg0Cache = { a: lookupA, b: lookupB };
+                this._seg0Cache = { r18: lookup18, r15: lookup15 };
                 return this._seg0Cache;
             }
             const seg0 = this.segments[0];
-            const recordSize = 15;
-            let offset = seg0.dataOffset;
             const end = Math.min(seg0.offset + seg0.size, this.data.length);
-            while (offset + recordSize <= end) {
-                // Layout A: page@0, type@5, joinKey@7
-                const pageA = this._readU32(offset) & 0x7FFFFFFF;
-                const typeA = this.data[offset + 5];
-                const keyA  = this._readU32(offset + 7);
-                if (typeA === 0x08 && pageA > 0) lookupA.set(keyA, pageA);
-                // Layout B: type@1, joinKey@3, page@11
-                const typeB = this.data[offset + 1];
-                const keyB  = this._readU32(offset + 3);
-                const pageB = this._readU32(offset + 11) & 0x7FFFFFFF;
-                if (typeB === 0x08 && pageB > 0) lookupB.set(keyB, pageB);
-                offset += recordSize;
+
+            // Try 18-byte records: key=u16@0, page=u16@14
+            let off = seg0.dataOffset;
+            while (off + 18 <= end) {
+                const key = this._readU16(off);
+                const page = this._readU16(off + 14);
+                if (key > 0 && page > 0) lookup18.set(key, page);
+                off += 18;
             }
-            this._seg0Cache = { a: lookupA, b: lookupB };
+            // Try 15-byte records: key=u32@7, page=u32@0 (type=0x08 filter)
+            off = seg0.dataOffset;
+            while (off + 15 <= end) {
+                const pageRaw = this._readU32(off) & 0x7FFFFFFF;
+                const recType = this.data[off + 5];
+                const joinKey = this._readU32(off + 7);
+                if (recType === 0x08 && pageRaw > 0) lookup15.set(joinKey, pageRaw);
+                off += 15;
+            }
+            this._seg0Cache = { r18: lookup18, r15: lookup15 };
             return this._seg0Cache;
         }
 
-        // Resolve page numbers from entries. Tries all plausible interpretations
-        // and picks the one with the most valid pages (within [1..maxPage]).
+        // Resolve page numbers. Tries all plausible interpretations and picks
+        // the one with the most valid pages within [1..maxPage].
         resolvePages(entries, maxPage) {
             if (entries.length === 0) return [];
             maxPage = maxPage || 0;
@@ -976,24 +981,28 @@
                 ? pages.filter(p => p >= 1 && p <= maxPage).length
                 : pages.filter(p => p >= 1 && p <= 0xFFFF).length;
 
-            // Candidate 1: Format A — u16 at trailing[0:2] is direct page
-            const c1 = entries.map(e => e.u16page);
-            // Candidate 2: Format B — u32 at trailing[0:4] is join key, Segment 0 layout A
-            // Candidate 3: Format B — u32 at trailing[0:4] is join key, Segment 0 layout B
             const seg0 = this.buildSegment0Lookup();
-            const c2 = seg0.a.size > 0 ? entries.map(e => seg0.a.get(e.u32Index) || 0) : null;
-            const c3 = seg0.b.size > 0 ? entries.map(e => seg0.b.get(e.u32Index) || 0) : null;
+            const candidates = [];
 
-            const candidates = [
-                { pages: c1, fmt: 'page', valid: count(c1) },
-            ];
-            if (c2) candidates.push({ pages: c2, fmt: 'u32_layoutA', valid: count(c2) });
-            if (c3) candidates.push({ pages: c3, fmt: 'u32_layoutB', valid: count(c3) });
+            // C1: Direct u16 page at trailing[0:2]
+            const c1 = entries.map(e => e.u16page);
+            candidates.push({ pages: c1, fmt: 'direct_u16', valid: count(c1) });
+
+            // C2: u16 trailing[0:2] is record_id into 18-byte Segment 0 records
+            if (seg0.r18.size > 0) {
+                const c2 = entries.map(e => seg0.r18.get(e.u16page) || 0);
+                candidates.push({ pages: c2, fmt: 'seg0_18byte', valid: count(c2) });
+            }
+            // C3: u32 trailing[0:4] is join_key into 15-byte Segment 0 records
+            if (seg0.r15.size > 0) {
+                const c3 = entries.map(e => seg0.r15.get(e.u32Index) || 0);
+                candidates.push({ pages: c3, fmt: 'seg0_15byte', valid: count(c3) });
+            }
 
             candidates.sort((a, b) => b.valid - a.valid);
             const best = candidates[0];
             console.log('[MAP resolvePages]', candidates.map(c => `${c.fmt}:${c.valid}/${entries.length}`).join(', '),
-                `maxPage=${maxPage}, seg0.a=${seg0.a.size}, seg0.b=${seg0.b.size}`);
+                `maxPage=${maxPage}, seg0.r18=${seg0.r18.size}, seg0.r15=${seg0.r15.size}`);
             return entries.map((e, i) => ({ value: e.value, page: best.pages[i], format: best.fmt }));
         }
 
@@ -1009,16 +1018,29 @@
             console.log(`Segment index=${seg.index}, fieldWidth=${seg.fieldWidth}, entryCount=${seg.entryCount}`);
             console.log(`dataOffset=0x${seg.dataOffset.toString(16)}, entrySize=${entrySize}`);
             console.log(`Segment0: offset=0x${seg0.offset.toString(16)}, dataOffset=0x${seg0.dataOffset.toString(16)}, size=${seg0.size}`);
-            // Dump first 5 Segment 0 records (15 bytes each)
+            // Dump first 5 Segment 0 records as 18-byte records
+            console.log('--- Segment 0 first 5 records (18 bytes each) ---');
+            const seg0End = Math.min(seg0.offset + seg0.size, this.data.length);
+            for (let i = 0; i < 5; i++) {
+                const off = seg0.dataOffset + i * 18;
+                if (off + 18 > seg0End) break;
+                const hex = Array.from(this.data.slice(off, off + 18)).map(b => b.toString(16).padStart(2, '0')).join(' ');
+                const recId = this._readU16(off);
+                const page = this._readU16(off + 14);
+                console.log(`  rec18[${i}]: ${hex}  | recId=${recId} page@14=${page}`);
+            }
+            // Also dump as 15-byte records
             console.log('--- Segment 0 first 5 records (15 bytes each) ---');
             for (let i = 0; i < 5; i++) {
                 const off = seg0.dataOffset + i * 15;
-                if (off + 15 > this.data.length) break;
+                if (off + 15 > seg0End) break;
                 const hex = Array.from(this.data.slice(off, off + 15)).map(b => b.toString(16).padStart(2, '0')).join(' ');
                 const pA = this._readU32(off) & 0x7FFFFFFF, tA = this.data[off + 5], kA = this._readU32(off + 7);
-                const tB = this.data[off + 1], kB = this._readU32(off + 3), pB = this._readU32(off + 11) & 0x7FFFFFFF;
-                console.log(`  rec[${i}]: ${hex}  | layoutA: page=${pA} type=0x${tA.toString(16)} key=${kA} | layoutB: type=0x${tB.toString(16)} key=${kB} page=${pB}`);
+                console.log(`  rec15[${i}]: ${hex}  | page=${pA} type=0x${tA.toString(16)} joinKey=${kA}`);
             }
+            // Report lookup sizes
+            const lookups = this.buildSegment0Lookup();
+            console.log(`Segment 0 lookup sizes: r18=${lookups.r18.size} entries, r15=${lookups.r15.size} entries`);
             // Dump first 5 entries
             console.log(`--- First 5 entries (${entrySize} bytes each) ---`);
             for (let i = 0; i < 5; i++) {
