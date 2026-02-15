@@ -858,6 +858,39 @@
             return v;
         }
 
+        // Detect entry format for a segment by sampling trailing bytes.
+        // Two formats exist (both entry_size = 7 + fieldWidth):
+        //   Format A (small files): [length:2][value:N][page:2][flags:3] — page is u16
+        //   Format B (large files):  [length:2][value:N][u32_index:4][last:1] — u32 join key
+        // Detection: if ALL sampled u16 values at trailing[0:2] are odd → Format B.
+        _detectEntryFormat(seg) {
+            if (seg._entryFormat) return seg._entryFormat;
+            const entrySize = 7 + seg.fieldWidth;
+            const endBoundary = Math.min(seg.offset + seg.size, this.data.length);
+            const totalEntries = Math.floor((endBoundary - seg.dataOffset) / entrySize);
+            const probeCount = Math.min(100, totalEntries);
+            let oddCount = 0, validCount = 0;
+            for (let i = 0; i < probeCount; i++) {
+                const off = seg.dataOffset + i * entrySize;
+                if (off + entrySize > endBoundary) break;
+                if (this._readU16(off) !== seg.fieldWidth) break;
+                const trailOff = off + 2 + seg.fieldWidth;
+                const u16 = this._readU16(trailOff);
+                if (u16 % 2 === 1) oddCount++;
+                validCount++;
+            }
+            seg._entryFormat = (oddCount === validCount && validCount >= 3) ? 'u32_index' : 'page';
+            return seg._entryFormat;
+        }
+
+        _readTrailing(seg, offset) {
+            const trailOff = offset + 2 + seg.fieldWidth;
+            if (this._detectEntryFormat(seg) === 'u32_index') {
+                return { u32Index: this._readU32(trailOff) };
+            }
+            return { page: this._readU16(trailOff) };
+        }
+
         binarySearch(seg, searchValue, prefixMatch) {
             const matches = [];
             if (seg.fieldWidth === 0 || seg.fieldWidth > 100) return matches;
@@ -903,12 +936,8 @@
                 if (prefixMatch) { if (!stripped.startsWith(searchStripped)) break; }
                 else { if (stripped !== searchStripped) break; }
 
-                // Read u16 from trailing bytes - used as record index into Segment 0
-                const trailingStart = offset + 2 + seg.fieldWidth;
-                matches.push({
-                    value: stripped,
-                    recordIndex: this._readU16(trailingStart)
-                });
+                const trailing = this._readTrailing(seg, offset);
+                matches.push({ value: stripped, ...trailing });
             }
             return matches;
         }
@@ -926,15 +955,15 @@
                 const length = this._readU16(offset);
                 if (length !== seg.fieldWidth) break;
                 const entryValue = this._readEntryValue(offset, seg.fieldWidth);
-                const trailingStart = offset + 2 + seg.fieldWidth;
-                values.push({
-                    value: entryValue.trimEnd(),
-                    recordIndex: this._readU16(trailingStart)
-                });
+                const trailing = this._readTrailing(seg, offset);
+                values.push({ value: entryValue.trimEnd(), ...trailing });
             }
             return values;
         }
 
+        // Build u32_join_key → page_number lookup from Segment 0 (for u32_index format).
+        // Segment 0 record (15 bytes): [page:4][rec_id:1][type:1][pad:1][u32_join_key:4][extra:4]
+        // type 0x08 = data record, u32_join_key values are sequential odd numbers (1,3,5,7...).
         buildSegment0Lookup() {
             if (this._seg0Cache) return this._seg0Cache;
             const lookup = new Map();
@@ -954,37 +983,30 @@
             return lookup;
         }
 
-        // Resolve page numbers using record-index lookup into Segment 0.
-        // Each entry's recordIndex (u16) is a direct index into Segment 0's
-        // 15-byte records. The page number is the u32 at that record's offset.
+        // Resolve page numbers from entries.
+        // Format A ('page'): page number is directly in trailing bytes (u16).
+        // Format B ('u32_index'): u32 is a join key — look up in Segment 0.
         resolvePages(entries) {
             if (entries.length === 0) return [];
 
-            // Try Segment 0 record-index resolution
-            if (this.segments.length > 0) {
-                const seg0 = this.segments[0];
-                const recordSize = 15;
-                const end = Math.min(seg0.offset + seg0.size, this.data.length);
-                const maxRecords = Math.floor((end - seg0.dataOffset) / recordSize);
-
-                if (maxRecords > 0) {
-                    return entries.map(e => {
-                        const idx = e.recordIndex;
-                        if (idx >= 0 && idx < maxRecords) {
-                            const recOff = seg0.dataOffset + idx * recordSize;
-                            const pageRaw = this._readU32(recOff);
-                            const page = pageRaw & 0x7FFFFFFF;
-                            return { value: e.value, page, format: 'record_index' };
-                        }
-                        // Fallback: use recordIndex directly as page number
-                        return { value: e.value, page: idx, format: 'direct' };
-                    });
-                }
+            // Format A: entries have .page directly
+            if (entries[0].page !== undefined) {
+                return entries.map(e => ({ value: e.value, page: e.page, format: 'page' }));
             }
 
-            // No Segment 0: use recordIndex directly as page number
+            // Format B: entries have .u32Index — look up via Segment 0 join key
+            const lookup = this.buildSegment0Lookup();
+            if (lookup.size > 0) {
+                return entries.map(e => {
+                    const page = lookup.get(e.u32Index);
+                    if (page !== undefined) return { value: e.value, page, format: 'u32_index' };
+                    return { value: e.value, page: 0, format: 'u32_unresolved' };
+                });
+            }
+
+            // No Segment 0 data: cannot resolve u32_index entries
             return entries.map(e => ({
-                value: e.value, page: e.recordIndex, format: 'direct'
+                value: e.value, page: 0, format: 'u32_unresolved'
             }));
         }
     }
