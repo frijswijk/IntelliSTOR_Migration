@@ -861,37 +861,13 @@
             return v;
         }
 
-        // Detect entry format for a segment by sampling trailing bytes.
-        // Two formats exist (both entry_size = 7 + fieldWidth):
-        //   Format A (small files): [length:2][value:N][page:2][flags:3] — page is u16
-        //   Format B (large files):  [length:2][value:N][u32_index:4][last:1] — u32 join key
-        // Detection: if ALL sampled u16 values at trailing[0:2] are odd → Format B.
-        _detectEntryFormat(seg) {
-            if (seg._entryFormat) return seg._entryFormat;
-            const entrySize = 7 + seg.fieldWidth;
-            const endBoundary = Math.min(seg.offset + seg.size, this.data.length);
-            const totalEntries = Math.floor((endBoundary - seg.dataOffset) / entrySize);
-            const probeCount = Math.min(100, totalEntries);
-            let oddCount = 0, validCount = 0;
-            for (let i = 0; i < probeCount; i++) {
-                const off = seg.dataOffset + i * entrySize;
-                if (off + entrySize > endBoundary) break;
-                if (this._readU16(off) !== seg.fieldWidth) break;
-                const trailOff = off + 2 + seg.fieldWidth;
-                const u16 = this._readU16(trailOff);
-                if (u16 % 2 === 1) oddCount++;
-                validCount++;
-            }
-            seg._entryFormat = (oddCount === validCount && validCount >= 3) ? 'u32_index' : 'page';
-            return seg._entryFormat;
-        }
-
+        // Always read BOTH interpretations of the 5 trailing bytes:
+        //   Format A (small): [page:u16][flags:3] — page number directly
+        //   Format B (large): [u32_index:u32][last:1] — join key to Segment 0
+        // resolvePages() will try both and pick the valid one.
         _readTrailing(seg, offset) {
             const trailOff = offset + 2 + seg.fieldWidth;
-            if (this._detectEntryFormat(seg) === 'u32_index') {
-                return { u32Index: this._readU32(trailOff) };
-            }
-            return { page: this._readU16(trailOff) };
+            return { u16page: this._readU16(trailOff), u32Index: this._readU32(trailOff) };
         }
 
         binarySearch(seg, searchValue, prefixMatch) {
@@ -986,31 +962,34 @@
             return lookup;
         }
 
-        // Resolve page numbers from entries.
-        // Format A ('page'): page number is directly in trailing bytes (u16).
-        // Format B ('u32_index'): u32 is a join key — look up in Segment 0.
-        resolvePages(entries) {
+        // Resolve page numbers from entries. Entries carry both u16page (Format A)
+        // and u32Index (Format B). Try both, pick the one that produces valid pages.
+        // maxPage = total pages in RPT (pass 0 if unknown).
+        resolvePages(entries, maxPage) {
             if (entries.length === 0) return [];
+            maxPage = maxPage || 0;
 
-            // Format A: entries have .page directly
-            if (entries[0].page !== undefined) {
-                return entries.map(e => ({ value: e.value, page: e.page, format: 'page' }));
-            }
+            // Format A: u16page is a direct spool page number
+            const pagesA = entries.map(e => e.u16page);
+            const validA = maxPage > 0
+                ? pagesA.filter(p => p >= 1 && p <= maxPage).length
+                : pagesA.filter(p => p >= 1 && p <= 0xFFFF).length;
 
-            // Format B: entries have .u32Index — look up via Segment 0 join key
+            // Format B: u32Index is a join key into Segment 0
             const lookup = this.buildSegment0Lookup();
+            let pagesB = null, validB = 0;
             if (lookup.size > 0) {
-                return entries.map(e => {
-                    const page = lookup.get(e.u32Index);
-                    if (page !== undefined) return { value: e.value, page, format: 'u32_index' };
-                    return { value: e.value, page: 0, format: 'u32_unresolved' };
-                });
+                pagesB = entries.map(e => lookup.get(e.u32Index) || 0);
+                validB = maxPage > 0
+                    ? pagesB.filter(p => p >= 1 && p <= maxPage).length
+                    : pagesB.filter(p => p >= 1).length;
             }
 
-            // No Segment 0 data: cannot resolve u32_index entries
-            return entries.map(e => ({
-                value: e.value, page: 0, format: 'u32_unresolved'
-            }));
+            // Pick the format that resolves the most entries to valid pages
+            if (validA >= validB) {
+                return entries.map((e, i) => ({ value: e.value, page: pagesA[i], format: 'page' }));
+            }
+            return entries.map((e, i) => ({ value: e.value, page: pagesB[i], format: 'u32_index' }));
         }
     }
 
@@ -1464,7 +1443,7 @@
         bottomPanel.style.height = '';
         switchTab('tabDetails');
 
-        document.getElementById('detailFilename').textContent = `${instance.FILENAME} (${instance.RPT_FILENAME || ''})`;
+        document.getElementById('detailFilename').textContent = `${instance.FILENAME} (${instance.RPT_FILENAME || ''}) (${instance.MAP_FILENAME || ''})`;
         document.getElementById('detailRpt').innerHTML = instance._rptExists ? '<span class="badge badge-yes">Yes</span>' : '<span class="badge badge-no">No</span>';
         document.getElementById('detailMap').innerHTML = instance._mapExists ? '<span class="badge badge-yes">Yes</span>' : '<span class="badge badge-no">No</span>';
         document.getElementById('detailSections').textContent = instance.SEGMENTS || '-';
@@ -1626,7 +1605,7 @@
         const t0 = performance.now();
         const prefixMatch = document.getElementById('prefixToggle').checked;
         const matches = AppState.mapParser.binarySearch(seg, searchValue, prefixMatch);
-        const results = AppState.mapParser.resolvePages(matches);
+        const results = AppState.mapParser.resolvePages(matches, AppState.rptPageEntries.length);
         const elapsed = (performance.now() - t0).toFixed(1);
         AppState.searchResults = results;
         renderSearchResults(results);
@@ -1643,7 +1622,7 @@
 
         const t0 = performance.now();
         const allEntries = AppState.mapParser.listAllValues(seg);
-        const results = AppState.mapParser.resolvePages(allEntries);
+        const results = AppState.mapParser.resolvePages(allEntries, AppState.rptPageEntries.length);
         const elapsed = (performance.now() - t0).toFixed(1);
 
         const valueMap = new Map();
