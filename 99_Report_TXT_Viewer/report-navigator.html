@@ -1,0 +1,2197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IntelliSTOR Report Navigator</title>
+    <script src="libs/pako.min.js"></script>
+    <style>
+        /* ===========================
+           CSS VARIABLES (THEMING)
+           =========================== */
+        :root {
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --bg-tertiary: #0f3460;
+            --accent-primary: #e94560;
+            --accent-secondary: #3498db;
+            --text-primary: #e0e0e0;
+            --text-secondary: #b8b8b8;
+            --text-muted: #888;
+            --report-bg: #0a0a0a;
+            --report-text: #e0e0e0;
+            --border-color: #0f3460;
+            --highlight-bg: #ffff00;
+            --highlight-text: #000;
+            --success: #2ecc71;
+            --warning: #f39c12;
+            --error: #e74c3c;
+            --chip-bg: #2a2a4e;
+            --chip-text: #b8b8b8;
+            --chip-active-bg: #e94560;
+            --chip-active-text: #fff;
+            --row-hover: rgba(233,69,96,0.15);
+            --row-selected: rgba(233,69,96,0.3);
+            --scrollbar-track: #16213e;
+            --scrollbar-thumb: #0f3460;
+        }
+
+        body.light-mode {
+            --bg-primary: #f5f5f5;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #e0e0e0;
+            --accent-primary: #d63447;
+            --accent-secondary: #2980b9;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --text-muted: #999;
+            --report-bg: #ffffff;
+            --report-text: #333333;
+            --border-color: #cccccc;
+            --chip-bg: #e0e0e0;
+            --chip-text: #666;
+            --chip-active-bg: #d63447;
+            --chip-active-text: #fff;
+            --row-hover: rgba(214,52,71,0.1);
+            --row-selected: rgba(214,52,71,0.2);
+            --scrollbar-track: #e0e0e0;
+            --scrollbar-thumb: #bbb;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+        ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--accent-primary); }
+
+        .app-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 16px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+            height: 42px;
+        }
+
+        .app-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--accent-primary);
+            letter-spacing: 0.5px;
+        }
+
+        .header-actions { display: flex; gap: 8px; align-items: center; }
+
+        .header-btn {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.15s;
+        }
+        .header-btn:hover { border-color: var(--accent-primary); color: var(--accent-primary); }
+        .header-btn.active { background: var(--accent-primary); color: #fff; border-color: var(--accent-primary); }
+
+        .folder-indicator {
+            display: inline-flex; align-items: center; gap: 4px;
+            font-size: 11px; color: var(--text-muted);
+            padding: 2px 6px; border-radius: 3px; background: var(--bg-primary);
+        }
+        .folder-indicator.set { color: var(--success); }
+        .folder-indicator .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--error); }
+        .folder-indicator.set .dot { background: var(--success); }
+
+        .main-container { display: flex; flex: 1; overflow: hidden; }
+
+        .panel {
+            display: flex; flex-direction: column;
+            border-right: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+        .panel:last-child { border-right: none; }
+        .panel-1 { width: 25%; min-width: 200px; }
+        .panel-2 { width: 35%; min-width: 280px; }
+        .panel-3 { flex: 1; min-width: 300px; }
+
+        .panel-header {
+            padding: 8px 12px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+        .panel-title {
+            font-size: 12px; font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .panel-content { flex: 1; overflow: auto; }
+
+        .filter-row {
+            display: flex; gap: 4px; padding: 6px 8px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            align-items: center; flex-shrink: 0;
+        }
+        .filter-input {
+            flex: 1; background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary); padding: 4px 8px;
+            border-radius: 3px; font-size: 12px; outline: none;
+        }
+        .filter-input:focus { border-color: var(--accent-primary); }
+        .filter-input::placeholder { color: var(--text-muted); }
+
+        .filter-btn {
+            background: transparent; border: 1px solid var(--border-color);
+            color: var(--text-muted); padding: 3px 7px;
+            border-radius: 3px; cursor: pointer; font-size: 11px; white-space: nowrap;
+        }
+        .filter-btn:hover { border-color: var(--accent-primary); color: var(--text-primary); }
+        .filter-btn.active { background: var(--accent-primary); color: #fff; border-color: var(--accent-primary); }
+
+        .data-table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+        .data-table th {
+            position: sticky; top: 0; background: var(--bg-tertiary);
+            color: var(--text-secondary); padding: 5px 8px;
+            text-align: left; font-weight: 600; font-size: 11px;
+            text-transform: uppercase; cursor: pointer;
+            user-select: none; white-space: nowrap; z-index: 1;
+        }
+        .data-table th:hover { color: var(--accent-primary); }
+        .data-table th .sort-arrow { font-size: 10px; margin-left: 2px; }
+        .data-table td {
+            padding: 4px 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            white-space: nowrap; overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .data-table tr { cursor: pointer; transition: background 0.1s; }
+        .data-table tbody tr:hover { background: var(--row-hover); }
+        .data-table tbody tr.selected { background: var(--row-selected); }
+
+        /* Species table column widths */
+        #speciesTable th:nth-child(1), #speciesTable td:nth-child(1) { width: auto; }
+        #speciesTable th:nth-child(2), #speciesTable td:nth-child(2) { width: 55px; }
+        #speciesTable th:nth-child(3), #speciesTable td:nth-child(3) { width: 50px; }
+        #speciesTable th:nth-child(4), #speciesTable td:nth-child(4) { width: 50px; }
+
+        /* Instance table column widths */
+        #instanceTable th:nth-child(1), #instanceTable td:nth-child(1) { width: auto; }
+        #instanceTable th:nth-child(2), #instanceTable td:nth-child(2) { width: 100px; }
+        #instanceTable th:nth-child(3), #instanceTable td:nth-child(3) { width: 50px; }
+        #instanceTable th:nth-child(4), #instanceTable td:nth-child(4) { width: 50px; }
+
+        .badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 10px; font-weight: 600; }
+        .badge-yes { background: rgba(46,204,113,0.2); color: var(--success); }
+        .badge-no { background: rgba(231,76,60,0.15); color: var(--error); }
+        .badge-count { background: rgba(52,152,219,0.2); color: var(--accent-secondary); }
+
+        /* Panel 2 horizontal splitter */
+        .panel2-hsplitter {
+            height: 5px; cursor: row-resize;
+            background: var(--border-color);
+            flex-shrink: 0;
+        }
+        .panel2-hsplitter:hover, .panel2-hsplitter.dragging {
+            background: var(--accent-primary);
+        }
+
+        /* Panel 2 bottom area: tabs + content */
+        .panel2-bottom {
+            display: flex; flex-direction: column;
+            border-top: 1px solid var(--border-color);
+            flex: 1; min-height: 80px; overflow: hidden;
+        }
+        .panel2-bottom.hidden { display: none !important; }
+        .tab-bar {
+            display: flex; gap: 0; background: var(--bg-tertiary);
+            flex-shrink: 0;
+        }
+        .tab-btn {
+            padding: 5px 12px; font-size: 11px; font-weight: 600;
+            color: var(--text-muted); background: transparent;
+            border: none; border-bottom: 2px solid transparent;
+            cursor: pointer; text-transform: uppercase; letter-spacing: 0.3px;
+        }
+        .tab-btn:hover { color: var(--text-primary); }
+        .tab-btn.active { color: var(--accent-primary); border-bottom-color: var(--accent-primary); }
+        .tab-btn.has-content::after { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--success); margin-left: 4px; vertical-align: middle; }
+        .tab-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+        .tab-pane { display: none; padding: 8px 12px; flex-direction: column; overflow: auto; }
+        .tab-pane.active { display: flex; flex: 1; }
+
+        .detail-card { padding: 0; }
+        .detail-section { margin-bottom: 8px; }
+        .detail-label {
+            font-size: 10px; text-transform: uppercase;
+            color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 4px;
+        }
+        .detail-value { font-size: 12px; color: var(--text-primary); }
+        .panel-content.kb-active { border-left: 2px solid var(--accent-primary); }
+
+        .field-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+        .field-chip {
+            display: inline-flex; align-items: center; gap: 4px;
+            padding: 3px 8px; border-radius: 12px;
+            background: var(--chip-bg); color: var(--chip-text);
+            font-size: 11px; cursor: pointer; transition: all 0.15s;
+            border: 1px solid transparent;
+        }
+        .field-chip:hover { border-color: var(--accent-primary); color: var(--text-primary); }
+        .field-chip.active { background: var(--chip-active-bg); color: var(--chip-active-text); border-color: var(--chip-active-bg); }
+        .field-chip .chip-meta { font-size: 9px; color: var(--text-muted); }
+        .field-chip.active .chip-meta { color: rgba(255,255,255,0.7); }
+
+        .search-row { display: flex; gap: 4px; margin-bottom: 6px; align-items: center; }
+        .search-input {
+            flex: 1; background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary); padding: 5px 8px;
+            border-radius: 3px; font-size: 12px; outline: none;
+        }
+        .search-input:focus { border-color: var(--accent-primary); }
+        .search-btn {
+            background: var(--accent-primary); border: none; color: #fff;
+            padding: 5px 12px; border-radius: 3px; cursor: pointer;
+            font-size: 12px; font-weight: 600;
+        }
+        .search-btn:hover { opacity: 0.85; }
+        .search-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .search-results-table { width: 100%; flex: 1; overflow: auto; }
+        #searchResultsTable { table-layout: auto; }
+        #searchResultsTable td { max-width: none; }
+
+        .viewer-toolbar {
+            display: flex; align-items: center; gap: 6px;
+            padding: 6px 10px; background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color); flex-shrink: 0;
+        }
+        .viewer-search-input {
+            width: 180px; background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary); padding: 4px 8px;
+            border-radius: 3px; font-size: 12px; outline: none;
+        }
+        .viewer-search-input:focus { border-color: var(--accent-primary); }
+        .viewer-btn {
+            background: transparent; border: 1px solid var(--border-color);
+            color: var(--text-secondary); padding: 3px 8px;
+            border-radius: 3px; cursor: pointer; font-size: 11px;
+        }
+        .viewer-btn:hover { border-color: var(--accent-primary); color: var(--accent-primary); }
+        .page-nav {
+            display: flex; align-items: center; gap: 4px;
+            margin-left: auto; font-size: 11px; color: var(--text-muted);
+        }
+        .page-input {
+            width: 50px; background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary); padding: 3px 6px;
+            border-radius: 3px; font-size: 11px; text-align: center; outline: none;
+        }
+
+        .viewer-display {
+            flex: 1; overflow: auto; background: var(--report-bg);
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 13px; line-height: 16px;
+            color: var(--report-text); padding: 0; position: relative;
+        }
+        .report-line { white-space: pre; padding: 0 8px; height: 16px; line-height: 16px; }
+        .page-separator {
+            text-align: center; color: var(--accent-primary);
+            background: var(--bg-tertiary); padding: 2px 0;
+            font-size: 11px; font-weight: 600; height: 16px;
+            line-height: 12px; user-select: none;
+        }
+        .search-highlight { background: var(--highlight-bg); color: var(--highlight-text); border-radius: 1px; }
+        .search-highlight-current { outline: 2px solid var(--accent-primary); }
+
+        .status-bar {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 3px 16px; background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color);
+            font-size: 11px; color: var(--text-muted);
+            flex-shrink: 0; height: 24px;
+        }
+        .status-left, .status-right { display: flex; gap: 16px; align-items: center; }
+
+        .overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+            display: flex; align-items: center; justify-content: center; z-index: 1000;
+        }
+        .overlay.hidden { display: none; }
+        .overlay-card {
+            background: var(--bg-secondary); border: 1px solid var(--border-color);
+            border-radius: 8px; padding: 24px 32px; max-width: 520px; width: 90%;
+        }
+        .overlay-title { font-size: 18px; font-weight: 600; color: var(--accent-primary); margin-bottom: 16px; }
+        .overlay-desc { font-size: 13px; color: var(--text-secondary); margin-bottom: 20px; line-height: 1.5; }
+        .folder-picker-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+        .folder-picker-label { font-size: 12px; font-weight: 600; color: var(--text-primary); min-width: 100px; }
+        .folder-picker-btn {
+            background: var(--bg-primary); border: 1px dashed var(--border-color);
+            color: var(--text-secondary); padding: 6px 14px; border-radius: 4px;
+            cursor: pointer; font-size: 12px; flex: 1; text-align: left;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .folder-picker-btn:hover { border-color: var(--accent-primary); }
+        .folder-picker-btn.set { border-style: solid; border-color: var(--success); color: var(--success); }
+        .overlay-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+        .overlay-btn { padding: 7px 20px; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600; }
+        .overlay-btn-primary { background: var(--accent-primary); border: none; color: #fff; }
+        .overlay-btn-primary:hover { opacity: 0.85; }
+        .overlay-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+        .overlay-btn-secondary { background: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); }
+        .overlay-btn-secondary:hover { border-color: var(--accent-primary); }
+
+        .spinner {
+            display: inline-block; width: 14px; height: 14px;
+            border: 2px solid var(--border-color);
+            border-top-color: var(--accent-primary);
+            border-radius: 50%; animation: spin 0.6s linear infinite;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-overlay {
+            position: absolute; inset: 0; background: rgba(0,0,0,0.5);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 10; font-size: 13px; color: var(--text-primary); gap: 8px;
+        }
+        .loading-overlay.hidden { display: none; }
+
+        .empty-state {
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; height: 100%;
+            color: var(--text-muted); font-size: 13px;
+            text-align: center; padding: 20px;
+        }
+        .empty-state-icon { font-size: 32px; margin-bottom: 8px; opacity: 0.5; }
+        .empty-state-hint { font-size: 11px; margin-top: 4px; color: var(--text-muted); opacity: 0.7; }
+
+        .panel-resizer {
+            width: 4px; cursor: col-resize; background: var(--border-color);
+            transition: background 0.15s; flex-shrink: 0;
+        }
+        .panel-resizer:hover, .panel-resizer.dragging { background: var(--accent-primary); }
+
+        .sections-list { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+        .section-chip {
+            padding: 2px 6px; border-radius: 3px; background: var(--bg-primary);
+            color: var(--text-muted); font-size: 10px; cursor: pointer;
+            border: 1px solid transparent;
+        }
+        .section-chip:hover { border-color: var(--accent-secondary); color: var(--accent-secondary); }
+        .section-chip.active { background: rgba(52,152,219,0.3); color: var(--accent-secondary); border-color: var(--accent-secondary); }
+
+        .hidden { display: none !important; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .mono { font-family: 'Consolas', 'Courier New', monospace; }
+    </style>
+</head>
+<body>
+    <header class="app-header">
+        <span class="app-title">IntelliSTOR Report Navigator</span>
+        <div class="header-actions">
+            <div class="folder-indicator" id="indCsv" title="CSV folder"><span class="dot"></span> CSV</div>
+            <div class="folder-indicator" id="indRpt" title="RPT folder"><span class="dot"></span> RPT</div>
+            <div class="folder-indicator" id="indMap" title="MAP folder"><span class="dot"></span> MAP</div>
+            <button class="header-btn" id="btnFolders" title="Configure folders">Folders</button>
+            <button class="header-btn" id="btnTheme" title="Toggle light/dark theme">Theme</button>
+        </div>
+    </header>
+
+    <div class="main-container" id="mainContainer">
+        <!-- PANEL 1: Species -->
+        <div class="panel panel-1" id="panel1">
+            <div class="panel-header"><span class="panel-title">Species</span></div>
+            <div class="filter-row">
+                <input type="text" class="filter-input" id="speciesFilter" placeholder="Filter species...">
+                <button class="filter-btn" id="btnFilterRpt" title="Show only species with RPT files">RPT>0</button>
+                <button class="filter-btn" id="btnFilterMap" title="Show only species with MAP files">MAP>0</button>
+            </div>
+            <div class="panel-content" id="speciesListContainer">
+                <table class="data-table" id="speciesTable">
+                    <thead><tr>
+                        <th data-col="REPORT_SPECIES_NAME">Name <span class="sort-arrow"></span></th>
+                        <th data-col="INSTANCE_COUNT" class="text-right">Inst <span class="sort-arrow"></span></th>
+                        <th data-col="RPT_FILES_FOUND" class="text-right">RPT <span class="sort-arrow"></span></th>
+                        <th data-col="MAP_FILES_FOUND" class="text-right">MAP <span class="sort-arrow"></span></th>
+                    </tr></thead>
+                    <tbody id="speciesBody"></tbody>
+                </table>
+                <div class="empty-state" id="speciesEmpty">
+                    <div class="empty-state-icon">&#128194;</div>
+                    No species loaded
+                    <span class="empty-state-hint">Click "Folders" to select your CSV data folder</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel-resizer" data-left="panel1" data-right="panel2"></div>
+
+        <!-- PANEL 2: Instances -->
+        <div class="panel panel-2" id="panel2">
+            <div class="panel-header"><span class="panel-title" id="panel2Title">Instances</span></div>
+            <div class="filter-row" id="instanceFilterRow">
+                <input type="text" class="filter-input" id="instanceFilter" placeholder="Filter instances...">
+                <button class="filter-btn" id="btnFilterInstRpt" title="RPT exists">RPT</button>
+                <button class="filter-btn" id="btnFilterInstMap" title="MAP exists">MAP</button>
+            </div>
+            <div class="panel-content" id="instanceListContainer" style="flex:1; overflow:auto;">
+                <table class="data-table" id="instanceTable">
+                    <thead><tr>
+                        <th data-col="FILENAME">File <span class="sort-arrow"></span></th>
+                        <th data-col="REPORT_DATE">Date <span class="sort-arrow"></span></th>
+                        <th data-col="RPT_FILE_EXISTS" class="text-center">RPT <span class="sort-arrow"></span></th>
+                        <th data-col="MAP_FILE_EXISTS" class="text-center">MAP <span class="sort-arrow"></span></th>
+                    </tr></thead>
+                    <tbody id="instanceBody"></tbody>
+                </table>
+                <div class="empty-state" id="instanceEmpty">
+                    <div class="empty-state-icon">&#128196;</div>
+                    Select a species
+                </div>
+            </div>
+
+            <!-- Horizontal splitter -->
+            <div class="panel2-hsplitter hidden" id="panel2Splitter"></div>
+            <!-- Tabbed bottom area -->
+            <div class="panel2-bottom hidden" id="panel2Bottom">
+                <div class="tab-bar">
+                    <button class="tab-btn active" data-tab="tabDetails">Details</button>
+                    <button class="tab-btn" data-tab="tabSections" id="tabBtnSections">Sections</button>
+                    <button class="tab-btn" data-tab="tabSearch" id="tabBtnSearch">Index Search</button>
+                </div>
+                <div class="tab-content">
+                    <!-- Tab: Details -->
+                    <div class="tab-pane active" id="tabDetails">
+                        <div class="detail-card">
+                            <div class="detail-section">
+                                <div class="detail-label">Instance</div>
+                                <div class="detail-value mono" id="detailFilename">-</div>
+                            </div>
+                            <div class="detail-section" style="display:flex; gap:16px; flex-wrap:wrap;">
+                                <div><div class="detail-label">RPT File</div><div class="detail-value" id="detailRpt">-</div></div>
+                                <div><div class="detail-label">MAP File</div><div class="detail-value" id="detailMap">-</div></div>
+                                <div><div class="detail-label">Sections</div><div class="detail-value" id="detailSections">-</div></div>
+                                <div><div class="detail-label">Date</div><div class="detail-value" id="detailDate">-</div></div>
+                                <div><div class="detail-label">Binary</div><div class="detail-value" id="detailBinary">-</div></div>
+                            </div>
+                            <div class="detail-section" id="fieldsSection">
+                                <div class="detail-label">Index Fields</div>
+                                <div class="field-chips" id="fieldChips"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Tab: Sections -->
+                    <div class="tab-pane" id="tabSections">
+                        <div class="detail-label">Click a section to extract its pages into the viewer</div>
+                        <div class="sections-list" id="sectionChips" style="margin-top:6px;"></div>
+                    </div>
+                    <!-- Tab: Index Search -->
+                    <div class="tab-pane" id="tabSearch">
+                        <div class="detail-label" id="searchFieldLabel">Select an index field from Details tab</div>
+                        <div class="search-row" id="searchRow" style="display:none;">
+                            <input type="text" class="search-input" id="mapSearchInput" placeholder="Search value...">
+                            <label style="font-size:11px; color:var(--text-muted); display:flex; align-items:center; gap:3px;">
+                                <input type="checkbox" id="prefixToggle"> Prefix
+                            </label>
+                            <button class="search-btn" id="btnMapSearch">Search</button>
+                            <button class="search-btn" id="btnListValues" style="background:var(--accent-secondary)">List All</button>
+                        </div>
+                        <div class="search-results-table" id="searchResultsContainer">
+                            <table class="data-table" id="searchResultsTable">
+                                <thead><tr><th>Value</th><th class="text-right">Page</th></tr></thead>
+                                <tbody id="searchResultsBody"></tbody>
+                            </table>
+                        </div>
+                        <div id="searchStatus" style="font-size:11px; color:var(--text-muted); margin-top:4px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel-resizer" data-left="panel2" data-right="panel3"></div>
+
+        <!-- PANEL 3: Viewer -->
+        <div class="panel panel-3" id="panel3">
+            <div class="viewer-toolbar">
+                <input type="text" class="viewer-search-input" id="viewerSearchInput" placeholder="Search text...">
+                <button class="viewer-btn" id="btnSearchPrev" title="Previous match">&uarr;</button>
+                <button class="viewer-btn" id="btnSearchNext" title="Next match">&darr;</button>
+                <span id="viewerSearchStatus" style="font-size:11px; color:var(--text-muted);"></span>
+                <div class="page-nav">
+                    <span>Page</span>
+                    <input type="text" class="page-input" id="pageInput" value="1">
+                    <span id="pageTotalLabel">/ 0</span>
+                    <button class="viewer-btn" id="btnPagePrev">&laquo;</button>
+                    <button class="viewer-btn" id="btnPageNext">&raquo;</button>
+                    <button class="viewer-btn" id="btnExtractAll" title="View all pages">All</button>
+                    <button class="viewer-btn" id="btnCopyText" title="Copy to clipboard">Copy</button>
+                </div>
+            </div>
+            <div class="viewer-display" id="viewerDisplay">
+                <div class="empty-state" id="viewerEmpty">
+                    <div class="empty-state-icon">&#128209;</div>
+                    No report loaded
+                    <span class="empty-state-hint">Click page numbers in search results to view pages</span>
+                </div>
+                <div class="loading-overlay hidden" id="viewerLoading">
+                    <span class="spinner"></span> Decompressing pages...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="status-bar">
+        <div class="status-left"><span id="statusMessage">Ready</span></div>
+        <div class="status-right">
+            <span id="statusSpeciesCount"></span>
+            <span id="statusTiming"></span>
+        </div>
+    </div>
+
+    <!-- Folder Setup Overlay -->
+    <div class="overlay hidden" id="folderOverlay">
+        <div class="overlay-card">
+            <div class="overlay-title">Folder Setup</div>
+            <div class="overlay-desc">
+                Select the folders containing your migration data. The CSV folder must contain
+                <code>species_summary_2025_2025.csv</code> and per-species CSVs. RPT and MAP folders
+                contain the binary report files.<br><br>
+                <em style="color:var(--warning)">Requires Chrome or Edge (File System Access API).</em>
+            </div>
+            <div class="folder-picker-row">
+                <span class="folder-picker-label">CSV Data</span>
+                <button class="folder-picker-btn" id="pickCsv">Click to select folder...</button>
+            </div>
+            <div class="folder-picker-row">
+                <span class="folder-picker-label">RPT Files</span>
+                <button class="folder-picker-btn" id="pickRpt">Click to select folder...</button>
+            </div>
+            <div class="folder-picker-row">
+                <span class="folder-picker-label">MAP Files</span>
+                <button class="folder-picker-btn" id="pickMap">Click to select folder...</button>
+            </div>
+            <div class="overlay-actions">
+                <button class="overlay-btn overlay-btn-secondary" id="btnOverlayCancel">Cancel</button>
+                <button class="overlay-btn overlay-btn-primary" id="btnOverlayDone">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    'use strict';
+
+    // ============================================================================
+    // APP STATE
+    // ============================================================================
+    const AppState = {
+        csvDirHandle: null, rptDirHandle: null, mapDirHandle: null,
+        speciesList: [], speciesFiltered: [], selectedSpecies: null,
+        instanceList: [], instanceFiltered: [], selectedInstance: null,
+        mapParser: null, mapSegments: [], selectedField: null, searchResults: [],
+        rptData: null, rptHeader: null, rptPageEntries: [], rptSections: [],
+        decompressedPages: {},
+        viewerPages: [], viewerAllLines: [], viewerTotalPages: 0,
+        currentViewerPage: 1, viewerSearchMatches: [], viewerSearchCurrentIdx: -1,
+        speciesSortCol: 'INSTANCE_COUNT', speciesSortAsc: false,
+        instanceSortCol: 'REPORT_DATE', instanceSortAsc: false,
+        filterRpt: false, filterMap: false, filterInstRpt: false, filterInstMap: false,
+        activePanel: 'species',
+    };
+
+    const RPTINSTHDR_OFFSET = 0xF0;
+    const DB_NAME = 'ReportNavigator';
+    const DB_STORE = 'folderHandles';
+
+    // ============================================================================
+    // INDEXEDDB PERSISTENCE
+    // ============================================================================
+    function openDB() {
+        return new Promise((resolve, reject) => {
+            const req = indexedDB.open(DB_NAME, 1);
+            req.onupgradeneeded = () => req.result.createObjectStore(DB_STORE);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+    }
+
+    async function saveHandle(key, handle) {
+        const db = await openDB();
+        const tx = db.transaction(DB_STORE, 'readwrite');
+        tx.objectStore(DB_STORE).put(handle, key);
+        return new Promise((resolve, reject) => {
+            tx.oncomplete = resolve;
+            tx.onerror = () => reject(tx.error);
+        });
+    }
+
+    async function loadHandle(key) {
+        const db = await openDB();
+        const tx = db.transaction(DB_STORE, 'readonly');
+        const req = tx.objectStore(DB_STORE).get(key);
+        return new Promise((resolve, reject) => {
+            req.onsuccess = () => resolve(req.result || null);
+            req.onerror = () => reject(req.error);
+        });
+    }
+
+    // ============================================================================
+    // FOLDER MANAGER
+    // ============================================================================
+    async function pickFolder(key) {
+        try {
+            const handle = await window.showDirectoryPicker({ mode: 'read' });
+            await saveHandle(key, handle);
+            return handle;
+        } catch (e) {
+            if (e.name !== 'AbortError') console.error('pickFolder:', e);
+            return null;
+        }
+    }
+
+    async function restoreHandles() {
+        for (const key of ['csv', 'rpt', 'map']) {
+            try {
+                const handle = await loadHandle(key);
+                if (handle) {
+                    const perm = await handle.queryPermission({ mode: 'read' });
+                    if (perm === 'granted') setHandle(key, handle);
+                }
+            } catch (e) { /* Permission not granted or handle invalid */ }
+        }
+    }
+
+    function setHandle(key, handle) {
+        if (key === 'csv') AppState.csvDirHandle = handle;
+        else if (key === 'rpt') AppState.rptDirHandle = handle;
+        else if (key === 'map') AppState.mapDirHandle = handle;
+        updateFolderIndicators();
+    }
+
+    async function readTextFile(dirHandle, filename) {
+        const fileHandle = await dirHandle.getFileHandle(filename);
+        const file = await fileHandle.getFile();
+        return await file.text();
+    }
+
+    async function readBinaryFile(dirHandle, filename) {
+        const fileHandle = await dirHandle.getFileHandle(filename);
+        const file = await fileHandle.getFile();
+        const buffer = await file.arrayBuffer();
+        return new Uint8Array(buffer);
+    }
+
+    // ============================================================================
+    // CSV PARSER
+    // ============================================================================
+    function parseCSV(text) {
+        const lines = text.split(/\r?\n/).filter(l => l.trim());
+        if (lines.length === 0) return [];
+        const headers = parseCSVLine(lines[0]);
+        const rows = [];
+        for (let i = 1; i < lines.length; i++) {
+            const values = parseCSVLine(lines[i]);
+            const row = {};
+            for (let j = 0; j < headers.length; j++) row[headers[j]] = values[j] || '';
+            rows.push(row);
+        }
+        return rows;
+    }
+
+    function parseCSVLine(line) {
+        const fields = [];
+        let current = '', inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+            const c = line[i];
+            if (inQuotes) {
+                if (c === '"') {
+                    if (i + 1 < line.length && line[i + 1] === '"') { current += '"'; i++; }
+                    else inQuotes = false;
+                } else current += c;
+            } else {
+                if (c === '"') inQuotes = true;
+                else if (c === ',') { fields.push(current); current = ''; }
+                else current += c;
+            }
+        }
+        fields.push(current);
+        return fields;
+    }
+
+    function parseIndexFields(fieldStr) {
+        if (!fieldStr || !fieldStr.trim()) return [];
+        return fieldStr.split('|').map(part => {
+            const [name, lineId, fieldId] = part.split('#');
+            return { name: name || '', lineId: parseInt(lineId) || 0, fieldId: parseInt(fieldId) || 0 };
+        }).filter(f => f.name);
+    }
+
+    // ============================================================================
+    // MAP FILE PARSER (ported from papyrus_rpt_search.cpp)
+    // ============================================================================
+    class MapFileParser {
+        constructor() {
+            this.data = null;
+            this.segments = [];
+            this.header = { filename: '', dateString: '', segmentCount: 0, totalSize: 0 };
+            this.loaded = false;
+            this._seg0Cache = null;
+        }
+
+        static ME_MARKER = new Uint8Array([0x2A, 0x00, 0x2A, 0x00, 0x4D, 0x00, 0x45, 0x00]);
+
+        load(buffer, filename) {
+            this.data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+            this.loaded = true;
+            this.header.totalSize = this.data.length;
+            this.header.filename = filename || '';
+            this._parseHeader();
+            this._parseSegments();
+        }
+
+        _readU16(offset) {
+            if (offset + 2 > this.data.length) return 0;
+            return this.data[offset] | (this.data[offset + 1] << 8);
+        }
+
+        _readU32(offset) {
+            if (offset + 4 > this.data.length) return 0;
+            return (this.data[offset] | (this.data[offset + 1] << 8) |
+                    (this.data[offset + 2] << 16) | (this.data[offset + 3] << 24)) >>> 0;
+        }
+
+        _parseHeader() {
+            if (this.data.length < 90) return;
+            if (this.data.length >= 20) this.header.segmentCount = this._readU16(18);
+            if (this.data.length >= 0x34) {
+                let date = '';
+                for (let i = 0x20; i + 1 < 0x34 && i + 1 < this.data.length; i += 2) {
+                    const c = this.data[i];
+                    if (this.data[i + 1] === 0 && c !== 0) date += String.fromCharCode(c);
+                }
+                this.header.dateString = date.replace(/\0+$/, '');
+            }
+        }
+
+        _parseSegments() {
+            if (!this.loaded || this.data.length < 10) return;
+            this.segments = [];
+            const marker = MapFileParser.ME_MARKER;
+            const mePositions = [];
+            for (let i = 0; i + marker.length <= this.data.length; i++) {
+                let found = true;
+                for (let j = 0; j < marker.length; j++) {
+                    if (this.data[i + j] !== marker[j]) { found = false; break; }
+                }
+                if (found) { mePositions.push(i); i += marker.length - 1; }
+            }
+            this.header.segmentCount = mePositions.length;
+
+            for (let segIdx = 0; segIdx < mePositions.length; segIdx++) {
+                const mePos = mePositions[segIdx];
+                const nextPos = segIdx + 1 < mePositions.length ? mePositions[segIdx + 1] : this.data.length;
+                const seg = { index: segIdx, offset: mePos, size: nextPos - mePos,
+                    dataOffset: 0, lineId: 0, fieldId: 0, fieldWidth: 0, entryCount: 0 };
+
+                if (segIdx === 0) {
+                    seg.dataOffset = mePos + 0xC2;
+                } else {
+                    const metaOff = mePos + 24;
+                    if (metaOff + 16 <= this.data.length) {
+                        seg.lineId     = this._readU16(metaOff + 2);
+                        seg.fieldId    = this._readU16(metaOff + 6);
+                        seg.fieldWidth = this._readU16(metaOff + 10);
+                        seg.entryCount = this._readU16(metaOff + 14);
+                    }
+                    seg.dataOffset = this._findDataOffset(mePos, nextPos, seg.fieldWidth);
+                }
+                this.segments.push(seg);
+            }
+        }
+
+        _findDataOffset(mePos, nextPos, fieldWidth) {
+            if (fieldWidth === 0 || fieldWidth > 100) return mePos + 0xCD;
+            const searchStart = mePos + 0xC0;
+            const searchEnd = Math.min(mePos + 0xE0, nextPos - 2);
+            for (let probe = searchStart; probe < searchEnd; probe++) {
+                if (probe + 2 > this.data.length) break;
+                const probeLen = this._readU16(probe);
+                if (probeLen === fieldWidth && probe + 2 + fieldWidth <= this.data.length) {
+                    let printable = 0;
+                    for (let j = 0; j < fieldWidth; j++) {
+                        const b = this.data[probe + 2 + j];
+                        if (b >= 32 && b < 127) printable++;
+                    }
+                    if (printable > fieldWidth / 2) return probe;
+                }
+            }
+            return mePos + 0xCD;
+        }
+
+        findSegmentForField(lineId, fieldId) {
+            return this.segments.find(s => s.index > 0 && s.lineId === lineId && s.fieldId === fieldId) || null;
+        }
+
+        _readEntryValue(offset, fieldWidth) {
+            let v = '';
+            for (let j = 0; j < fieldWidth; j++) v += String.fromCharCode(this.data[offset + 2 + j]);
+            return v;
+        }
+
+        binarySearch(seg, searchValue, prefixMatch) {
+            const matches = [];
+            if (seg.fieldWidth === 0 || seg.fieldWidth > 100) return matches;
+            const entrySize = 7 + seg.fieldWidth;
+            const endBoundary = Math.min(seg.offset + seg.size, this.data.length);
+            const totalEntries = Math.floor((endBoundary - seg.dataOffset) / entrySize);
+            if (totalEntries <= 0) return matches;
+
+            let paddedSearch = searchValue;
+            while (paddedSearch.length < seg.fieldWidth) paddedSearch += ' ';
+            paddedSearch = paddedSearch.substring(0, seg.fieldWidth);
+
+            let lo = 0, hi = totalEntries - 1, firstMatch = -1;
+            while (lo <= hi) {
+                const mid = (lo + hi) >> 1;
+                const offset = seg.dataOffset + mid * entrySize;
+                if (offset + entrySize > endBoundary) { hi = mid - 1; continue; }
+                const length = this._readU16(offset);
+                if (length !== seg.fieldWidth) { hi = mid - 1; continue; }
+                const entryValue = this._readEntryValue(offset, seg.fieldWidth);
+
+                if (prefixMatch) {
+                    const ep = entryValue.substring(0, searchValue.length);
+                    if (ep < searchValue) lo = mid + 1;
+                    else if (ep > searchValue) hi = mid - 1;
+                    else { firstMatch = mid; hi = mid - 1; }
+                } else {
+                    if (entryValue < paddedSearch) lo = mid + 1;
+                    else if (entryValue > paddedSearch) hi = mid - 1;
+                    else { firstMatch = mid; hi = mid - 1; }
+                }
+            }
+            if (firstMatch < 0) return matches;
+
+            for (let i = firstMatch; i < totalEntries; i++) {
+                const offset = seg.dataOffset + i * entrySize;
+                if (offset + entrySize > endBoundary) break;
+                const length = this._readU16(offset);
+                if (length !== seg.fieldWidth) break;
+                const entryValue = this._readEntryValue(offset, seg.fieldWidth);
+                const stripped = entryValue.trimEnd();
+                const searchStripped = searchValue.trimEnd();
+                if (prefixMatch) { if (!stripped.startsWith(searchStripped)) break; }
+                else { if (stripped !== searchStripped) break; }
+
+                // Read u16 from trailing bytes - used as record index into Segment 0
+                const trailingStart = offset + 2 + seg.fieldWidth;
+                matches.push({
+                    value: stripped,
+                    recordIndex: this._readU16(trailingStart)
+                });
+            }
+            return matches;
+        }
+
+        listAllValues(seg) {
+            const values = [];
+            if (seg.fieldWidth === 0 || seg.fieldWidth > 100) return values;
+            const entrySize = 7 + seg.fieldWidth;
+            const endBoundary = Math.min(seg.offset + seg.size, this.data.length);
+            const totalEntries = Math.floor((endBoundary - seg.dataOffset) / entrySize);
+
+            for (let i = 0; i < totalEntries; i++) {
+                const offset = seg.dataOffset + i * entrySize;
+                if (offset + entrySize > endBoundary) break;
+                const length = this._readU16(offset);
+                if (length !== seg.fieldWidth) break;
+                const entryValue = this._readEntryValue(offset, seg.fieldWidth);
+                const trailingStart = offset + 2 + seg.fieldWidth;
+                values.push({
+                    value: entryValue.trimEnd(),
+                    recordIndex: this._readU16(trailingStart)
+                });
+            }
+            return values;
+        }
+
+        buildSegment0Lookup() {
+            if (this._seg0Cache) return this._seg0Cache;
+            const lookup = new Map();
+            if (this.segments.length === 0) { this._seg0Cache = lookup; return lookup; }
+            const seg0 = this.segments[0];
+            const recordSize = 15;
+            let offset = seg0.dataOffset;
+            const end = Math.min(seg0.offset + seg0.size, this.data.length);
+            while (offset + recordSize <= end) {
+                const pageRaw = this._readU32(offset);
+                const recType = this.data[offset + 5];
+                const u32JoinKey = this._readU32(offset + 7);
+                if (recType === 0x08) lookup.set(u32JoinKey, pageRaw & 0x7FFFFFFF);
+                offset += recordSize;
+            }
+            this._seg0Cache = lookup;
+            return lookup;
+        }
+
+        // Resolve page numbers using record-index lookup into Segment 0.
+        // Each entry's recordIndex (u16) is a direct index into Segment 0's
+        // 15-byte records. The page number is the u32 at that record's offset.
+        resolvePages(entries) {
+            if (entries.length === 0) return [];
+
+            // Try Segment 0 record-index resolution
+            if (this.segments.length > 0) {
+                const seg0 = this.segments[0];
+                const recordSize = 15;
+                const end = Math.min(seg0.offset + seg0.size, this.data.length);
+                const maxRecords = Math.floor((end - seg0.dataOffset) / recordSize);
+
+                if (maxRecords > 0) {
+                    return entries.map(e => {
+                        const idx = e.recordIndex;
+                        if (idx >= 0 && idx < maxRecords) {
+                            const recOff = seg0.dataOffset + idx * recordSize;
+                            const pageRaw = this._readU32(recOff);
+                            const page = pageRaw & 0x7FFFFFFF;
+                            return { value: e.value, page, format: 'record_index' };
+                        }
+                        // Fallback: use recordIndex directly as page number
+                        return { value: e.value, page: idx, format: 'direct' };
+                    });
+                }
+            }
+
+            // No Segment 0: use recordIndex directly as page number
+            return entries.map(e => ({
+                value: e.value, page: e.recordIndex, format: 'direct'
+            }));
+        }
+    }
+
+    // ============================================================================
+    // RPT FILE PARSER (from IRPT_Viewer.html)
+    // ============================================================================
+    function parseRptHeader(data) {
+        const sig = String.fromCharCode(...data.slice(0, 10));
+        if (sig !== 'RPTFILEHDR') return null;
+        let headerEnd = data.indexOf(0x1A);
+        if (headerEnd === -1) headerEnd = data.indexOf(0x00);
+        if (headerEnd === -1) headerEnd = 192;
+        const headerLine = new TextDecoder('ascii').decode(data.slice(0, headerEnd));
+        const parts = headerLine.split('\t');
+        let domainId = 0, speciesId = 0, timestamp = '';
+        if (parts.length >= 2) {
+            const idPart = parts[1];
+            if (idPart.includes(':')) {
+                const [d, s] = idPart.split(':');
+                domainId = parseInt(d) || 0;
+                speciesId = parseInt(s) || 0;
+            }
+        }
+        if (parts.length >= 3) timestamp = parts[2].trim();
+        const view = new DataView(data.buffer, data.byteOffset);
+        return {
+            domainId, speciesId, timestamp,
+            pageCount: view.getUint32(0x1D4, true),
+            sectionCount: view.getUint32(0x1E4, true),
+            sectionDataOffset: view.getUint32(0x1E8, true),
+            binaryObjectCount: view.getUint32(0x1F4, true)
+        };
+    }
+
+    function findMarker(data, markerStr, searchStart, searchEnd) {
+        const markerBytes = new TextEncoder().encode(markerStr);
+        const mLen = markerBytes.length;
+        for (let i = searchStart; i <= searchEnd - mLen; i++) {
+            let found = true;
+            for (let j = 0; j < mLen; j++) {
+                if (data[i + j] !== markerBytes[j]) { found = false; break; }
+            }
+            if (found) return i;
+        }
+        return -1;
+    }
+
+    function readSectionHdr(data, header) {
+        const sections = [];
+        let markerPos = -1;
+        if (header.sectionDataOffset > 0) {
+            const scanStart = Math.max(0, header.sectionDataOffset - 16);
+            const scanEnd = Math.min(data.length, scanStart + 4096);
+            markerPos = findMarker(data, 'SECTIONHDR', scanStart, scanEnd);
+        }
+        if (markerPos === -1) markerPos = findMarker(data, 'SECTIONHDR', 0, data.length);
+        if (markerPos === -1) return sections;
+        const dataStart = markerPos + 13;
+        const view = new DataView(data.buffer, data.byteOffset);
+        const count = header.sectionCount > 0 ? header.sectionCount : 1000;
+        for (let i = 0; i < count; i++) {
+            const offset = dataStart + i * 12;
+            if (offset + 12 > data.length) break;
+            const sectionId = view.getUint32(offset, true);
+            const startPage = view.getUint32(offset + 4, true);
+            const pageCount = view.getUint32(offset + 8, true);
+            if (startPage >= 1 && pageCount >= 1) sections.push({ sectionId, startPage, pageCount });
+            else if (sectionId === 0 && startPage === 0 && pageCount === 0) break;
+        }
+        return sections;
+    }
+
+    function readPageTable(data, pageCount) {
+        const entries = [];
+        let markerPos = findMarker(data, 'PAGETBLHDR', Math.max(0, data.length - 4096), data.length);
+        if (markerPos === -1) markerPos = findMarker(data, 'PAGETBLHDR', 0, data.length);
+        if (markerPos === -1) return entries;
+        const entryStart = markerPos + 13;
+        const entrySize = 24;
+        const view = new DataView(data.buffer, data.byteOffset);
+        for (let i = 0; i < pageCount; i++) {
+            const offset = entryStart + i * entrySize;
+            if (offset + entrySize > data.length) break;
+            entries.push({
+                pageNumber: i + 1,
+                pageOffset: view.getUint32(offset, true),
+                absoluteOffset: view.getUint32(offset, true) + RPTINSTHDR_OFFSET,
+                lineWidth: view.getUint16(offset + 8, true),
+                linesPerPage: view.getUint16(offset + 10, true),
+                uncompressedSize: view.getUint32(offset + 12, true),
+                compressedSize: view.getUint32(offset + 16, true)
+            });
+        }
+        return entries;
+    }
+
+    function detectBinaryType(data, header) {
+        if (!header || header.binaryObjectCount === 0) return null;
+        try {
+            const markerPos = findMarker(data, 'BPAGETBLHDR', 0, data.length);
+            if (markerPos === -1) return null;
+            const entryStart = markerPos + 13;
+            if (entryStart + 16 > data.length) return null;
+            const view = new DataView(data.buffer, data.byteOffset);
+            const objOffset = view.getUint32(entryStart, true);
+            const uncompressedSize = view.getUint32(entryStart + 8, true);
+            const compressedSize = view.getUint32(entryStart + 12, true);
+            if (compressedSize === 0 || uncompressedSize === 0) return null;
+            const absOffset = objOffset + RPTINSTHDR_OFFSET;
+            if (absOffset + compressedSize > data.length) return null;
+            const compressed = data.slice(absOffset, absOffset + compressedSize);
+            const decompressed = pako.inflate(compressed);
+            // Check PDF magic: %PDF (0x25 0x50 0x44 0x46)
+            if (decompressed.length >= 4 &&
+                decompressed[0] === 0x25 && decompressed[1] === 0x50 &&
+                decompressed[2] === 0x44 && decompressed[3] === 0x46) {
+                return 'PDF';
+            }
+            // Check AFP: starts with 0x5A, followed by 2-byte big-endian length, then 0xD3 class byte
+            if (decompressed.length >= 4 &&
+                decompressed[0] === 0x5A && decompressed[3] === 0xD3) {
+                return 'AFP';
+            }
+            return 'Unknown';
+        } catch (e) {
+            return 'Unknown';
+        }
+    }
+
+    function decompressPage(data, entry) {
+        const absOffset = entry.absoluteOffset;
+        const compressed = data.slice(absOffset, absOffset + entry.compressedSize);
+        try {
+            return new TextDecoder('ascii').decode(pako.inflate(compressed));
+        } catch (e) {
+            try {
+                const compressed2 = data.slice(absOffset, absOffset + entry.compressedSize + 64);
+                return new TextDecoder('ascii').decode(pako.inflate(compressed2));
+            } catch (e2) { return null; }
+        }
+    }
+
+    // ============================================================================
+    // VIRTUAL SCROLLER (from report-viewer.html)
+    // ============================================================================
+    class VirtualScroller {
+        constructor(container, itemHeight) {
+            this.container = container;
+            this.itemHeight = itemHeight;
+            this.scrollTop = 0;
+            this.visibleStartIndex = 0;
+            this.visibleEndIndex = 0;
+            this.bufferSize = 50;
+            this.totalItems = 0;
+            this.renderCallback = null;
+            this.rafPending = false;
+            this.scrollListener = null;
+            this.resizeObserver = null;
+        }
+
+        init(totalItems, renderCallback) {
+            this.totalItems = totalItems;
+            this.renderCallback = renderCallback;
+            this.viewportHeight = this.container.clientHeight;
+            this.topSpacer = document.createElement('div');
+            this.bottomSpacer = document.createElement('div');
+            this.content = document.createElement('div');
+            this.container.innerHTML = '';
+            this.container.appendChild(this.topSpacer);
+            this.container.appendChild(this.content);
+            this.container.appendChild(this.bottomSpacer);
+            this.updateVisibleRange();
+            this.render();
+            this.scrollListener = () => this.onScroll();
+            this.container.addEventListener('scroll', this.scrollListener, { passive: true });
+            this.resizeObserver = new ResizeObserver(() => this.onResize());
+            this.resizeObserver.observe(this.container);
+        }
+
+        onScroll() {
+            if (this.rafPending) return;
+            this.rafPending = true;
+            requestAnimationFrame(() => {
+                this.scrollTop = this.container.scrollTop;
+                const newStart = Math.floor(this.scrollTop / this.itemHeight);
+                if (Math.abs(newStart - this.visibleStartIndex) > 10) {
+                    this.updateVisibleRange();
+                    this.render();
+                }
+                this.rafPending = false;
+            });
+        }
+
+        onResize() {
+            this.viewportHeight = this.container.clientHeight;
+            this.updateVisibleRange();
+            this.render();
+        }
+
+        updateVisibleRange() {
+            this.visibleStartIndex = Math.max(0,
+                Math.floor(this.scrollTop / this.itemHeight) - this.bufferSize);
+            this.visibleEndIndex = Math.min(this.totalItems,
+                Math.ceil((this.scrollTop + this.viewportHeight) / this.itemHeight) + this.bufferSize);
+        }
+
+        render() {
+            this.topSpacer.style.height = (this.visibleStartIndex * this.itemHeight) + 'px';
+            this.bottomSpacer.style.height =
+                ((this.totalItems - this.visibleEndIndex) * this.itemHeight) + 'px';
+            if (this.renderCallback) this.renderCallback(this.visibleStartIndex, this.visibleEndIndex, this.content);
+        }
+
+        scrollToIndex(index) { this.container.scrollTop = index * this.itemHeight; }
+
+        destroy() {
+            if (this.resizeObserver) { this.resizeObserver.disconnect(); this.resizeObserver = null; }
+            if (this.scrollListener) {
+                this.container.removeEventListener('scroll', this.scrollListener);
+                this.scrollListener = null;
+            }
+        }
+    }
+
+    let viewerScroller = null;
+
+    // ============================================================================
+    // UI: FOLDER SETUP
+    // ============================================================================
+    function updateFolderIndicators() {
+        const update = (id, handle) => {
+            const el = document.getElementById(id);
+            if (handle) el.classList.add('set'); else el.classList.remove('set');
+        };
+        update('indCsv', AppState.csvDirHandle);
+        update('indRpt', AppState.rptDirHandle);
+        update('indMap', AppState.mapDirHandle);
+    }
+
+    function showFolderOverlay() {
+        document.getElementById('folderOverlay').classList.remove('hidden');
+        updatePickerButtons();
+    }
+
+    function hideFolderOverlay() {
+        document.getElementById('folderOverlay').classList.add('hidden');
+    }
+
+    function updatePickerButtons() {
+        const updateBtn = (id, handle) => {
+            const btn = document.getElementById(id);
+            if (handle) { btn.textContent = handle.name; btn.classList.add('set'); }
+            else { btn.textContent = 'Click to select folder...'; btn.classList.remove('set'); }
+        };
+        updateBtn('pickCsv', AppState.csvDirHandle);
+        updateBtn('pickRpt', AppState.rptDirHandle);
+        updateBtn('pickMap', AppState.mapDirHandle);
+    }
+
+    // ============================================================================
+    // KEYBOARD NAVIGATION HELPERS
+    // ============================================================================
+    function setActivePanel(panel) {
+        AppState.activePanel = panel;
+        const speciesContainer = document.getElementById('speciesListContainer');
+        const instanceContainer = document.getElementById('instanceListContainer');
+        speciesContainer.classList.toggle('kb-active', panel === 'species');
+        instanceContainer.classList.toggle('kb-active', panel === 'instances');
+    }
+
+    function scrollRowIntoView(container, idx, rowHeight) {
+        const rowTop = idx * rowHeight;
+        const rowBottom = rowTop + rowHeight;
+        if (rowTop < container.scrollTop) {
+            container.scrollTop = rowTop;
+        } else if (rowBottom > container.scrollTop + container.clientHeight) {
+            container.scrollTop = rowBottom - container.clientHeight;
+        }
+    }
+
+    // ============================================================================
+    // UI: SPECIES TABLE (with virtual scrolling for 30K+ rows)
+    // ============================================================================
+    function renderSpeciesTable() {
+        const tbody = document.getElementById('speciesBody');
+        const empty = document.getElementById('speciesEmpty');
+        const list = AppState.speciesFiltered;
+
+        if (list.length === 0) { tbody.innerHTML = ''; empty.classList.remove('hidden'); return; }
+        empty.classList.add('hidden');
+
+        const container = document.getElementById('speciesListContainer');
+        const rowHeight = 26;
+        const scrollTop = container.scrollTop;
+        const viewportHeight = container.clientHeight;
+        const startIdx = Math.max(0, Math.floor(scrollTop / rowHeight) - 20);
+        const endIdx = Math.min(list.length, Math.ceil((scrollTop + viewportHeight) / rowHeight) + 20);
+
+        let html = '';
+        if (startIdx > 0) html += `<tr style="height:${startIdx * rowHeight}px"><td colspan="4"></td></tr>`;
+
+        for (let i = startIdx; i < endIdx; i++) {
+            const s = list[i];
+            const selected = AppState.selectedSpecies === s ? ' selected' : '';
+            const rptBadge = s.RPT_FILES_FOUND > 0
+                ? `<span class="badge badge-count">${s.RPT_FILES_FOUND}</span>`
+                : '<span class="badge badge-no">0</span>';
+            const mapBadge = s.MAP_FILES_FOUND > 0
+                ? `<span class="badge badge-count">${s.MAP_FILES_FOUND}</span>`
+                : '<span class="badge badge-no">0</span>';
+            html += `<tr class="${selected}" data-idx="${i}"><td title="${s.REPORT_SPECIES_NAME}">${s.REPORT_SPECIES_NAME}</td><td class="text-right">${s.INSTANCE_COUNT}</td><td class="text-right">${rptBadge}</td><td class="text-right">${mapBadge}</td></tr>`;
+        }
+
+        if (endIdx < list.length) html += `<tr style="height:${(list.length - endIdx) * rowHeight}px"><td colspan="4"></td></tr>`;
+        tbody.innerHTML = html;
+    }
+
+    function filterAndSortSpecies() {
+        const filterText = document.getElementById('speciesFilter').value.toUpperCase().trim();
+        let list = AppState.speciesList;
+        if (filterText) list = list.filter(s => s.REPORT_SPECIES_NAME.toUpperCase().includes(filterText));
+        if (AppState.filterRpt) list = list.filter(s => s.RPT_FILES_FOUND > 0);
+        if (AppState.filterMap) list = list.filter(s => s.MAP_FILES_FOUND > 0);
+
+        const col = AppState.speciesSortCol;
+        const asc = AppState.speciesSortAsc;
+        list = [...list].sort((a, b) => {
+            let va = a[col], vb = b[col];
+            if (typeof va === 'number') return asc ? va - vb : vb - va;
+            va = String(va).toUpperCase(); vb = String(vb).toUpperCase();
+            return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+        });
+
+        AppState.speciesFiltered = list;
+        renderSpeciesTable();
+        document.getElementById('statusSpeciesCount').textContent =
+            `${list.length} species` + (filterText || AppState.filterRpt || AppState.filterMap
+                ? ` (filtered from ${AppState.speciesList.length})` : '');
+    }
+
+    async function selectSpecies(species) {
+        AppState.selectedSpecies = species;
+        AppState.selectedInstance = null;
+        AppState.instanceList = [];
+        AppState.instanceFiltered = [];
+        AppState.mapParser = null;
+        AppState.rptData = null;
+        AppState.decompressedPages = {};
+        clearSearchSection();
+        clearViewerPanel();
+        document.getElementById('panel2Splitter').classList.add('hidden');
+        document.getElementById('panel2Bottom').classList.add('hidden');
+        // Reset instance list to full height
+        document.getElementById('instanceListContainer').style.flex = '1';
+        document.getElementById('panel2Title').textContent = `Instances: ${species.REPORT_SPECIES_NAME}`;
+        renderSpeciesTable();
+
+        if (!AppState.csvDirHandle) { setStatus('No CSV folder configured'); return; }
+
+        const csvFilename = `${species.REPORT_SPECIES_NAME}_2025_2025.csv`;
+        setStatus(`Loading ${csvFilename}...`);
+
+        try {
+            const text = await readTextFile(AppState.csvDirHandle, csvFilename);
+            const rows = parseCSV(text);
+            rows.forEach(r => {
+                r.SEGMENTS = parseInt(r.SEGMENTS) || 0;
+                r._rptExists = r.RPT_FILE_EXISTS === 'Y';
+                r._mapExists = r.MAP_FILE_EXISTS === 'Y';
+                r._indexFields = parseIndexFields(r.INDEXED_FIELDS);
+            });
+            AppState.instanceList = rows;
+            filterAndSortInstances();
+            setStatus(`Loaded ${rows.length} instances for ${species.REPORT_SPECIES_NAME}`);
+        } catch (e) {
+            AppState.instanceList = [];
+            filterAndSortInstances();
+            setStatus(`No instance CSV found: ${csvFilename}`);
+        }
+    }
+
+    // ============================================================================
+    // UI: INSTANCE TABLE
+    // ============================================================================
+    function renderInstanceTable() {
+        const tbody = document.getElementById('instanceBody');
+        const empty = document.getElementById('instanceEmpty');
+        const list = AppState.instanceFiltered;
+
+        if (!AppState.selectedSpecies || list.length === 0) {
+            tbody.innerHTML = '';
+            empty.classList.remove('hidden');
+            return;
+        }
+        empty.classList.add('hidden');
+
+        let html = '';
+        for (let i = 0; i < list.length; i++) {
+            const inst = list[i];
+            const selected = AppState.selectedInstance === inst ? ' selected' : '';
+            const rptBadge = inst._rptExists ? '<span class="badge badge-yes">Y</span>' : '<span class="badge badge-no">N</span>';
+            const mapBadge = inst._mapExists ? '<span class="badge badge-yes">Y</span>' : '<span class="badge badge-no">N</span>';
+            html += `<tr class="${selected}" data-idx="${i}"><td class="mono" title="${inst.FILENAME}">${inst.FILENAME}</td><td>${inst.REPORT_DATE || ''}</td><td class="text-center">${rptBadge}</td><td class="text-center">${mapBadge}</td></tr>`;
+        }
+        tbody.innerHTML = html;
+    }
+
+    function filterAndSortInstances() {
+        const filterText = document.getElementById('instanceFilter').value.toUpperCase().trim();
+        let list = AppState.instanceList;
+        if (filterText) list = list.filter(r => r.FILENAME.toUpperCase().includes(filterText) || (r.REPORT_DATE || '').includes(filterText));
+        if (AppState.filterInstRpt) list = list.filter(r => r._rptExists);
+        if (AppState.filterInstMap) list = list.filter(r => r._mapExists);
+
+        const col = AppState.instanceSortCol;
+        const asc = AppState.instanceSortAsc;
+        list = [...list].sort((a, b) => {
+            let va = a[col] || '', vb = b[col] || '';
+            if (typeof va === 'number') return asc ? va - vb : vb - va;
+            va = String(va).toUpperCase(); vb = String(vb).toUpperCase();
+            return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+        });
+
+        AppState.instanceFiltered = list;
+        renderInstanceTable();
+    }
+
+    function selectInstance(instance) {
+        AppState.selectedInstance = instance;
+        AppState.mapParser = null;
+        AppState.selectedField = null;
+        AppState.rptData = null;
+        AppState.rptHeader = null;
+        AppState.rptPageEntries = [];
+        AppState.rptSections = [];
+        AppState.decompressedPages = {};
+        AppState.viewerTotalPages = 0;
+        clearSearchSection();
+        clearViewerPanel();
+        renderInstanceTable();
+
+        // Show splitter and tabbed bottom panel, switch to Details tab
+        document.getElementById('panel2Splitter').classList.remove('hidden');
+        const bottomPanel = document.getElementById('panel2Bottom');
+        bottomPanel.classList.remove('hidden');
+        // Reset to equal height (50/50) - clear any previous manual drag sizes
+        const listContainer = document.getElementById('instanceListContainer');
+        listContainer.style.flex = '1';
+        listContainer.style.height = '';
+        bottomPanel.style.flex = '1';
+        bottomPanel.style.height = '';
+        switchTab('tabDetails');
+
+        document.getElementById('detailFilename').textContent = `${instance.FILENAME} (${instance.RPT_FILENAME || ''})`;
+        document.getElementById('detailRpt').innerHTML = instance._rptExists ? '<span class="badge badge-yes">Yes</span>' : '<span class="badge badge-no">No</span>';
+        document.getElementById('detailMap').innerHTML = instance._mapExists ? '<span class="badge badge-yes">Yes</span>' : '<span class="badge badge-no">No</span>';
+        document.getElementById('detailSections').textContent = instance.SEGMENTS || '-';
+        document.getElementById('detailDate').textContent = instance.REPORT_DATE || '-';
+        document.getElementById('detailBinary').textContent = '-';
+
+        // Reset sections tab indicator
+        document.getElementById('tabBtnSections').classList.remove('has-content');
+        document.getElementById('tabBtnSearch').classList.remove('has-content');
+
+        const chipContainer = document.getElementById('fieldChips');
+        const fieldsSection = document.getElementById('fieldsSection');
+        chipContainer.innerHTML = '';
+        const fields = instance._indexFields;
+        if (fields.length > 0) {
+            fieldsSection.classList.remove('hidden');
+            fields.forEach(f => {
+                const chip = document.createElement('span');
+                chip.className = 'field-chip';
+                chip.innerHTML = `${f.name} <span class="chip-meta">L${f.lineId}/F${f.fieldId}</span>`;
+                chip.addEventListener('click', () => onFieldChipClick(f, chip));
+                chipContainer.appendChild(chip);
+            });
+        } else {
+            fieldsSection.classList.add('hidden');
+        }
+
+        loadRptSections(instance);
+    }
+
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+        const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+        if (btn) btn.classList.add('active');
+        const pane = document.getElementById(tabId);
+        if (pane) pane.classList.add('active');
+    }
+
+    // ============================================================================
+    // RPT SECTIONS
+    // ============================================================================
+    async function loadRptSections(instance) {
+        const chipDiv = document.getElementById('sectionChips');
+        chipDiv.innerHTML = '';
+        document.getElementById('pageTotalLabel').textContent = '/ 0';
+        document.getElementById('tabBtnSections').classList.remove('has-content');
+
+        if (!instance._rptExists || !AppState.rptDirHandle) return;
+
+        try {
+            setStatus(`Loading RPT: ${instance.RPT_FILENAME}...`);
+            const data = await readBinaryFile(AppState.rptDirHandle, instance.RPT_FILENAME);
+            const header = parseRptHeader(data);
+            if (!header) { setStatus('Invalid RPT file'); return; }
+
+            AppState.rptData = data;
+            AppState.rptHeader = header;
+
+            const binType = detectBinaryType(data, header);
+            const binEl = document.getElementById('detailBinary');
+            if (binType) {
+                binEl.innerHTML = `<span class="badge badge-yes">${binType}</span>`;
+            } else {
+                binEl.textContent = 'None';
+            }
+
+            AppState.rptPageEntries = readPageTable(data, header.pageCount);
+            AppState.rptSections = readSectionHdr(data, header);
+            AppState.decompressedPages = {};
+            AppState.viewerTotalPages = header.pageCount;
+            document.getElementById('pageTotalLabel').textContent = `/ ${header.pageCount}`;
+
+            if (AppState.rptSections.length > 0) {
+                document.getElementById('tabBtnSections').classList.add('has-content');
+                AppState.rptSections.forEach(sec => {
+                    const endPage = sec.startPage + sec.pageCount - 1;
+                    const chip = document.createElement('span');
+                    chip.className = 'section-chip';
+                    chip.textContent = `#${sec.sectionId} (p${sec.startPage}-${endPage})`;
+                    chip.title = `Click to extract section ${sec.sectionId}: pages ${sec.startPage}-${endPage}`;
+                    chip.addEventListener('click', () => {
+                        // Deselect all, select this one
+                        chipDiv.querySelectorAll('.section-chip').forEach(c => c.classList.remove('active'));
+                        chip.classList.add('active');
+                        // Extract all pages in this section
+                        const pages = [];
+                        for (let p = sec.startPage; p <= endPage; p++) pages.push(p);
+                        extractAndViewPages(pages);
+                    });
+                    chipDiv.appendChild(chip);
+                });
+            }
+
+            // Auto-extract page 1 into the viewer
+            if (header.pageCount > 0) {
+                await extractAndViewPages([1]);
+            }
+
+            setStatus(`RPT loaded: ${header.pageCount} pages, ${AppState.rptSections.length} sections`);
+        } catch (e) {
+            setStatus(`RPT file not found: ${instance.RPT_FILENAME}`);
+        }
+    }
+
+    // ============================================================================
+    // MAP FIELD SELECTION & SEARCH
+    // ============================================================================
+    async function onFieldChipClick(field, chipEl) {
+        document.querySelectorAll('.field-chip').forEach(c => c.classList.remove('active'));
+        chipEl.classList.add('active');
+        AppState.selectedField = field;
+        clearSearchSection();
+
+        // Switch to Index Search tab and show search controls
+        switchTab('tabSearch');
+        document.getElementById('searchFieldLabel').textContent = `Search: ${field.name} (L${field.lineId}/F${field.fieldId})`;
+        document.getElementById('searchRow').style.display = 'flex';
+        document.getElementById('tabBtnSearch').classList.add('has-content');
+
+        if (!AppState.mapParser && AppState.selectedInstance._mapExists) await loadMapFile();
+    }
+
+    async function loadMapFile() {
+        if (!AppState.mapDirHandle || !AppState.selectedInstance) return;
+        const mapFilename = AppState.selectedInstance.MAP_FILENAME;
+        if (!mapFilename) return;
+        setStatus(`Loading MAP: ${mapFilename}...`);
+        try {
+            const data = await readBinaryFile(AppState.mapDirHandle, mapFilename);
+            const parser = new MapFileParser();
+            parser.load(data, mapFilename);
+            AppState.mapParser = parser;
+            setStatus(`MAP loaded: ${parser.header.segmentCount} segments, ${(data.length / 1024).toFixed(0)} KB`);
+        } catch (e) {
+            setStatus(`MAP file not found: ${mapFilename}`);
+            AppState.mapParser = null;
+        }
+    }
+
+    function clearSearchSection() {
+        document.getElementById('searchResultsBody').innerHTML = '';
+        document.getElementById('searchStatus').textContent = '';
+        document.getElementById('mapSearchInput').value = '';
+        document.getElementById('searchRow').style.display = 'none';
+        document.getElementById('searchFieldLabel').textContent = 'Select an index field from Details tab';
+        AppState.searchResults = [];
+    }
+
+    async function doMapSearch() {
+        if (!AppState.mapParser || !AppState.selectedField) return;
+        const searchValue = document.getElementById('mapSearchInput').value.trim();
+        if (!searchValue) return;
+        const seg = AppState.mapParser.findSegmentForField(AppState.selectedField.lineId, AppState.selectedField.fieldId);
+        if (!seg) {
+            document.getElementById('searchStatus').textContent = `No segment for L${AppState.selectedField.lineId}/F${AppState.selectedField.fieldId}`;
+            return;
+        }
+        const t0 = performance.now();
+        const prefixMatch = document.getElementById('prefixToggle').checked;
+        const matches = AppState.mapParser.binarySearch(seg, searchValue, prefixMatch);
+        const results = AppState.mapParser.resolvePages(matches);
+        const elapsed = (performance.now() - t0).toFixed(1);
+        AppState.searchResults = results;
+        renderSearchResults(results);
+        document.getElementById('searchStatus').textContent =
+            `${results.length} match(es) in ${elapsed}ms` +
+            (prefixMatch ? ' (prefix)' : ' (exact)') +
+            ` | Width: ${seg.fieldWidth}, Entries: ${seg.entryCount}`;
+    }
+
+    async function doListValues() {
+        if (!AppState.mapParser || !AppState.selectedField) return;
+        const seg = AppState.mapParser.findSegmentForField(AppState.selectedField.lineId, AppState.selectedField.fieldId);
+        if (!seg) { document.getElementById('searchStatus').textContent = 'No segment found'; return; }
+
+        const t0 = performance.now();
+        const allEntries = AppState.mapParser.listAllValues(seg);
+        const results = AppState.mapParser.resolvePages(allEntries);
+        const elapsed = (performance.now() - t0).toFixed(1);
+
+        const valueMap = new Map();
+        for (const r of results) {
+            const existing = valueMap.get(r.value);
+            if (existing) { existing.count++; existing.pages.push(r.page); }
+            else valueMap.set(r.value, { value: r.value, count: 1, pages: [r.page], page: r.page, format: r.format });
+        }
+        const uniqueResults = [...valueMap.values()];
+        AppState.searchResults = results;
+        renderValueList(uniqueResults);
+        document.getElementById('searchStatus').textContent =
+            `${allEntries.length} entries, ${uniqueResults.length} unique values in ${elapsed}ms`;
+    }
+
+    function renderSearchResults(results) {
+        const tbody = document.getElementById('searchResultsBody');
+        if (results.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="2" class="text-center" style="color:var(--text-muted); padding:10px;">No matches</td></tr>';
+            return;
+        }
+        let html = '';
+        for (const r of results) {
+            const pageLink = r.page > 0
+                ? `<a href="#" class="page-link" data-page="${r.page}" style="color:var(--accent-secondary); text-decoration:underline;">${r.page}</a>`
+                : '<span style="color:var(--text-muted);">-</span>';
+            html += `<tr><td class="mono">${escapeHtml(r.value)}</td><td class="text-right">${pageLink}</td></tr>`;
+        }
+        tbody.innerHTML = html;
+    }
+
+    function renderValueList(uniqueResults) {
+        const tbody = document.getElementById('searchResultsBody');
+        if (uniqueResults.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="2" class="text-center" style="color:var(--text-muted);">No values</td></tr>';
+            return;
+        }
+        let html = '';
+        for (const r of uniqueResults) {
+            const pageLinks = r.pages.filter(p => p > 0).map(p =>
+                `<a href="#" class="page-link" data-page="${p}" style="color:var(--accent-secondary); text-decoration:underline; margin:0 1px;">${p}</a>`
+            ).join(', ');
+            html += `<tr><td class="mono">${escapeHtml(r.value)} ${r.count > 1 ? '<span class="badge badge-count">x' + r.count + '</span>' : ''}</td><td class="text-right" style="white-space:normal; max-width:120px;">${pageLinks || '-'}</td></tr>`;
+        }
+        tbody.innerHTML = html;
+    }
+
+    // ============================================================================
+    // VIEWER PANEL
+    // ============================================================================
+    function clearViewerPanel() {
+        AppState.viewerPages = [];
+        AppState.viewerAllLines = [];
+        AppState.viewerSearchMatches = [];
+        AppState.viewerSearchCurrentIdx = -1;
+        if (viewerScroller) { viewerScroller.destroy(); viewerScroller = null; }
+        const display = document.getElementById('viewerDisplay');
+        display.innerHTML = `<div class="empty-state" id="viewerEmpty"><div class="empty-state-icon">&#128209;</div>No report loaded<span class="empty-state-hint">Click page numbers in search results to view pages</span></div><div class="loading-overlay hidden" id="viewerLoading"><span class="spinner"></span> Decompressing pages...</div>`;
+        document.getElementById('viewerSearchInput').value = '';
+        document.getElementById('viewerSearchStatus').textContent = '';
+        document.getElementById('pageInput').value = '1';
+    }
+
+    async function extractAndViewPages(pageNumbers) {
+        if (!AppState.rptData || AppState.rptPageEntries.length === 0) { setStatus('No RPT file loaded'); return; }
+        const loading = document.getElementById('viewerLoading');
+        if (loading) loading.classList.remove('hidden');
+        await new Promise(r => setTimeout(r, 10));
+
+        const pages = [];
+        const uniquePages = [...new Set(pageNumbers)].sort((a, b) => a - b);
+        for (const pageNum of uniquePages) {
+            const entry = AppState.rptPageEntries[pageNum - 1];
+            if (!entry) continue;
+            if (AppState.decompressedPages[pageNum]) {
+                pages.push({ pageNumber: pageNum, text: AppState.decompressedPages[pageNum] });
+                continue;
+            }
+            const text = decompressPage(AppState.rptData, entry);
+            if (text !== null) {
+                AppState.decompressedPages[pageNum] = text;
+                pages.push({ pageNumber: pageNum, text });
+            } else {
+                pages.push({ pageNumber: pageNum, text: `[ERROR: Failed to decompress page ${pageNum}]` });
+            }
+        }
+
+        if (loading) loading.classList.add('hidden');
+        displayPages(pages);
+        setStatus(`Viewing ${pages.length} page(s): ${uniquePages.join(', ')}`);
+    }
+
+    async function extractAllPages() {
+        if (!AppState.rptData || AppState.rptPageEntries.length === 0) { setStatus('No RPT file loaded'); return; }
+        const allPages = AppState.rptPageEntries.map(e => e.pageNumber);
+        setStatus(`Extracting all ${allPages.length} pages...`);
+        await extractAndViewPages(allPages);
+    }
+
+    function displayPages(pages) {
+        AppState.viewerPages = pages;
+        const allLines = [];
+        for (const page of pages) {
+            allLines.push({ type: 'separator', pageNumber: page.pageNumber, text: `--- Page ${page.pageNumber} ---` });
+            const textLines = page.text.split(/\r?\n/);
+            for (let i = 0; i < textLines.length; i++) {
+                allLines.push({ type: 'line', pageNumber: page.pageNumber, lineNumber: i + 1, text: textLines[i] });
+            }
+        }
+        AppState.viewerAllLines = allLines;
+        AppState.currentViewerPage = pages.length > 0 ? pages[0].pageNumber : 1;
+        document.getElementById('pageInput').value = AppState.currentViewerPage;
+        document.getElementById('pageTotalLabel').textContent = `/ ${AppState.viewerTotalPages}`;
+
+        const empty = document.getElementById('viewerEmpty');
+        if (empty) empty.classList.add('hidden');
+
+        const display = document.getElementById('viewerDisplay');
+        if (viewerScroller) viewerScroller.destroy();
+
+        // Remove loading overlay if present
+        const loading = display.querySelector('.loading-overlay');
+        display.innerHTML = '';
+        if (loading) display.appendChild(loading);
+
+        if (allLines.length > 500) {
+            viewerScroller = new VirtualScroller(display, 16);
+            viewerScroller.init(allLines.length, renderViewerLines);
+        } else {
+            viewerScroller = null;
+            const fragment = document.createDocumentFragment();
+            for (const line of allLines) fragment.appendChild(createLineElement(line));
+            display.appendChild(fragment);
+        }
+    }
+
+    function renderViewerLines(startIdx, endIdx, container) {
+        const fragment = document.createDocumentFragment();
+        const searchStr = document.getElementById('viewerSearchInput').value;
+        const searchUpper = searchStr ? searchStr.toUpperCase() : '';
+        for (let i = startIdx; i < endIdx; i++) {
+            const lineData = AppState.viewerAllLines[i];
+            const el = document.createElement('div');
+            if (lineData.type === 'separator') {
+                el.className = 'page-separator';
+                el.textContent = lineData.text;
+            } else {
+                el.className = 'report-line';
+                if (searchUpper && lineData.text.toUpperCase().includes(searchUpper)) {
+                    const text = lineData.text;
+                    const idx = text.toUpperCase().indexOf(searchUpper);
+                    if (idx > 0) el.appendChild(document.createTextNode(text.substring(0, idx)));
+                    const mark = document.createElement('span');
+                    mark.className = 'search-highlight';
+                    if (AppState.viewerSearchMatches[AppState.viewerSearchCurrentIdx] === i) {
+                        mark.classList.add('search-highlight-current');
+                    }
+                    mark.textContent = text.substring(idx, idx + searchStr.length);
+                    el.appendChild(mark);
+                    if (idx + searchStr.length < text.length)
+                        el.appendChild(document.createTextNode(text.substring(idx + searchStr.length)));
+                } else {
+                    el.textContent = lineData.text;
+                }
+            }
+            fragment.appendChild(el);
+        }
+        container.innerHTML = '';
+        container.appendChild(fragment);
+    }
+
+    function createLineElement(lineData) {
+        const el = document.createElement('div');
+        if (lineData.type === 'separator') {
+            el.className = 'page-separator';
+            el.textContent = lineData.text;
+        } else {
+            el.className = 'report-line';
+            el.textContent = lineData.text;
+        }
+        return el;
+    }
+
+    // ============================================================================
+    // VIEWER TEXT SEARCH
+    // ============================================================================
+    function searchViewerText(searchStr) {
+        AppState.viewerSearchMatches = [];
+        AppState.viewerSearchCurrentIdx = -1;
+        if (!searchStr || AppState.viewerAllLines.length === 0) {
+            document.getElementById('viewerSearchStatus').textContent = '';
+            refreshViewerDisplay();
+            return;
+        }
+        const upper = searchStr.toUpperCase();
+        AppState.viewerAllLines.forEach((line, idx) => {
+            if (line.type === 'line' && line.text.toUpperCase().includes(upper))
+                AppState.viewerSearchMatches.push(idx);
+        });
+        AppState.viewerSearchCurrentIdx = AppState.viewerSearchMatches.length > 0 ? 0 : -1;
+        document.getElementById('viewerSearchStatus').textContent =
+            AppState.viewerSearchMatches.length > 0 ? `1/${AppState.viewerSearchMatches.length}` : 'No matches';
+        if (AppState.viewerSearchMatches.length > 0) scrollToSearchMatch(0);
+        refreshViewerDisplay();
+    }
+
+    function navigateSearchMatch(delta) {
+        if (AppState.viewerSearchMatches.length === 0) return;
+        AppState.viewerSearchCurrentIdx =
+            (AppState.viewerSearchCurrentIdx + delta + AppState.viewerSearchMatches.length) % AppState.viewerSearchMatches.length;
+        document.getElementById('viewerSearchStatus').textContent =
+            `${AppState.viewerSearchCurrentIdx + 1}/${AppState.viewerSearchMatches.length}`;
+        scrollToSearchMatch(AppState.viewerSearchCurrentIdx);
+        refreshViewerDisplay();
+    }
+
+    function scrollToSearchMatch(matchIdx) {
+        const lineIdx = AppState.viewerSearchMatches[matchIdx];
+        if (viewerScroller) viewerScroller.scrollToIndex(lineIdx);
+        else document.getElementById('viewerDisplay').scrollTop = lineIdx * 16;
+    }
+
+    function refreshViewerDisplay() {
+        if (viewerScroller) {
+            viewerScroller.updateVisibleRange();
+            viewerScroller.render();
+        } else if (AppState.viewerAllLines.length > 0 && AppState.viewerAllLines.length <= 500) {
+            // Re-render with highlights for small content
+            const display = document.getElementById('viewerDisplay');
+            const scrollPos = display.scrollTop;
+            display.innerHTML = '';
+            const searchStr = document.getElementById('viewerSearchInput').value;
+            const searchUpper = searchStr ? searchStr.toUpperCase() : '';
+            const fragment = document.createDocumentFragment();
+            AppState.viewerAllLines.forEach((lineData, i) => {
+                const el = document.createElement('div');
+                if (lineData.type === 'separator') {
+                    el.className = 'page-separator';
+                    el.textContent = lineData.text;
+                } else {
+                    el.className = 'report-line';
+                    if (searchUpper && lineData.text.toUpperCase().includes(searchUpper)) {
+                        const text = lineData.text;
+                        const idx = text.toUpperCase().indexOf(searchUpper);
+                        if (idx > 0) el.appendChild(document.createTextNode(text.substring(0, idx)));
+                        const mark = document.createElement('span');
+                        mark.className = 'search-highlight';
+                        if (AppState.viewerSearchMatches[AppState.viewerSearchCurrentIdx] === i)
+                            mark.classList.add('search-highlight-current');
+                        mark.textContent = text.substring(idx, idx + searchStr.length);
+                        el.appendChild(mark);
+                        if (idx + searchStr.length < text.length)
+                            el.appendChild(document.createTextNode(text.substring(idx + searchStr.length)));
+                    } else {
+                        el.textContent = lineData.text;
+                    }
+                }
+                fragment.appendChild(el);
+            });
+            display.appendChild(fragment);
+            display.scrollTop = scrollPos;
+        }
+    }
+
+    // ============================================================================
+    // PAGE NAVIGATION
+    // ============================================================================
+    function goToPage(pageNum) {
+        if (!AppState.viewerAllLines.length) return;
+        const idx = AppState.viewerAllLines.findIndex(l => l.type === 'separator' && l.pageNumber === pageNum);
+        if (idx >= 0) {
+            if (viewerScroller) viewerScroller.scrollToIndex(idx);
+            else document.getElementById('viewerDisplay').scrollTop = idx * 16;
+            AppState.currentViewerPage = pageNum;
+            document.getElementById('pageInput').value = pageNum;
+        }
+    }
+
+    // ============================================================================
+    // UTILITY
+    // ============================================================================
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    function setStatus(msg) { document.getElementById('statusMessage').textContent = msg; }
+
+    function checkBrowserCompatibility() {
+        if (!window.showDirectoryPicker) {
+            setStatus('WARNING: File System Access API not supported. Use Chrome or Edge.');
+            document.getElementById('statusMessage').style.color = 'var(--error)';
+            return false;
+        }
+        return true;
+    }
+
+    async function copyViewerToClipboard() {
+        if (AppState.viewerAllLines.length === 0) return;
+        const text = AppState.viewerAllLines.filter(l => l.type === 'line').map(l => l.text).join('\n');
+        try { await navigator.clipboard.writeText(text); setStatus('Copied to clipboard'); }
+        catch (e) { setStatus('Copy failed - check browser permissions'); }
+    }
+
+    function updateSortArrows(tableId, sortCol, sortAsc) {
+        document.getElementById(tableId).querySelectorAll('th').forEach(th => {
+            const arrow = th.querySelector('.sort-arrow');
+            if (!arrow) return;
+            arrow.textContent = th.dataset.col === sortCol ? (sortAsc ? ' \u25B2' : ' \u25BC') : '';
+        });
+    }
+
+    // ============================================================================
+    // PANEL RESIZERS
+    // ============================================================================
+    function setupResizers() {
+        // Vertical panel resizers (left-right)
+        document.querySelectorAll('.panel-resizer').forEach(resizer => {
+            resizer.addEventListener('mousedown', e => {
+                e.preventDefault();
+                const leftPanel = document.getElementById(resizer.dataset.left);
+                const rightPanel = document.getElementById(resizer.dataset.right);
+                const startX = e.clientX;
+                const leftW = leftPanel.getBoundingClientRect().width;
+                const rightW = rightPanel.getBoundingClientRect().width;
+                resizer.classList.add('dragging');
+
+                const onMove = e => {
+                    const dx = e.clientX - startX;
+                    leftPanel.style.width = Math.max(150, leftW + dx) + 'px';
+                    rightPanel.style.width = Math.max(150, rightW - dx) + 'px';
+                    leftPanel.style.flex = 'none';
+                    rightPanel.style.flex = 'none';
+                };
+                const onUp = () => {
+                    resizer.classList.remove('dragging');
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                };
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            });
+        });
+
+        // Horizontal splitter in Panel 2 (instances list / bottom panel)
+        const hSplitter = document.getElementById('panel2Splitter');
+        hSplitter.addEventListener('mousedown', e => {
+            e.preventDefault();
+            const topPanel = document.getElementById('instanceListContainer');
+            const bottomPanel = document.getElementById('panel2Bottom');
+            const startY = e.clientY;
+            const topH = topPanel.getBoundingClientRect().height;
+            const bottomH = bottomPanel.getBoundingClientRect().height;
+            hSplitter.classList.add('dragging');
+
+            const onMove = e => {
+                const dy = e.clientY - startY;
+                const newTopH = Math.max(60, topH + dy);
+                const newBottomH = Math.max(80, bottomH - dy);
+                topPanel.style.flex = 'none';
+                topPanel.style.height = newTopH + 'px';
+                bottomPanel.style.flex = 'none';
+                bottomPanel.style.height = newBottomH + 'px';
+            };
+            const onUp = () => {
+                hSplitter.classList.remove('dragging');
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
+    }
+
+    // ============================================================================
+    // LOAD SPECIES SUMMARY
+    // ============================================================================
+    async function loadSpeciesSummary() {
+        if (!AppState.csvDirHandle) return;
+        setStatus('Loading species_summary...');
+        const t0 = performance.now();
+        try {
+            const text = await readTextFile(AppState.csvDirHandle, 'species_summary_2025_2025.csv');
+            const rows = parseCSV(text);
+            rows.forEach(r => {
+                r.INSTANCE_COUNT = parseInt(r.INSTANCE_COUNT) || 0;
+                r.RPT_FILES_FOUND = parseInt(r.RPT_FILES_FOUND) || 0;
+                r.MAX_SECTIONS = parseInt(r.MAX_SECTIONS) || 0;
+                r.MAP_FILES_FOUND = parseInt(r.MAP_FILES_FOUND) || 0;
+                r._indexFields = parseIndexFields(r.INDEX_FIELD_NAMES);
+            });
+            AppState.speciesList = rows;
+            const elapsed = (performance.now() - t0).toFixed(0);
+            filterAndSortSpecies();
+            setStatus(`Loaded species_summary (${rows.length} species)`);
+            document.getElementById('statusTiming').textContent = `${elapsed}ms`;
+        } catch (e) {
+            setStatus(`Error loading species_summary: ${e.message}`);
+        }
+    }
+
+    // ============================================================================
+    // EVENT WIRING
+    // ============================================================================
+    document.addEventListener('DOMContentLoaded', async () => {
+        checkBrowserCompatibility();
+        setupResizers();
+        await restoreHandles();
+        if (AppState.csvDirHandle) await loadSpeciesSummary();
+        else showFolderOverlay();
+
+        // Header
+        document.getElementById('btnFolders').addEventListener('click', showFolderOverlay);
+        document.getElementById('btnTheme').addEventListener('click', () => document.body.classList.toggle('light-mode'));
+
+        // Tab bar
+        document.querySelector('.tab-bar').addEventListener('click', e => {
+            const btn = e.target.closest('.tab-btn');
+            if (!btn || !btn.dataset.tab) return;
+            switchTab(btn.dataset.tab);
+        });
+
+        // Folder overlay
+        document.getElementById('pickCsv').addEventListener('click', async () => {
+            const h = await pickFolder('csv'); if (h) setHandle('csv', h); updatePickerButtons();
+        });
+        document.getElementById('pickRpt').addEventListener('click', async () => {
+            const h = await pickFolder('rpt'); if (h) setHandle('rpt', h); updatePickerButtons();
+        });
+        document.getElementById('pickMap').addEventListener('click', async () => {
+            const h = await pickFolder('map'); if (h) setHandle('map', h); updatePickerButtons();
+        });
+        document.getElementById('btnOverlayCancel').addEventListener('click', hideFolderOverlay);
+        document.getElementById('btnOverlayDone').addEventListener('click', async () => {
+            hideFolderOverlay();
+            if (AppState.csvDirHandle && AppState.speciesList.length === 0) await loadSpeciesSummary();
+        });
+
+        // Species panel
+        document.getElementById('speciesFilter').addEventListener('input', filterAndSortSpecies);
+        document.getElementById('btnFilterRpt').addEventListener('click', function() {
+            AppState.filterRpt = !AppState.filterRpt; this.classList.toggle('active', AppState.filterRpt); filterAndSortSpecies();
+        });
+        document.getElementById('btnFilterMap').addEventListener('click', function() {
+            AppState.filterMap = !AppState.filterMap; this.classList.toggle('active', AppState.filterMap); filterAndSortSpecies();
+        });
+        document.getElementById('speciesBody').addEventListener('click', e => {
+            const tr = e.target.closest('tr');
+            if (!tr || tr.dataset.idx === undefined) return;
+            const species = AppState.speciesFiltered[parseInt(tr.dataset.idx)];
+            if (species) { setActivePanel('species'); selectSpecies(species); }
+        });
+        document.getElementById('speciesTable').querySelector('thead').addEventListener('click', e => {
+            const th = e.target.closest('th');
+            if (!th || !th.dataset.col) return;
+            if (AppState.speciesSortCol === th.dataset.col) AppState.speciesSortAsc = !AppState.speciesSortAsc;
+            else { AppState.speciesSortCol = th.dataset.col; AppState.speciesSortAsc = th.dataset.col === 'REPORT_SPECIES_NAME'; }
+            updateSortArrows('speciesTable', AppState.speciesSortCol, AppState.speciesSortAsc);
+            filterAndSortSpecies();
+        });
+        document.getElementById('speciesListContainer').addEventListener('scroll', renderSpeciesTable);
+
+        // Instance panel
+        document.getElementById('instanceFilter').addEventListener('input', filterAndSortInstances);
+        document.getElementById('btnFilterInstRpt').addEventListener('click', function() {
+            AppState.filterInstRpt = !AppState.filterInstRpt; this.classList.toggle('active', AppState.filterInstRpt); filterAndSortInstances();
+        });
+        document.getElementById('btnFilterInstMap').addEventListener('click', function() {
+            AppState.filterInstMap = !AppState.filterInstMap; this.classList.toggle('active', AppState.filterInstMap); filterAndSortInstances();
+        });
+        document.getElementById('instanceBody').addEventListener('click', e => {
+            const tr = e.target.closest('tr');
+            if (!tr || tr.dataset.idx === undefined) return;
+            const instance = AppState.instanceFiltered[parseInt(tr.dataset.idx)];
+            if (instance) { setActivePanel('instances'); selectInstance(instance); }
+        });
+        document.getElementById('instanceTable').querySelector('thead').addEventListener('click', e => {
+            const th = e.target.closest('th');
+            if (!th || !th.dataset.col) return;
+            if (AppState.instanceSortCol === th.dataset.col) AppState.instanceSortAsc = !AppState.instanceSortAsc;
+            else { AppState.instanceSortCol = th.dataset.col; AppState.instanceSortAsc = th.dataset.col === 'REPORT_DATE'; }
+            updateSortArrows('instanceTable', AppState.instanceSortCol, AppState.instanceSortAsc);
+            filterAndSortInstances();
+        });
+
+        // MAP Search
+        document.getElementById('btnMapSearch').addEventListener('click', doMapSearch);
+        document.getElementById('mapSearchInput').addEventListener('keydown', e => { if (e.key === 'Enter') doMapSearch(); });
+        document.getElementById('btnListValues').addEventListener('click', doListValues);
+        document.getElementById('searchResultsBody').addEventListener('click', e => {
+            const link = e.target.closest('.page-link');
+            if (!link) return;
+            e.preventDefault();
+            const page = parseInt(link.dataset.page);
+            if (page > 0) {
+                if (AppState.viewerPages.some(p => p.pageNumber === page)) goToPage(page);
+                else extractAndViewPages([page]);
+            }
+        });
+
+        // Viewer
+        document.getElementById('viewerSearchInput').addEventListener('input', e => searchViewerText(e.target.value));
+        document.getElementById('btnSearchPrev').addEventListener('click', () => navigateSearchMatch(-1));
+        document.getElementById('btnSearchNext').addEventListener('click', () => navigateSearchMatch(1));
+        document.getElementById('pageInput').addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                const page = parseInt(e.target.value);
+                if (page > 0) {
+                    if (AppState.viewerPages.some(p => p.pageNumber === page)) goToPage(page);
+                    else extractAndViewPages([page]);
+                }
+            }
+        });
+        document.getElementById('btnPagePrev').addEventListener('click', () => {
+            if (AppState.currentViewerPage > 1) {
+                const prev = AppState.currentViewerPage - 1;
+                if (AppState.viewerPages.some(p => p.pageNumber === prev)) goToPage(prev);
+                else extractAndViewPages([prev]);
+            }
+        });
+        document.getElementById('btnPageNext').addEventListener('click', () => {
+            if (AppState.currentViewerPage < AppState.viewerTotalPages) {
+                const next = AppState.currentViewerPage + 1;
+                if (AppState.viewerPages.some(p => p.pageNumber === next)) goToPage(next);
+                else extractAndViewPages([next]);
+            }
+        });
+        document.getElementById('btnExtractAll').addEventListener('click', extractAllPages);
+        document.getElementById('btnCopyText').addEventListener('click', copyViewerToClipboard);
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', e => {
+            if (e.ctrlKey && e.key === 'f') { e.preventDefault(); document.getElementById('viewerSearchInput').focus(); }
+            if (e.key === 'Escape') {
+                if (!document.getElementById('folderOverlay').classList.contains('hidden')) hideFolderOverlay();
+                else { document.getElementById('viewerSearchInput').value = ''; searchViewerText(''); }
+            }
+            if (e.key === 'F3') { e.preventDefault(); navigateSearchMatch(e.shiftKey ? -1 : 1); }
+
+            // Panel keyboard navigation — skip when typing in inputs
+            const tag = document.activeElement.tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                setActivePanel('species');
+            } else if (e.key === 'ArrowRight') {
+                if (AppState.selectedSpecies) { e.preventDefault(); setActivePanel('instances'); }
+            } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                e.preventDefault();
+                const dir = e.key === 'ArrowUp' ? -1 : 1;
+
+                if (AppState.activePanel === 'species') {
+                    const list = AppState.speciesFiltered;
+                    if (list.length === 0) return;
+                    let idx = AppState.selectedSpecies ? list.indexOf(AppState.selectedSpecies) : -1;
+                    idx = Math.max(0, Math.min(list.length - 1, idx + dir));
+                    const container = document.getElementById('speciesListContainer');
+                    scrollRowIntoView(container, idx, 26);
+                    renderSpeciesTable();
+                    selectSpecies(list[idx]);
+                } else {
+                    const list = AppState.instanceFiltered;
+                    if (list.length === 0) return;
+                    let idx = AppState.selectedInstance ? list.indexOf(AppState.selectedInstance) : -1;
+                    idx = Math.max(0, Math.min(list.length - 1, idx + dir));
+                    const container = document.getElementById('instanceListContainer');
+                    scrollRowIntoView(container, idx, 26);
+                    selectInstance(list[idx]);
+                }
+            }
+        });
+    });
+    </script>
+</body>
+</html>
